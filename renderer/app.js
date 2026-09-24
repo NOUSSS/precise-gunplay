@@ -169,6 +169,18 @@ function renderAccount() {
     : `<div><span class="dot off"></span><span class="who">Non connecté</span></div><div class="sub">${esc(s.message || '')}</div>`;
 }
 
+// Portrait du bandeau : l'agent principal de l'Agent auto, Jett par défaut.
+const DEFAULT_HEADER_AGENT = 'add6443a-41bd-e414-f6ad-e58d267f4e95';
+function renderHeaderArt() {
+  const agents = state.assets?.agents || [];
+  const a = agents.find((x) => x.uuid === state.settings?.autolock?.agentId && x.portrait)
+    || agents.find((x) => x.uuid === DEFAULT_HEADER_AGENT);
+  const el = $('#titlebar-art');
+  if (el.dataset.agent === a?.uuid) return;
+  el.dataset.agent = a?.uuid || '';
+  el.innerHTML = a?.portrait ? `<div class="titlebar-agent" style="background-image:url('${a.portrait}')"></div>` : '';
+}
+
 function navigate(page) {
   state.timers.forEach(clearInterval);
   state.timers = [];
@@ -224,7 +236,7 @@ function updateLabel(u) {
 function renderConnect() {
   content.innerHTML = `
     <div class="connect">
-      <div class="logo"></div>
+      <img class="logo" src="logo.svg" alt="">
       <h1><small>Lier ton compte</small>Precise Gunplay</h1>
       <p class="muted">L'application se lie automatiquement à ton compte via le Riot Client ouvert sur ce PC.<br>Aucun mot de passe n'est demandé ni stocké.</p>
       <div class="steps">
@@ -398,6 +410,7 @@ PAGES.agent = async () => {
   const save = async (patch) => {
     state.settings = await call('settings-set', { autolock: patch });
     renderNav();
+    renderHeaderArt();
     draw();
   };
 
@@ -1399,6 +1412,7 @@ PAGES.settings = async () => {
     content.innerHTML = errorBox(`Impossible de charger les données du jeu (connexion Internet ?) : ${e.message}`);
     return;
   }
+  renderHeaderArt();
   window.api.on('status', onStatus);
   window.api.on('update', onUpdate);
   onUpdate(await call('update-state'));

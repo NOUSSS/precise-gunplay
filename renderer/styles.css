@@ -33,19 +33,45 @@ button, input, select { font: inherit; color: inherit; }
 
 /* ---------- Barre de titre ---------- */
 .titlebar {
-  height: 36px;
-  background: var(--bg-deep);
+  height: 84px;
+  background:
+    linear-gradient(90deg, #ff465514 0%, transparent 28%),
+    linear-gradient(180deg, #121c27 0%, var(--bg-deep) 100%);
   display: flex;
   align-items: center;
-  padding: 0 16px;
+  padding: 0 150px 0 22px;
   -webkit-app-region: drag;
-  border-bottom: 1px solid #ffffff08;
+  position: relative;
+  overflow: hidden;
 }
-.brand { font-size: 13px; letter-spacing: .22em; color: var(--muted); display: flex; align-items: center; gap: 10px; }
-.brand b { color: var(--text); font-weight: 700; }
-.brand-mark { width: 14px; height: 14px; background: var(--red); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 60%, 0 100%); }
+/* Liseré inférieur : rouge sous la marque, qui s'estompe vers la droite */
+.titlebar::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
+  background: linear-gradient(90deg, var(--red) 0%, #ff465566 22%, #ffffff0d 45%, #ff465540 75%, transparent 100%);
+}
+/* Trait anguleux décoratif derrière le nom */
+.titlebar::before {
+  content: ''; position: absolute; left: 250px; bottom: 12px; width: 320px; height: 14px;
+  border-bottom: 1px solid #ff465540; border-left: 1px solid #ff465540; transform: skewX(-40deg); opacity: .8;
+}
+.titlebar-art {
+  position: absolute; top: 0; bottom: 0; right: 150px; width: 620px; pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 84' preserveAspectRatio='none'%3E%3Cpath fill='%23ff4655' fill-opacity='.7' d='M150 0h54L134 84H80z'/%3E%3Cpath fill='%23ff4655' fill-opacity='.4' d='M250 0h110L290 84H180z'/%3E%3Cpath fill='%23ff4655' fill-opacity='.35' d='M430 0h46l-70 84h-46z'/%3E%3Cpath fill='%23ff4655' fill-opacity='.18' d='M520 0h80v84H450z'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 35%, #000 80%, transparent 100%);
+}
+/* Recadré sur le visage : les portraits valorant-api sont centrés sur l'agent */
+.titlebar-agent {
+  position: absolute; top: 0; bottom: 0; right: 90px; width: 340px;
+  background: center -122px / auto 800px no-repeat;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 22%, #000 78%, transparent 100%);
+}
+.brand { display: flex; align-items: center; gap: 14px; position: relative; z-index: 1; }
+.brand-logo { width: 50px; height: 44px; filter: drop-shadow(0 0 10px #ff465566); }
+.brand-name { display: flex; flex-direction: column; line-height: 1; }
+.brand-name b { font-size: 25px; font-weight: 700; letter-spacing: .06em; color: #f4f1ec; }
+.brand-name span { margin-top: 5px; font-size: 10px; font-weight: 700; letter-spacing: .98em; color: var(--red); }
 
-.shell { display: flex; height: calc(100% - 36px); }
+.shell { display: flex; height: calc(100% - 84px); }
 
 /* ---------- Barre latérale ---------- */
 .sidebar {
@@ -140,7 +166,7 @@ input[type=range] { accent-color: var(--red); width: 220px; }
 
 /* ---------- Connexion ---------- */
 .connect { max-width: 620px; margin: 40px auto; text-align: center; }
-.connect .logo { width: 70px; height: 70px; background: var(--red); margin: 0 auto 24px; clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 60%, 0 100%); }
+.connect .logo { width: 92px; height: 80px; margin: 0 auto 24px; filter: drop-shadow(0 6px 24px #ff465555); }
 .connect h1 { font-size: 40px; }
 .steps { text-align: left; margin: 30px 0; display: grid; gap: 10px; }
 .step { display: flex; gap: 16px; align-items: center; background: var(--panel); border: 1px solid var(--line); padding: 14px 18px; border-radius: var(--radius); }
