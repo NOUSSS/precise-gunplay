@@ -284,6 +284,17 @@ class RiotClient {
   getPresences() {
     return this.local('GET', '/chat/v4/presences');
   }
+
+  // ---- Messagerie (API locale ; une conversation privée a pour cid le pid de l'ami) ----
+  getConversations() {
+    return this.local('GET', '/chat/v6/conversations');
+  }
+  getMessages(cid) {
+    return this.local('GET', `/chat/v6/messages?cid=${encodeURIComponent(cid)}`);
+  }
+  sendMessage(cid, message) {
+    return this.local('POST', '/chat/v6/messages', { cid, message, type: 'chat' });
+  }
 }
 
 module.exports = { RiotClient, RiotError, ENTITLEMENT_TYPES };

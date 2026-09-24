@@ -520,6 +520,7 @@ class Services {
       const loop = d?.sessionLoopState || match.sessionLoopState || null;
       return {
         puuid: f.puuid,
+        pid: f.pid,
         name: f.game_name || p?.game_name || '???',
         tag: f.game_tag || p?.game_tag || '',
         note: f.note || '',
@@ -546,6 +547,41 @@ class Services {
     const weight = (f) => (!f.online ? 3 : f.valorant?.loop === 'INGAME' || f.valorant?.loop === 'PREGAME' ? 0 : f.valorant ? 1 : 2);
     return list.sort((a, b) => weight(a) - weight(b) || a.name.localeCompare(b.name, 'fr'));
   }
+
+  // ---------- Messagerie ----------
+  /** Messages non lus par conversation privée : { pid: { count, last } } (last = id du dernier message). */
+  async chatUnread() {
+    const res = await this.client.getConversations();
+    const unread = {};
+    for (const c of res?.conversations || []) {
+      if (c.type === 'chat' && c.unread_count > 0 && !c.muted) unread[c.cid] = { count: c.unread_count, last: c.mid };
+    }
+    return unread;
+  }
+
+  async chatMessages(cid) {
+    if (!CID_RE.test(cid || '')) throw new Error('Conversation invalide.');
+    const res = await this.client.getMessages(cid);
+    return (res?.messages || [])
+      .filter((m) => m.cid === cid && m.type === 'chat' && !m.uicEvent)
+      .map((m) => ({ id: m.id, mine: m.puuid === this.client.puuid, body: m.body || '', time: Number(m.time) || 0, name: m.game_name || m.name || '' }))
+      .sort((a, b) => a.time - b.time);
+  }
+
+  async chatSend(cid, text) {
+    const message = String(text || '').trim();
+    if (!CID_RE.test(cid || '')) throw new Error('Conversation invalide.');
+    if (!message) throw new Error('Message vide.');
+    if (message.length > CHAT_MAX) throw new Error(`Message trop long (${CHAT_MAX} caractères maximum).`);
+    // On n'écrit qu'à ses amis.
+    const friends = await this.client.getFriends();
+    if (!(friends?.friends || []).some((f) => f.pid === cid)) throw new Error("Ce joueur n'est pas dans ta liste d'amis.");
+    await this.client.sendMessage(cid, message);
+    return true;
+  }
 }
+
+const CID_RE = /^[\w-]+@[\w.-]+$/;
+const CHAT_MAX = 500;
 
 module.exports = { Services };

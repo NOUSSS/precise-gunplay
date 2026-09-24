@@ -72,6 +72,8 @@ const state = {
   timers: [],
   renderId: 0,
   update: null,
+  unread: {}, // { pid: nombre de messages non lus }
+  onUnread: null,
 };
 
 const agentOf = (id) => (id && state.assets?.agents.find((a) => a.uuid.toLowerCase() === String(id).toLowerCase())) || null;
@@ -152,7 +154,7 @@ function renderNav() {
       ? '<div class="nav-sep"></div>'
       : `<button class="nav-item ${state.page === n[0] ? 'active' : ''}" data-page="${n[0]}">${icon(n[0])}${n[1]}${
           n[0] === 'agent' && autolockOn ? '<span class="nav-badge">ON</span>' : ''
-        }</button>`
+        }${n[0] === 'friends' && unreadTotal() ? `<span class="nav-badge">${unreadTotal()}</span>` : ''}</button>`
   ).join('');
 }
 
@@ -160,6 +162,32 @@ $('#nav').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-page]');
   if (btn) navigate(btn.dataset.page);
 });
+
+// ---- Messages non lus (le Riot Client ne sait pas qu'on les a lus dans l'app : on retient le dernier vu) ----
+const SEEN_KEY = 'pg-chat-seen';
+let chatSeen = {};
+try { chatSeen = JSON.parse(localStorage.getItem(SEEN_KEY) || '{}'); } catch { /* stockage indisponible */ }
+let rawUnread = {};
+function markChatSeen(pid, ids) {
+  const last = ids.slice(-20);
+  if (!last.length || JSON.stringify(chatSeen[pid]) === JSON.stringify(last)) return;
+  chatSeen[pid] = last;
+  try { localStorage.setItem(SEEN_KEY, JSON.stringify(chatSeen)); } catch { /* facultatif */ }
+  applyUnread();
+}
+function applyUnread() {
+  const next = {};
+  for (const [pid, u] of Object.entries(rawUnread)) if (!(chatSeen[pid] || []).includes(u.last)) next[pid] = u.count;
+  if (JSON.stringify(next) === JSON.stringify(state.unread)) return;
+  state.unread = next;
+  renderNav();
+  state.onUnread?.();
+}
+const unreadTotal = () => Object.values(state.unread).reduce((a, b) => a + b, 0);
+async function refreshUnread() {
+  if (!state.status.connected) return;
+  try { rawUnread = await call('chat-unread'); applyUnread(); } catch { /* chat indisponible */ }
+}
 
 function renderAccount() {
   const s = state.status;
@@ -182,6 +210,7 @@ function renderHeaderArt() {
 }
 
 function navigate(page) {
+  state.onUnread = null;
   state.timers.forEach(clearInterval);
   state.timers = [];
   state.page = page;
@@ -1282,10 +1311,12 @@ PAGES.friends = async () => {
   const alive = guard();
   let query = '';
   let list = [];
+  let openPid = null; // conversation ouverte
+  let lastSig = '';
 
   async function refresh() {
     try { list = await call('friends'); } catch (e) { if (alive()) content.innerHTML = errorBox(e.message); return; }
-    if (alive()) drawList();
+    if (alive()) { drawList(); drawChatHead(); }
   }
 
   function statusLine(f) {
@@ -1305,11 +1336,13 @@ PAGES.friends = async () => {
     $('#flist').innerHTML = shown.map((f) => {
       const v = f.valorant;
       const t = v?.tier ? tierOf(v.tier) : null;
+      const unread = state.unread[f.pid] || 0;
       const pill = v?.loop === 'INGAME' ? '<span class="pill ingame">En partie</span>' : v?.loop === 'PREGAME' ? '<span class="pill pregame">Sélection</span>' : '';
       return `
-        <div class="friend ${f.online ? '' : 'offline'}">
+        <div class="friend ${f.online ? '' : 'offline'} ${f.pid === openPid ? 'open' : ''}" data-pid="${esc(f.pid)}" title="Discuter avec ${esc(f.name)}">
           <span class="fdot ${f.online ? esc(f.status) : ''}"></span>
           <div class="fname"><div>${esc(f.name)}<span class="muted">#${esc(f.tag)}</span>${f.note ? ` <span class="muted">(${esc(f.note)})</span>` : ''}</div><div>${statusLine(f)}</div></div>
+          ${unread ? `<span class="unread" title="${unread} message(s) non lu(s)">${unread}</span>` : ''}
           ${pill}
           ${v?.level ? `<span class="pill">Niv. ${v.level}</span>` : ''}
           ${t?.icon ? `<img src="${t.icon}" alt="" title="${esc(t.name)}" style="width:28px;height:28px">` : ''}
@@ -1318,13 +1351,114 @@ PAGES.friends = async () => {
     }).join('') || '<div class="empty">Aucun ami trouvé.</div>';
   }
 
+  // ---- Conversation ----
+  const friendOf = (pid) => list.find((f) => f.pid === pid);
+
+  function dayLabel(ts) {
+    const d = new Date(ts), now = new Date();
+    const y = new Date(now); y.setDate(now.getDate() - 1);
+    if (d.toDateString() === now.toDateString()) return "Aujourd'hui";
+    if (d.toDateString() === y.toDateString()) return 'Hier';
+    return d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+  }
+  const hhmm = (ts) => new Date(ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+  function drawChatHead() {
+    const f = friendOf(openPid);
+    const head = $('#chat-head');
+    if (!head || !f) return;
+    head.innerHTML = `
+      <span class="fdot ${f.online ? esc(f.status) : ''}"></span>
+      <div class="fname"><div>${esc(f.name)}<span class="muted">#${esc(f.tag)}</span></div><div>${statusLine(f)}</div></div>
+      ${trackerBtn(f.name, f.tag)}`;
+  }
+
+  function drawChatEmpty() {
+    $('#chat').innerHTML = `
+      <div class="chat-empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 5h16v11H8l-4 4z"/></svg>
+        <h3>Messagerie</h3>
+        <p class="muted">Clique sur un ami pour discuter avec lui.<br>Les messages passent par ton Riot Client, comme dans le jeu.</p>
+      </div>`;
+  }
+
+  async function openChat(pid) {
+    if (!friendOf(pid)) return;
+    openPid = pid;
+    lastSig = '';
+    drawList();
+    $('#chat').innerHTML = `
+      <div class="chat-head" id="chat-head"></div>
+      <div class="chat-log" id="chat-log">${loader()}</div>
+      <form class="chat-form" id="chat-form">
+        <input id="chat-input" type="text" maxlength="500" autocomplete="off" placeholder="Écris un message…">
+        <button class="btn primary" type="submit">Envoyer</button>
+      </form>`;
+    drawChatHead();
+    const input = $('#chat-input');
+    input.focus();
+    $('#chat-form').onsubmit = async (e) => {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (!text || input.disabled) return;
+      input.disabled = true;
+      try {
+        await call('chat-send', pid, text);
+        input.value = '';
+        await loadMessages(true);
+      } catch (err) {
+        toast(err.message, 'error');
+      } finally {
+        input.disabled = false;
+        input.focus();
+      }
+    };
+    await loadMessages(true);
+  }
+
+  async function loadMessages(forceBottom) {
+    const pid = openPid;
+    if (!pid) return;
+    let msgs;
+    try { msgs = await call('chat-messages', pid); } catch (e) { if (alive() && pid === openPid) $('#chat-log').innerHTML = errorBox(e.message); return; }
+    if (!alive() || pid !== openPid) return;
+    const sig = `${msgs.length}:${msgs[msgs.length - 1]?.id || ''}`;
+    if (sig === lastSig && !forceBottom) return;
+    lastSig = sig;
+    const log = $('#chat-log');
+    const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+    let day = '';
+    log.innerHTML = msgs.length
+      ? msgs.map((m) => {
+          const d = dayLabel(m.time);
+          const sep = d !== day ? `<div class="chat-day">${esc((day = d))}</div>` : '';
+          return `${sep}<div class="msg ${m.mine ? 'mine' : ''}"><div class="bubble">${esc(m.body)}</div><span class="mtime">${hhmm(m.time)}</span></div>`;
+        }).join('')
+      : `<div class="chat-none muted">Aucun message récent avec ${esc(friendOf(pid)?.name || 'cet ami')}.<br>Dis-lui bonjour !</div>`;
+    if (forceBottom || atBottom) log.scrollTop = log.scrollHeight;
+    markChatSeen(pid, msgs.map((m) => m.id));
+  }
+
   content.innerHTML = `
     <div class="page-head"><h1><small>Social</small>Amis</h1><span class="muted" id="fcount"></span></div>
-    <input type="search" id="fsearch" placeholder="Rechercher un ami…" style="width:320px;margin-bottom:16px">
-    <div id="flist">${loader()}</div>`;
+    <div class="friends-layout">
+      <div class="friends-col">
+        <input type="search" id="fsearch" placeholder="Rechercher un ami…" style="width:100%;margin-bottom:12px">
+        <div id="flist">${loader()}</div>
+      </div>
+      <div class="chatbox" id="chat"></div>
+    </div>`;
+  drawChatEmpty();
   $('#fsearch').oninput = (e) => { query = e.target.value; drawList(); };
+  $('#flist').addEventListener('click', (e) => {
+    if (e.target.closest('[data-tracker]')) return;
+    const row = e.target.closest('[data-pid]');
+    if (row) openChat(row.dataset.pid);
+  });
+  state.onUnread = () => { if (alive()) drawList(); };
   await refresh();
   every(15000, refresh);
+  every(2000, () => loadMessages(false));
 };
 
 // ---------- Collection ----------
@@ -1413,6 +1547,7 @@ PAGES.settings = async () => {
     return;
   }
   renderHeaderArt();
+  setInterval(refreshUnread, 8000);
   window.api.on('status', onStatus);
   window.api.on('update', onUpdate);
   onUpdate(await call('update-state'));

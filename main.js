@@ -109,6 +109,9 @@ function registerIpc() {
   handle('history', (queue) => services.history(queue));
   handle('party', () => services.party());
   handle('friends', () => services.friends());
+  handle('chat-unread', () => services.chatUnread());
+  handle('chat-messages', (cid) => services.chatMessages(cid));
+  handle('chat-send', (cid, text) => services.chatSend(cid, text));
   handle('stats-data', () => stats.data());
   handle('stats-sync', () => { stats.sync(); return stats.state; });
 
