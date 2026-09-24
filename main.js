@@ -36,6 +36,8 @@ async function tryConnect() {
     const names = await services.names([client.puuid]).catch(() => new Map());
     const me = names.get(client.puuid) || {};
     setStatus({ connected: true, name: me.name, tag: me.tag, region: client.region, puuid: client.puuid });
+    // Synchronise les matchs en arrière-plan une fois l'app chargée.
+    setTimeout(() => stats.sync(), 8000);
   } catch (e) {
     client.tokens = null;
     setStatus({ connected: false, message: e.message, code: e.code });
@@ -107,7 +109,8 @@ function registerIpc() {
   handle('history', (queue) => services.history(queue));
   handle('party', () => services.party());
   handle('friends', () => services.friends());
-  handle('stats', (queue, count) => stats.compute(queue || undefined, Math.min(Number(count) || 20, 100), (p) => send('stats-progress', p)));
+  handle('stats-data', () => stats.data());
+  handle('stats-sync', () => { stats.sync(); return stats.state; });
 
   handle('pregame-select', (matchId, agentId) => client.selectAgent(matchId, agentId));
   handle('pregame-lock', (matchId, agentId) => client.lockAgent(matchId, agentId));
@@ -154,6 +157,8 @@ app.whenReady().then(() => {
   settings = new Settings(dataDir);
   services = new Services(client, assets);
   stats = new Stats(client, assets, services, dataDir);
+  stats.on('state', (s) => send('stats-sync', s));
+  setInterval(() => stats.sync(), 5 * 60 * 1000);
   autolock = new AutoLock(client, settings, assets);
   updater = new Updater();
   updater.on('state', (s) => send('update', s));

@@ -1,6 +1,6 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-const EVENTS = new Set(['status', 'autolock-event', 'update', 'stats-progress']);
+const EVENTS = new Set(['status', 'autolock-event', 'update', 'stats-sync']);
 
 contextBridge.exposeInMainWorld('api', {
   call: (channel, ...args) => ipcRenderer.invoke(channel, ...args),

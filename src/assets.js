@@ -151,7 +151,7 @@ class Assets {
   /** Données légères envoyées à l'interface. */
   summary() {
     const d = this.data;
-    return { agents: d.agents, maps: d.maps, tiers: d.tiers, weapons: d.weapons, currentAct: this.currentAct() };
+    return { agents: d.agents, maps: d.maps, tiers: d.tiers, weapons: d.weapons, currentAct: this.currentAct(), acts: this.acts() };
   }
 
   currentAct() {
@@ -160,6 +160,16 @@ class Assets {
       (s) => s.parent && s.type === 'EAresSeasonType::Act' && Date.parse(s.start) <= now && now <= Date.parse(s.end)
     );
     return act ? { uuid: act.uuid, name: act.name } : null;
+  }
+
+  /** Actes déjà commencés, du plus récent au plus ancien, avec le nom de leur épisode. */
+  acts() {
+    const now = Date.now();
+    const byId = new Map(this.data.seasons.map((s) => [s.uuid, s]));
+    return this.data.seasons
+      .filter((s) => s.parent && s.type === 'EAresSeasonType::Act' && Date.parse(s.start) <= now)
+      .map((s) => ({ uuid: s.uuid, name: `${byId.get(s.parent)?.name || ''} · ${s.name}`.replace(/^ · /, ''), start: Date.parse(s.start), end: Date.parse(s.end) }))
+      .sort((a, b) => b.start - a.start);
   }
 
   map(mapUrl) {

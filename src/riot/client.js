@@ -17,6 +17,11 @@ const ENTITLEMENT_TYPES = {
   skin: 'e7c63390-eda7-46e0-bb7a-a6abdacd2433',
 };
 
+/** Famille d'endpoint utilisée pour les limites de requêtes : '/match-details/v1/matches/x' → '/match-details'. */
+function rateBucket(urlPath) {
+  return '/' + String(urlPath).split('/')[1];
+}
+
 class RiotError extends Error {
   constructor(code, message) {
     super(message);
@@ -37,7 +42,8 @@ class RiotClient {
     this.region = null;
     this.shard = null;
     this.version = null;
-    this.rateLimitedUntil = 0;
+    // Pause imposée par Riot, par famille d'endpoint (ex : /match-details) pour ne pas bloquer le reste.
+    this.rateLimits = new Map();
   }
 
   get connected() {
@@ -128,8 +134,9 @@ class RiotClient {
 
   async request(base, method, urlPath, body, retry = true, attempt = 0) {
     if (!this.connected) throw new RiotError('NOT_CONNECTED', 'Compte non connecté.');
-    // Pause commune : si Riot a demandé d'attendre, toutes les requêtes patientent ensemble.
-    const wait = this.rateLimitedUntil - Date.now();
+    // Si Riot a demandé d'attendre pour cette famille d'endpoint, toutes ses requêtes patientent ensemble.
+    const bucket = rateBucket(urlPath);
+    const wait = (this.rateLimits.get(bucket) || 0) - Date.now();
     if (wait > 0) await new Promise((r) => setTimeout(r, wait));
     if (Date.now() - this.tokensAt > 4 * 60 * 1000) {
       await this.refreshTokens().catch(() => {});
@@ -151,8 +158,9 @@ class RiotClient {
     if (res.status === 429 && attempt < 5) {
       // Limite de requêtes Riot : on respecte le délai demandé (souvent jusqu'à 60 s) puis on réessaie.
       const delay = Math.min(Number(res.headers.get('retry-after')) * 1000 || 5000 * (attempt + 1), 120000);
-      this.rateLimitedUntil = Math.max(this.rateLimitedUntil, Date.now() + delay + 500);
-      this.onRateLimit?.(this.rateLimitedUntil);
+      const until = Math.max(this.rateLimits.get(bucket) || 0, Date.now() + delay + 500);
+      this.rateLimits.set(bucket, until);
+      this.onRateLimit?.(bucket, until);
       return this.request(base, method, urlPath, body, retry, attempt + 1);
     }
     if (res.status === 404) return null;
@@ -207,6 +215,10 @@ class RiotClient {
   getMatchHistory(start = 0, end = 10, queue) {
     const q = queue ? `&queue=${encodeURIComponent(queue)}` : '';
     return this.pd('GET', `/match-history/v1/history/${this.puuid}?startIndex=${start}&endIndex=${end}${q}`);
+  }
+  rateLimitedUntil(bucket) {
+    const until = this.rateLimits.get(bucket) || 0;
+    return until > Date.now() ? until : null;
   }
   getCompetitiveUpdates(start = 0, end = 20) {
     return this.pd('GET', `/mmr/v1/players/${this.puuid}/competitiveupdates?startIndex=${start}&endIndex=${end}&queue=competitive`);
