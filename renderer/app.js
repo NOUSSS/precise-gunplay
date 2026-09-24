@@ -653,6 +653,45 @@ PAGES.history = async () => {
     <div class="page-head"><h1><small>Tes performances</small>Historique</h1></div>
     <div class="chip-group" id="hfilter" style="margin-bottom:16px">${FILTERS.map(([v, l]) => `<button data-filter="${v}" class="${filter === v ? 'on' : ''}">${l}</button>`).join('')}</div>`;
 
+  function placementBadge(m) {
+    if (m.mvp === 'match') return '<span class="badge mvp">MVP</span>';
+    if (m.mvp === 'team') return '<span class="badge team-mvp">MVP équipe</span>';
+    return `<span class="badge place" title="Place dans la partie (ACS)">${m.placement}<sup>${m.placement === 1 ? 'er' : 'e'}</sup></span>`;
+  }
+
+  function teamTable(t) {
+    const title = t.side === 'all' ? 'Classement' : t.side === 'ally' ? 'Ton équipe' : 'Adversaires';
+    const outcome = t.side === 'all' ? '' : t.won ? 'Victoire' : 'Défaite';
+    return `
+      <div class="sb-team ${t.side}">
+        <div class="sb-head"><b>${title}</b>${t.rounds != null ? `<span class="sb-score">${t.rounds}</span>` : ''}${outcome ? `<span class="muted">${outcome}</span>` : ''}</div>
+        <table class="sb">
+          <tr><th>Joueur</th><th>Rang</th><th>ACS</th><th>K</th><th>D</th><th>A</th><th>+/−</th><th>K/D</th><th>ADR</th><th>HS</th><th>FB</th><th></th></tr>
+          ${t.players.map((p) => {
+            const pa = agentOf(p.agentId), pt = tierOf(p.tier);
+            const diff = p.kills - p.deaths;
+            return `<tr class="${p.isMe ? 'me' : ''}">
+              <td>
+                <div class="sb-player">
+                  ${pa ? `<img class="sb-agent" src="${pa.icon}" alt="" title="${esc(pa.name)}">` : '<span class="sb-agent"></span>'}
+                  <div class="sb-name">
+                    <div><b>${esc(p.name)}</b><span class="muted">${p.tag ? `#${esc(p.tag)}` : ''}</span>${p.mvp === 'match' ? '<span class="badge mvp">MVP</span>' : p.mvp === 'team' ? '<span class="badge team-mvp">MVP équipe</span>' : ''}</div>
+                    <div class="muted">${esc(pa?.name || '')}${p.level != null ? ` · Niv. ${p.level}` : ''}${p.party ? ` · <span class="party-tag" title="Jouait en groupe avec les autres « Groupe ${p.party} »">Groupe ${p.party}</span>` : ''}</div>
+                  </div>
+                </div>
+              </td>
+              <td>${pt?.icon && p.tier ? `<img class="sb-rank" src="${pt.icon}" alt="" title="${esc(pt.name)}">` : '<span class="muted">—</span>'}</td>
+              <td><b>${p.acs}</b></td><td>${p.kills}</td><td>${p.deaths}</td><td>${p.assists}</td>
+              <td class="${diff > 0 ? 'pos' : diff < 0 ? 'neg' : ''}">${diff > 0 ? '+' : ''}${diff}</td>
+              <td>${(p.kills / Math.max(1, p.deaths)).toFixed(2).replace('.', ',')}</td>
+              <td>${p.adr}</td><td>${p.hs != null ? `${p.hs} %` : '—'}</td><td>${p.fb}</td>
+              <td>${p.isMe ? '' : trackerBtn(p.name, p.tag)}</td>
+            </tr>`;
+          }).join('')}
+        </table>
+      </div>`;
+  }
+
   function matchHtml(m) {
     const a = agentOf(m.agentId);
     const t = tierOf(m.tier);
@@ -662,26 +701,18 @@ PAGES.history = async () => {
         <div class="match-row" data-toggle>
           <div class="bar"></div>
           ${m.map?.listIcon ? `<img class="mimg" src="${m.map.listIcon}" alt="" loading="lazy">` : '<div></div>'}
-          ${a ? `<img class="magent" src="${a.icon}" alt="">` : '<div></div>'}
-          <div><div class="mmap">${esc(m.map?.name || '?')}</div><div class="mmeta">${esc(queueName(m.queue))} · ${m.startedAt ? timeAgo(m.startedAt) : ''} · ${Math.round((m.lengthMs || 0) / 60000)} min</div></div>
+          ${a ? `<img class="magent" src="${a.icon}" alt="" title="${esc(a.name)}">` : '<div></div>'}
+          <div class="minfo"><div class="mmap">${esc(m.map?.name || '?')}</div><div class="mmeta">${esc(queueName(m.queue))} · ${m.startedAt ? timeAgo(m.startedAt) : ''} · ${Math.round((m.lengthMs || 0) / 60000)} min</div></div>
           <div><div class="stat-label">${label}</div><div class="mscore">${m.score ? `${m.score[0]} - ${m.score[1]}` : '—'}</div></div>
+          <div>${placementBadge(m)}</div>
           <div><div class="stat-label">K / D / A</div><div class="stat-val">${m.kills} / ${m.deaths} / ${m.assists}</div></div>
           <div><div class="stat-label">ACS</div><div class="stat-val">${m.acs}</div></div>
+          <div class="col-hs"><div class="stat-label">HS</div><div class="stat-val">${m.hs != null ? `${m.hs} %` : '—'}</div></div>
+          <div class="col-adr"><div class="stat-label">ADR</div><div class="stat-val">${m.adr}</div></div>
           <div>${t?.icon && m.tier ? `<img src="${t.icon}" alt="" title="${esc(t.name)}" style="width:36px;height:36px">` : ''}</div>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
         </div>
-        <div class="scoreboard">
-          <table class="sb">
-            <tr><th>Joueur</th><th>Agent</th><th>ACS</th><th>K</th><th>D</th><th>A</th><th>Rang</th></tr>
-            ${m.scoreboard.map((p) => {
-              const pa = agentOf(p.agentId), pt = tierOf(p.tier);
-              return `<tr class="${p.team} ${p.isMe ? 'me' : ''}">
-                <td><div class="row" style="gap:8px">${esc(p.name)}<span class="muted" style="margin-left:-8px">#${esc(p.tag)}</span>${p.isMe ? '' : trackerBtn(p.name, p.tag)}</div></td>
-                <td>${pa ? `<img src="${pa.icon}" alt="" title="${esc(pa.name)}">` : ''}</td>
-                <td><b>${p.acs}</b></td><td>${p.kills}</td><td>${p.deaths}</td><td>${p.assists}</td>
-                <td>${pt?.icon && p.tier ? `<img src="${pt.icon}" alt="" title="${esc(pt.name)}">` : '<span class="muted">—</span>'}</td></tr>`;
-            }).join('')}
-          </table>
-        </div>
+        <div class="scoreboard">${m.teams.map(teamTable).join('')}</div>
       </div>`;
   }
 
