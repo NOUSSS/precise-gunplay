@@ -1,0 +1,72 @@
+{
+  "name": "precise-gunplay",
+  "productName": "Precise Gunplay",
+  "version": "1.0.0",
+  "description": "Compagnon VALORANT pour Windows : boutique, sélection d'agent automatique, partie en direct, historique, groupe et amis.",
+  "main": "main.js",
+  "author": "NOUSSS",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win --publish never",
+    "release": "electron-builder --win --publish always"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.nouss.precisegunplay",
+    "productName": "Precise Gunplay",
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "renderer/**/*"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "Precise Gunplay",
+      "artifactName": "Precise-Gunplay-Setup-${version}.${ext}"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "NOUSSS",
+        "repo": "precise-gunplay",
+        "releaseType": "release"
+      }
+    ],
+    "portable": {
+      "artifactName": "Precise-Gunplay-Portable-${version}.${ext}"
+    }
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/NOUSSS/precise-gunplay.git"
+  },
+  "homepage": "https://github.com/NOUSSS/precise-gunplay"
+}
