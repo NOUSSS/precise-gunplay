@@ -125,7 +125,7 @@ class RiotClient {
     };
   }
 
-  async request(base, method, urlPath, body, retry = true) {
+  async request(base, method, urlPath, body, retry = true, attempt = 0) {
     if (!this.connected) throw new RiotError('NOT_CONNECTED', 'Compte non connecté.');
     if (Date.now() - this.tokensAt > 4 * 60 * 1000) {
       await this.refreshTokens().catch(() => {});
@@ -143,6 +143,12 @@ class RiotClient {
     if (authError && retry) {
       await this.refreshTokens();
       return this.request(base, method, urlPath, body, false);
+    }
+    if (res.status === 429 && attempt < 3) {
+      // Limite de requêtes Riot : on patiente puis on réessaie.
+      const wait = Number(res.headers.get('retry-after')) * 1000 || 2000 * (attempt + 1);
+      await new Promise((r) => setTimeout(r, Math.min(wait, 15000)));
+      return this.request(base, method, urlPath, body, retry, attempt + 1);
     }
     if (res.status === 404) return null;
     if (!res.ok) {
@@ -196,6 +202,9 @@ class RiotClient {
   getMatchHistory(start = 0, end = 10, queue) {
     const q = queue ? `&queue=${encodeURIComponent(queue)}` : '';
     return this.pd('GET', `/match-history/v1/history/${this.puuid}?startIndex=${start}&endIndex=${end}${q}`);
+  }
+  getCompetitiveUpdates(start = 0, end = 20) {
+    return this.pd('GET', `/mmr/v1/players/${this.puuid}/competitiveupdates?startIndex=${start}&endIndex=${end}&queue=competitive`);
   }
   getMatchDetails(matchId) {
     return this.pd('GET', `/match-details/v1/matches/${matchId}`);

@@ -8,12 +8,13 @@ const { Settings } = require('./src/settings');
 const { Services } = require('./src/services');
 const { AutoLock } = require('./src/autolock');
 const { Updater } = require('./src/updater');
+const { Stats } = require('./src/stats');
 
 app.setAppUserModelId('com.nouss.precisegunplay');
 
 let win = null;
 const client = new RiotClient();
-let assets, settings, services, autolock, updater;
+let assets, settings, services, autolock, updater, stats;
 let status = { connected: false, message: 'Recherche du Riot Client…' };
 let connecting = false;
 
@@ -106,6 +107,7 @@ function registerIpc() {
   handle('history', (queue) => services.history(queue));
   handle('party', () => services.party());
   handle('friends', () => services.friends());
+  handle('stats', (queue, count) => stats.compute(queue || undefined, Math.min(Number(count) || 20, 100), (p) => send('stats-progress', p)));
 
   handle('pregame-select', (matchId, agentId) => client.selectAgent(matchId, agentId));
   handle('pregame-lock', (matchId, agentId) => client.lockAgent(matchId, agentId));
@@ -151,6 +153,7 @@ app.whenReady().then(() => {
   assets = new Assets(dataDir);
   settings = new Settings(dataDir);
   services = new Services(client, assets);
+  stats = new Stats(client, assets, services, dataDir);
   autolock = new AutoLock(client, settings, assets);
   updater = new Updater();
   updater.on('state', (s) => send('update', s));

@@ -275,7 +275,11 @@ class Services {
   async matchDetails(id) {
     if (this.matchCache.has(id)) return this.matchCache.get(id);
     const d = await this.client.getMatchDetails(id);
-    if (d) this.matchCache.set(id, d);
+    if (d) {
+      this.matchCache.set(id, d);
+      // Garde seulement les 30 derniers matchs complets en mémoire.
+      if (this.matchCache.size > 30) this.matchCache.delete(this.matchCache.keys().next().value);
+    }
     return d;
   }
 

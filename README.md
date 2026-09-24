@@ -19,6 +19,7 @@ Va sur la page [**Releases**](https://github.com/NOUSSS/precise-gunplay/releases
 | **Boutique** | Les 4 offres du jour avec compte à rebours, packs en vedette, marché nocturne, boutique d'accessoires |
 | **Agent auto** | Sélection automatique de l'agent quand une partie est trouvée : mode survol ou verrouillage, délai, agents de secours, agent différent par carte |
 | **Partie en direct** | Sélection d'agent et partie en cours : agents, niveaux, rangs actuels et meilleurs rangs des 10 joueurs. Choix/verrouillage manuel et bouton d'esquive |
+| **Statistiques** | Façon tracker, sur 20 / 50 / 100 matchs par mode : K/D, KDA, ACS, ADR, headshot %, KAST, first bloods, 3K/4K/ACE, évolution du RR, ACS par match, stats par agent, carte et arme |
 | **Historique** | 15 derniers matchs (filtrables par mode) avec score, K/D/A, ACS, stats globales et tableau des scores dépliable |
 | **Groupe** | Membres du groupe, changement de mode, lancer/annuler la recherche, ouvrir/fermer le groupe |
 | **Amis** | Amis en ligne : dans les menus, en sélection ou en partie (mode, carte, score) |

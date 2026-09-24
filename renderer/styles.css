@@ -308,6 +308,50 @@ input[type=range] { accent-color: var(--red); width: 220px; }
 .pill.ingame { background: var(--red); color: #fff; }
 .pill.pregame { background: var(--gold); color: #111; }
 
+/* ---------- Statistiques ---------- */
+.stats-loading { text-align: center; }
+.stats-loading .loader { margin: 60px auto 16px; }
+.stats-top { display: grid; grid-template-columns: 1fr auto; gap: 14px; margin-bottom: 14px; }
+.hero-stat .hero-value { font-size: 56px; font-weight: 700; line-height: 1.05; margin: 4px 0 6px; }
+.st-label { font-size: 11px; color: var(--muted); letter-spacing: .14em; text-transform: uppercase; }
+.st-value { font-size: 24px; font-weight: 700; margin-top: 4px; }
+.st-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.rank-stat { display: flex; align-items: center; gap: 16px; min-width: 300px; }
+.rank-stat img { width: 72px; height: 72px; }
+.form { display: flex; align-items: center; gap: 5px; margin-top: 14px; }
+.form-dot { width: 24px; height: 24px; border-radius: 4px; display: grid; place-items: center; font-size: 11px; font-weight: 700; color: #fff; }
+.form-dot.win { background: #17a88e; }
+.form-dot.loss { background: #ff4655; }
+.form-dot.draw { background: #6b7a87; }
+.stat-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.stat-tiles.small { grid-template-columns: repeat(3, 1fr); }
+.stat-tile { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; }
+.chart-box { width: 100%; }
+.chart { display: block; overflow: visible; }
+.chart .axis { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.chart .end-label { fill: var(--text); font-size: 12px; font-weight: 600; }
+.chart .bar { transition: filter .1s; }
+.chart .bar.hover { filter: brightness(1.3); }
+.legend { display: flex; gap: 18px; font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+.chart-tip { position: fixed; z-index: 200; display: none; pointer-events: none; background: #0b131b; border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 12px; font-size: 12px; box-shadow: 0 8px 24px #0009; min-width: 160px; }
+.chart-tip .tip-title { color: var(--muted); margin-bottom: 6px; }
+.chart-tip .tip-row { display: flex; align-items: center; gap: 8px; margin-top: 3px; }
+.chart-tip .tip-row b { color: var(--text); font-size: 13px; }
+.chart-tip .tip-row span:last-child { color: var(--muted); }
+.chart-tip .tip-key { width: 12px; height: 2px; border-radius: 1px; flex-shrink: 0; }
+.meter-row { display: grid; grid-template-columns: 70px 1fr 64px; align-items: center; gap: 12px; padding: 9px 0; }
+.meter-row b { text-align: right; font-variant-numeric: tabular-nums; }
+.meter { height: 8px; background: #17a88e26; border-radius: 4px; overflow: hidden; }
+.meter div { height: 100%; background: #17a88e; border-radius: 4px; }
+.stats-table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; font-size: 13px; }
+.stats-table th { text-align: left; font-weight: 400; color: var(--muted); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.stats-table td { padding: 8px 14px; border-bottom: 1px solid #ffffff08; font-variant-numeric: tabular-nums; }
+.stats-table tr:last-child td { border-bottom: 0; }
+.stats-table img { width: 30px; height: 30px; border-radius: 3px; }
+.stats-table .map-thumb { width: 54px; height: 26px; object-fit: cover; }
+.stats-table .weapon-icon { width: 64px; height: 22px; object-fit: contain; display: inline-block; }
+
 /* ---------- Mise à jour ---------- */
 .update-card { margin: 0 12px 12px; padding: 12px 14px; border-radius: var(--radius); background: color-mix(in srgb, var(--teal) 14%, var(--panel)); border: 1px solid color-mix(in srgb, var(--teal) 45%, var(--line)); font-size: 12px; }
 .update-card b { display: block; font-size: 13px; margin-bottom: 4px; color: var(--text); }

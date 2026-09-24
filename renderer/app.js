@@ -108,6 +108,7 @@ const ICONS = {
   history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>',
   party: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.5a5 5 0 0 1 6 5"/>',
   friends: '<path d="M4 5h16v11H9l-5 4z"/>',
+  stats: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
   collection: '<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M3 15l5-5 4 4 3-3 6 6"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
 };
@@ -119,6 +120,7 @@ const NAV = [
   ['agent', 'Agent auto'],
   ['live', 'Partie en direct'],
   ['history', 'Historique'],
+  ['stats', 'Statistiques'],
   'sep',
   ['party', 'Groupe'],
   ['friends', 'Amis'],
@@ -227,6 +229,7 @@ function renderConnect() {
 }
 
 function onUpdate(u) {
+  if (!u) return;
   const prev = state.update?.status;
   state.update = u;
   renderUpdate();
@@ -299,6 +302,7 @@ PAGES.home = async () => {
         <p>${alAgent ? `Agent principal : <b>${esc(alAgent.name)}</b> (${al.mode === 'lock' ? 'verrouillage' : 'survol'})` : 'Choisis l\'agent à sélectionner automatiquement.'}</p>
         ${alAgent ? `<img class="tile-agent" src="${alAgent.icon}" alt="">` : ''}</div>
       <div class="tile" data-go="live">${icon('live')}<h3>Partie en direct</h3><p>Rangs, niveaux et agents de tous les joueurs de ta partie.</p></div>
+      <div class="tile" data-go="stats">${icon('stats')}<h3>Statistiques</h3><p>K/D, ACS, ADR, headshot %, évolution du RR, stats par agent, carte et arme.</p></div>
       <div class="tile" data-go="history">${icon('history')}<h3>Historique</h3><p>Tes derniers matchs avec KDA, ACS et tableau des scores.</p></div>
       <div class="tile" data-go="party">${icon('party')}<h3>Groupe</h3><p>Change de mode, lance la recherche et ouvre ton groupe.</p></div>
       <div class="tile" data-go="friends">${icon('friends')}<h3>Amis</h3><p>Qui est en ligne, en partie, sur quelle carte et avec quel score.</p></div>
@@ -657,6 +661,384 @@ PAGES.history = async () => {
     if (f) { filter = f.dataset.filter; return load(); }
     const row = e.target.closest('[data-toggle]');
     if (row) row.parentElement.classList.toggle('open');
+  };
+  await load();
+};
+
+// ---------- Statistiques ----------
+const CHART = { pos: '#17a88e', neg: '#ff4655', draw: '#6b7a87', line: '#17a88e', grid: '#22303c', surface: '#16222d' };
+
+// Infobulle unique pour tous les graphiques (contenu inséré via textContent).
+function chartTip() {
+  let tip = $('#chart-tip');
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.id = 'chart-tip';
+    tip.className = 'chart-tip';
+    document.body.appendChild(tip);
+  }
+  return {
+    show(e, title, rows) {
+      tip.replaceChildren();
+      const h = document.createElement('div');
+      h.className = 'tip-title';
+      h.textContent = title;
+      tip.appendChild(h);
+      for (const [value, label, color] of rows) {
+        const r = document.createElement('div');
+        r.className = 'tip-row';
+        const k = document.createElement('span');
+        k.className = 'tip-key';
+        if (color) k.style.background = color;
+        const v = document.createElement('b');
+        v.textContent = value;
+        const l = document.createElement('span');
+        l.textContent = label;
+        r.append(k, v, l);
+        tip.appendChild(r);
+      }
+      tip.style.display = 'block';
+      const x = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8);
+      const y = Math.min(e.clientY + 14, innerHeight - tip.offsetHeight - 8);
+      tip.style.left = `${x}px`;
+      tip.style.top = `${y}px`;
+    },
+    hide() { tip.style.display = 'none'; },
+  };
+}
+
+const svgEl = (tag, attrs = {}) => {
+  const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+  return el;
+};
+
+function niceStep(range, target = 4) {
+  const raw = range / target;
+  const mag = 10 ** Math.floor(Math.log10(raw || 1));
+  return [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= raw) || mag * 10;
+}
+
+const shortDate = (ts) => new Date(ts).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+
+/** Courbe d'évolution du RR (une série, crosshair + infobulle). */
+function rrChart(el, pts) {
+  const W = el.clientWidth || 800, H = 240, m = { l: 96, r: 70, t: 14, b: 14 };
+  const vals = pts.map((p) => p.tier * 100 + p.rr);
+  const y0 = Math.floor(Math.min(...vals) / 100) * 100;
+  const y1 = Math.max(y0 + 100, Math.ceil(Math.max(...vals) / 100) * 100);
+  const last = pts.length - 1;
+  const x = (i) => m.l + (last === 0 ? (W - m.l - m.r) / 2 : (i * (W - m.l - m.r)) / last);
+  const y = (v) => m.t + (1 - (v - y0) / (y1 - y0)) * (H - m.t - m.b);
+  const svg = svgEl('svg', { viewBox: `0 0 ${W} ${H}`, width: W, height: H, class: 'chart' });
+
+  // Une ligne par palier de rang (100 points = 1 palier).
+  const every = (y1 - y0) / 100 > 6 ? 2 : 1;
+  for (let v = y0, i = 0; v <= y1; v += 100, i++) {
+    svg.appendChild(svgEl('line', { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), stroke: CHART.grid, 'stroke-width': 1 }));
+    if (i % every === 0 && v / 100 <= 27) {
+      const t = svgEl('text', { x: m.l - 10, y: y(v) + 4, 'text-anchor': 'end', class: 'axis' });
+      t.textContent = tierOf(v / 100)?.name || '';
+      svg.appendChild(t);
+    }
+  }
+  const line = pts.map((p, i) => `${i ? 'L' : 'M'}${x(i)},${y(vals[i])}`).join('');
+  svg.appendChild(svgEl('path', { d: `${line}L${x(last)},${y(y0)}L${x(0)},${y(y0)}Z`, fill: CHART.line, opacity: 0.1 }));
+  svg.appendChild(svgEl('path', { d: line, fill: 'none', stroke: CHART.line, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+  svg.appendChild(svgEl('circle', { cx: x(last), cy: y(vals[last]), r: 4, fill: CHART.line, stroke: CHART.surface, 'stroke-width': 2 }));
+  const endLabel = svgEl('text', { x: x(last) + 10, y: y(vals[last]) + 4, class: 'end-label' });
+  endLabel.textContent = `${pts[last].rr} RR`;
+  svg.appendChild(endLabel);
+
+  const cross = svgEl('line', { y1: m.t, y2: H - m.b, stroke: '#8a99a6', 'stroke-width': 1, visibility: 'hidden' });
+  const dot = svgEl('circle', { r: 5, fill: CHART.line, stroke: CHART.surface, 'stroke-width': 2, visibility: 'hidden' });
+  const hit = svgEl('rect', { x: m.l - 12, y: 0, width: W - m.l - m.r + 24, height: H, fill: 'transparent' });
+  svg.append(cross, dot, hit);
+  const tip = chartTip();
+  hit.addEventListener('pointermove', (e) => {
+    const r = svg.getBoundingClientRect();
+    const px = ((e.clientX - r.left) / r.width) * W;
+    const i = last === 0 ? 0 : Math.max(0, Math.min(last, Math.round(((px - m.l) / (W - m.l - m.r)) * last)));
+    const p = pts[i];
+    cross.setAttribute('x1', x(i));
+    cross.setAttribute('x2', x(i));
+    cross.setAttribute('visibility', 'visible');
+    dot.setAttribute('cx', x(i));
+    dot.setAttribute('cy', y(vals[i]));
+    dot.setAttribute('visibility', 'visible');
+    const map = state.assets.maps.find((mp) => mp.uuid === p.mapId);
+    tip.show(e, `${shortDate(p.at)}${map ? ` · ${map.name}` : ''}`, [
+      [`${p.earned > 0 ? '+' : ''}${p.earned} RR`, p.earned >= 0 ? 'gagnés' : 'perdus', p.earned >= 0 ? CHART.pos : CHART.neg],
+      [`${tierOf(p.tier)?.name || ''} · ${p.rr} RR`, 'après le match', CHART.line],
+    ]);
+  });
+  hit.addEventListener('pointerleave', () => {
+    cross.setAttribute('visibility', 'hidden');
+    dot.setAttribute('visibility', 'hidden');
+    tip.hide();
+  });
+  el.replaceChildren(svg);
+}
+
+/** Colonnes : ACS par match, couleur = résultat, ligne de moyenne. */
+function acsChart(el, recs) {
+  const W = el.clientWidth || 800, H = 220, m = { l: 44, r: 84, t: 14, b: 10 };
+  const vals = recs.map((r) => Math.round(r.combat / Math.max(1, r.rounds)));
+  const top = Math.max(...vals, 100);
+  const step = niceStep(top);
+  const yMax = Math.ceil(top / step) * step;
+  const y = (v) => m.t + (1 - v / yMax) * (H - m.t - m.b);
+  const slot = (W - m.l - m.r) / recs.length;
+  const bw = Math.max(2, Math.min(24, slot - 2));
+  const svg = svgEl('svg', { viewBox: `0 0 ${W} ${H}`, width: W, height: H, class: 'chart' });
+  for (let v = 0; v <= yMax; v += step) {
+    svg.appendChild(svgEl('line', { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), stroke: CHART.grid, 'stroke-width': 1 }));
+    const t = svgEl('text', { x: m.l - 8, y: y(v) + 4, 'text-anchor': 'end', class: 'axis' });
+    t.textContent = v;
+    svg.appendChild(t);
+  }
+  const color = { win: CHART.pos, loss: CHART.neg, draw: CHART.draw };
+  const label = { win: 'Victoire', loss: 'Défaite', draw: 'Égalité' };
+  const tip = chartTip();
+  recs.forEach((r, i) => {
+    const cx = m.l + slot * i + slot / 2;
+    const yt = y(vals[i]), base = y(0), x0 = cx - bw / 2, rad = Math.min(4, bw / 2, base - yt);
+    const bar = svgEl('path', {
+      d: `M${x0},${base}V${yt + rad}Q${x0},${yt} ${x0 + rad},${yt}H${x0 + bw - rad}Q${x0 + bw},${yt} ${x0 + bw},${yt + rad}V${base}Z`,
+      fill: color[r.result],
+      class: 'bar',
+    });
+    const hit = svgEl('rect', { x: m.l + slot * i, y: m.t, width: slot, height: H - m.t - m.b, fill: 'transparent' });
+    hit.addEventListener('pointermove', (e) => {
+      bar.classList.add('hover');
+      const map = state.assets.maps.find((mp) => mp.uuid === r.mapId);
+      const agent = agentOf(r.agentId);
+      tip.show(e, `${map?.name || '?'} · ${agent?.name || '?'} · ${shortDate(r.startedAt)}`, [
+        [`${vals[i]} ACS`, label[r.result] + (r.score ? ` ${r.score[0]}-${r.score[1]}` : ''), color[r.result]],
+        [`${r.kills} / ${r.deaths} / ${r.assists}`, 'K / D / A'],
+      ]);
+    });
+    hit.addEventListener('pointerleave', () => {
+      bar.classList.remove('hover');
+      tip.hide();
+    });
+    svg.append(bar, hit);
+  });
+  const avg = Math.round(vals.reduce((s, v) => s + v, 0) / vals.length);
+  svg.appendChild(svgEl('line', { x1: m.l, x2: W - m.r, y1: y(avg), y2: y(avg), stroke: '#ece8e1', 'stroke-width': 1, opacity: 0.45 }));
+  const al = svgEl('text', { x: W - m.r + 8, y: y(avg) + 4, class: 'end-label' });
+  al.textContent = `Moy. ${avg}`;
+  svg.appendChild(al);
+  el.replaceChildren(svg);
+}
+
+function aggregate(recs) {
+  const keys = ['kills', 'deaths', 'assists', 'combat', 'rounds', 'damage', 'head', 'body', 'leg', 'fb', 'fd', 'kast', 'k3', 'k4', 'k5'];
+  const s = { n: recs.length, wins: 0, losses: 0, draws: 0 };
+  for (const k of keys) s[k] = 0;
+  for (const r of recs) {
+    if (r.result === 'win') s.wins++;
+    else if (r.result === 'loss') s.losses++;
+    else s.draws++;
+    for (const k of keys) s[k] += r[k] || 0;
+  }
+  const shots = s.head + s.body + s.leg;
+  return {
+    ...s,
+    winRate: s.n ? (s.wins / s.n) * 100 : 0,
+    kd: s.kills / Math.max(1, s.deaths),
+    kda: (s.kills + s.assists) / Math.max(1, s.deaths),
+    acs: s.combat / Math.max(1, s.rounds),
+    adr: s.damage / Math.max(1, s.rounds),
+    hs: shots ? (s.head / shots) * 100 : 0,
+    bodyPct: shots ? (s.body / shots) * 100 : 0,
+    legPct: shots ? (s.leg / shots) * 100 : 0,
+    kastPct: s.rounds ? (s.kast / s.rounds) * 100 : 0,
+    kpm: s.n ? s.kills / s.n : 0,
+  };
+}
+
+function groupBy(recs, key) {
+  const g = new Map();
+  for (const r of recs) {
+    if (!r[key]) continue;
+    if (!g.has(r[key])) g.set(r[key], []);
+    g.get(r[key]).push(r);
+  }
+  return [...g.entries()].map(([k, list]) => ({ key: k, ...aggregate(list) })).sort((a, b) => b.n - a.n || b.acs - a.acs);
+}
+
+const f2 = (n) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const f0 = (n) => Math.round(n).toLocaleString('fr-FR');
+const pct = (n) => `${n.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`;
+
+PAGES.stats = async () => {
+  const alive = guard();
+  state.statsFilter ||= { queue: 'competitive', count: 20 };
+  const f = state.statsFilter;
+  const QUEUE_F = [['competitive', 'Compétition'], ['unrated', 'Non classé'], ['swiftplay', 'Vélocité'], ['', 'Tous les modes']];
+  const COUNTS = [20, 50, 100];
+  let data = null;
+
+  const head = () => `
+    <div class="page-head"><h1><small>Tes performances</small>Statistiques</h1></div>
+    <div class="row" style="margin-bottom:20px;flex-wrap:wrap">
+      <div class="chip-group">${QUEUE_F.map(([v, l]) => `<button data-q="${v}" class="${f.queue === v ? 'on' : ''}">${l}</button>`).join('')}</div>
+      <div class="chip-group">${COUNTS.map((c) => `<button data-n="${c}" class="${f.count === c ? 'on' : ''}">${c} matchs</button>`).join('')}</div>
+    </div>`;
+
+  async function load() {
+    content.innerHTML = `${head()}<div class="stats-loading">${loader()}<div class="muted" id="st-progress">Récupération de l'historique…</div></div>`;
+    const off = window.api.on('stats-progress', (p) => {
+      const el = $('#st-progress');
+      if (el) el.textContent = `Analyse des matchs… ${p.done} / ${p.total}`;
+    });
+    try {
+      data = await call('stats', f.queue, f.count);
+    } catch (e) {
+      if (alive()) content.innerHTML = head() + errorBox(e.message);
+      return;
+    } finally {
+      off();
+    }
+    if (alive()) draw();
+  }
+
+  function draw() {
+    const recs = data.records;
+    if (!recs.length) {
+      content.innerHTML = `${head()}<div class="empty"><h3>Aucun match</h3><div>Joue quelques parties dans ce mode pour voir tes stats.</div></div>`;
+      return;
+    }
+    const a = aggregate(recs);
+    const rank = data.rank;
+    const rt = tierOf(rank?.tier), pt = tierOf(rank?.peak);
+    const agents = groupBy(recs, 'agentId');
+    const maps = groupBy(recs, 'mapId');
+    const weapons = {};
+    for (const r of recs) for (const [k, v] of Object.entries(r.weapons || {})) weapons[k] = (weapons[k] || 0) + v;
+    const wList = Object.entries(weapons).sort((x, y) => y[1] - x[1]).slice(0, 8);
+    const wTotal = Object.values(weapons).reduce((s, v) => s + v, 0) || 1;
+    const weaponInfo = (k) =>
+      k === 'ability' ? { name: 'Capacités' } : k === 'other' ? { name: 'Autre' } : state.assets.weapons?.find((w) => w.uuid.toLowerCase() === k) || { name: 'Arme' };
+    const resultLabel = { win: 'Victoire', loss: 'Défaite', draw: 'Égalité' };
+    const tile = (label, value, sub) =>
+      `<div class="stat-tile"><div class="st-label">${label}</div><div class="st-value">${value}</div>${sub ? `<div class="st-sub">${sub}</div>` : ''}</div>`;
+
+    content.innerHTML = `${head()}
+      <div class="stats-top">
+        <div class="panel hero-stat">
+          <div class="st-label">K/D · ${a.n} matchs</div>
+          <div class="hero-value">${f2(a.kd)}</div>
+          <div class="st-sub">${f0(a.kills)} éliminations · ${f0(a.deaths)} morts</div>
+          <div class="form">${recs.slice(0, 10).map((r) => `<span class="form-dot ${r.result}" title="${resultLabel[r.result]}">${r.result === 'win' ? 'V' : r.result === 'loss' ? 'D' : 'N'}</span>`).join('')}<span class="muted" style="font-size:11px;margin-left:6px">10 derniers</span></div>
+        </div>
+        ${rank ? `
+        <div class="panel rank-stat">
+          ${rt?.icon && rank.tier ? `<img src="${rt.icon}" alt="">` : ''}
+          <div>
+            <div class="st-label">Rang actuel</div>
+            <div class="st-value">${rank.tier ? esc(rt?.name) : 'Non classé'}</div>
+            <div class="st-sub">${rank.tier ? `${rank.rr} RR · ` : ''}Meilleur : ${esc(pt?.name || '—')}</div>
+          </div>
+        </div>` : ''}
+      </div>
+
+      <div class="stat-tiles">
+        ${tile('Victoires', pct(a.winRate), `${a.wins} V · ${a.losses} D${a.draws ? ` · ${a.draws} N` : ''}`)}
+        ${tile('KDA', f2(a.kda), `${f0(a.assists)} assistances`)}
+        ${tile('ACS', f0(a.acs), 'score de combat / manche')}
+        ${tile('ADR', f0(a.adr), 'dégâts / manche')}
+        ${tile('Headshot', pct(a.hs), 'des balles touchées')}
+        ${tile('KAST', pct(a.kastPct), 'manches avec impact')}
+        ${tile('Kills / match', f2(a.kpm), `${f0(a.kills)} au total`)}
+        ${tile('First bloods', f0(a.fb), `${f0(a.fd)} first deaths`)}
+      </div>
+
+      ${data.rr.length >= 2 ? `
+        <h2>Évolution du RR <span class="timer">${data.rr.length} derniers matchs classés</span></h2>
+        <div class="panel"><div id="rr-chart" class="chart-box"></div></div>` : ''}
+
+      <h2>ACS par match <span class="timer">du plus ancien au plus récent</span></h2>
+      <div class="panel">
+        <div class="legend">
+          <span><i style="background:${CHART.pos}"></i>Victoire</span>
+          <span><i style="background:${CHART.neg}"></i>Défaite</span>
+          ${a.draws ? `<span><i style="background:${CHART.draw}"></i>Égalité</span>` : ''}
+        </div>
+        <div id="acs-chart" class="chart-box"></div>
+      </div>
+
+      <div class="cols-2" style="margin-top:14px">
+        <div>
+          <h2>Précision</h2>
+          <div class="panel">
+            ${[['Tête', a.hs], ['Corps', a.bodyPct], ['Jambes', a.legPct]].map(([l, v]) => `
+              <div class="meter-row"><span>${l}</span><div class="meter"><div style="width:${v}%"></div></div><b>${pct(v)}</b></div>`).join('')}
+          </div>
+        </div>
+        <div>
+          <h2>Moments forts</h2>
+          <div class="stat-tiles small">
+            ${tile('3K', f0(a.k3))}${tile('4K', f0(a.k4))}${tile('ACE', f0(a.k5))}
+            ${tile('First bloods', f0(a.fb))}${tile('First deaths', f0(a.fd))}${tile('Duels d\'ouverture', a.fb + a.fd ? pct((a.fb / (a.fb + a.fd)) * 100) : '—', 'gagnés')}
+          </div>
+        </div>
+      </div>
+
+      <h2>Agents</h2>
+      <table class="stats-table">
+        <tr><th>Agent</th><th>Matchs</th><th>Victoires</th><th>K/D</th><th>ACS</th><th>ADR</th><th>HS</th></tr>
+        ${agents.map((g) => {
+          const ag = agentOf(g.key);
+          return `<tr>
+            <td><div class="row">${ag ? `<img src="${ag.icon}" alt="">` : ''}<b>${esc(ag?.name || '?')}</b></div></td>
+            <td>${g.n}</td><td>${pct(g.winRate)}</td><td>${f2(g.kd)}</td><td>${f0(g.acs)}</td><td>${f0(g.adr)}</td><td>${pct(g.hs)}</td></tr>`;
+        }).join('')}
+      </table>
+
+      <div class="cols-2">
+        <div>
+          <h2>Cartes</h2>
+          <table class="stats-table">
+            <tr><th>Carte</th><th>Matchs</th><th>Victoires</th><th>K/D</th><th>ACS</th></tr>
+            ${maps.map((g) => {
+              const mp = state.assets.maps.find((x) => x.uuid === g.key);
+              return `<tr>
+                <td><div class="row">${mp?.listIcon ? `<img class="map-thumb" src="${mp.listIcon}" alt="">` : ''}<b>${esc(mp?.name || '?')}</b></div></td>
+                <td>${g.n}</td><td>${pct(g.winRate)}</td><td>${f2(g.kd)}</td><td>${f0(g.acs)}</td></tr>`;
+            }).join('')}
+          </table>
+        </div>
+        <div>
+          <h2>Armes</h2>
+          <table class="stats-table">
+            <tr><th>Arme</th><th>Kills</th><th>Part</th></tr>
+            ${wList.map(([k, v]) => {
+              const w = weaponInfo(k);
+              return `<tr>
+                <td><div class="row">${w.icon ? `<img class="weapon-icon" src="${w.icon}" alt="">` : '<span class="weapon-icon"></span>'}<b>${esc(w.name)}</b></div></td>
+                <td>${v}</td><td>${pct((v / wTotal) * 100)}</td></tr>`;
+            }).join('')}
+          </table>
+        </div>
+      </div>`;
+
+    const drawCharts = () => {
+      const rrEl = $('#rr-chart'), acsEl = $('#acs-chart');
+      if (rrEl) rrChart(rrEl, data.rr);
+      if (acsEl) acsChart(acsEl, [...recs].reverse().slice(-40));
+    };
+    drawCharts();
+    const ro = new ResizeObserver(() => (alive() ? drawCharts() : ro.disconnect()));
+    ro.observe($('#acs-chart'));
+  }
+
+  content.onclick = (e) => {
+    const q = e.target.closest('[data-q]');
+    if (q) { f.queue = q.dataset.q; return load(); }
+    const n = e.target.closest('[data-n]');
+    if (n) { f.count = Number(n.dataset.n); return load(); }
   };
   await load();
 };
