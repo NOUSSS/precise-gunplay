@@ -561,11 +561,22 @@ class Services {
 
   async chatMessages(cid) {
     if (!CID_RE.test(cid || '')) throw new Error('Conversation invalide.');
-    const res = await this.client.getMessages(cid);
+    // 404 = aucune conversation avec cet ami pour l'instant.
+    const res = await this.client.getMessages(cid).catch((e) => {
+      if (e.status === 404) return null;
+      throw e;
+    });
     return (res?.messages || [])
       .filter((m) => m.cid === cid && m.type === 'chat' && !m.uicEvent)
       .map((m) => ({ id: m.id, mine: m.puuid === this.client.puuid, body: m.body || '', time: Number(m.time) || 0, name: m.game_name || m.name || '' }))
       .sort((a, b) => a.time - b.time);
+  }
+
+  /** Marque la conversation comme lue dans le Riot Client aussi. */
+  async chatRead(cid, id) {
+    if (!CID_RE.test(cid || '') || !id) return false;
+    await this.client.markRead(cid, String(id));
+    return true;
   }
 
   async chatSend(cid, text) {

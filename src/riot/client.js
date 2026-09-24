@@ -292,6 +292,9 @@ class RiotClient {
   getMessages(cid) {
     return this.local('GET', `/chat/v6/messages?cid=${encodeURIComponent(cid)}`);
   }
+  markRead(cid, id) {
+    return this.local('POST', '/chat/v7/conversations/read', { cid, id });
+  }
   sendMessage(cid, message) {
     return this.local('POST', '/chat/v6/messages', { cid, message, type: 'chat' });
   }
