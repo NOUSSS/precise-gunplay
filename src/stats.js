@@ -1,37 +1,49 @@
-// Statistiques façon tracker : un résumé compact est calculé par match puis mis en cache sur disque,
-// pour ne jamais retélécharger un match déjà analysé.
+// Statistiques façon tracker. Les matchs sont synchronisés en arrière-plan (au lancement puis toutes les
+// 5 minutes) et résumés dans un cache disque : la page Stats lit ce cache et s'affiche instantanément.
 const fs = require('fs');
 const path = require('path');
+const { EventEmitter } = require('events');
 
 const RECORD_VERSION = 1;
-const MAX_CACHE = 1000;
+const MAX_MATCHES = 2000;
 const TRADE_WINDOW_MS = 5000;
-const PAGE = 20; // l'historique Riot renvoie au plus 20 matchs par requête
+const PAGE = 20; // l'historique Riot renvoie au plus 20 éléments par requête
+const MAX_PAGES = 15;
+const WORKERS = 3;
 
-class Stats {
+class Stats extends EventEmitter {
   constructor(client, assets, services, cacheDir) {
+    super();
     this.client = client;
     this.assets = assets;
     this.services = services;
     this.file = path.join(cacheDir, 'match-stats-cache.json');
+    this.cache = { matches: {}, rr: {}, complete: {} };
     try {
-      this.cache = JSON.parse(fs.readFileSync(this.file, 'utf8'));
-    } catch {
-      this.cache = {};
-    }
+      const saved = JSON.parse(fs.readFileSync(this.file, 'utf8'));
+      // Ancien format (v1.1.0) : un objet plat { "puuid:matchId": record }.
+      this.cache = saved.matches ? { rr: {}, complete: {}, ...saved } : { ...this.cache, matches: saved };
+    } catch { /* premier lancement */ }
+    this.syncing = null;
+    this.state = { running: false, done: 0, total: 0, waitUntil: null, lastSync: null };
   }
 
   save() {
-    const keys = Object.keys(this.cache);
-    if (keys.length > MAX_CACHE) {
+    const keys = Object.keys(this.cache.matches);
+    if (keys.length > MAX_MATCHES) {
       keys
-        .sort((a, b) => (this.cache[a].startedAt || 0) - (this.cache[b].startedAt || 0))
-        .slice(0, keys.length - MAX_CACHE)
-        .forEach((k) => delete this.cache[k]);
+        .sort((a, b) => (this.cache.matches[a].startedAt || 0) - (this.cache.matches[b].startedAt || 0))
+        .slice(0, keys.length - MAX_MATCHES)
+        .forEach((k) => delete this.cache.matches[k]);
     }
     try {
       fs.writeFileSync(this.file, JSON.stringify(this.cache));
     } catch { /* cache facultatif */ }
+  }
+
+  setState(patch) {
+    this.state = { ...this.state, ...patch };
+    this.emit('state', this.state);
   }
 
   /** Résumé d'un match du point de vue d'un joueur. */
@@ -40,8 +52,8 @@ class Stats {
     if (!me) return null;
     const rounds = d.roundResults || [];
     const teamOf = new Map(d.players.map((p) => [p.subject, p.teamId]));
-    const myTeam = teams(d).find((t) => t.teamId === me.teamId);
-    const other = teams(d).find((t) => t.teamId !== me.teamId);
+    const myTeam = (d.teams || []).find((t) => t.teamId === me.teamId);
+    const other = (d.teams || []).find((t) => t.teamId !== me.teamId);
 
     let damage = 0, head = 0, body = 0, leg = 0;
     for (const r of rounds) {
@@ -106,6 +118,7 @@ class Stats {
       v: RECORD_VERSION,
       id: d.matchInfo?.matchId,
       queue: d.matchInfo?.queueID || d.matchInfo?.queueId || '',
+      seasonId: d.matchInfo?.seasonId || null,
       mapId: this.assets.map(d.matchInfo?.mapId)?.uuid || null,
       agentId: String(me.characterId || '').toLowerCase(),
       startedAt: d.matchInfo?.gameStartMillis || 0,
@@ -123,89 +136,127 @@ class Stats {
     };
   }
 
-  async matchIds(queue, count) {
-    const ids = [];
-    for (let start = 0; start < count; start += PAGE) {
-      const h = await this.client.getMatchHistory(start, Math.min(start + PAGE, count), queue);
-      const list = h?.History || [];
-      ids.push(...list.map((m) => m.MatchID));
-      if (list.length < PAGE || (h?.Total != null && start + PAGE >= h.Total)) break;
-    }
-    return ids;
+  hasMatch(puuid, id) {
+    const r = this.cache.matches[`${puuid}:${id}`];
+    return !!r && r.v === RECORD_VERSION;
   }
 
-  async compute(queue, count, onProgress = () => {}) {
+  /** Lance une synchronisation (une seule à la fois). */
+  sync() {
+    if (!this.client.connected) return Promise.resolve(this.state);
+    if (!this.syncing) {
+      this.syncing = this._sync()
+        .catch((e) => this.setState({ error: e.message }))
+        .finally(() => {
+          this.syncing = null;
+          this.setState({ running: false, waitUntil: null, lastSync: Date.now() });
+        });
+    }
+    return this.syncing;
+  }
+
+  async _sync() {
     const puuid = this.client.puuid;
-    const ids = await this.matchIds(queue, count);
-    const records = [];
+    const complete = !!this.cache.complete[puuid];
+    this.setState({ running: true, done: 0, total: 0, waitUntil: null, error: null });
+
+    // 1) Identifiants des matchs. Une fois l'historique complet en cache, on s'arrête à la première page déjà connue.
     const todo = [];
-    for (const id of ids) {
-      const hit = this.cache[`${puuid}:${id}`];
-      if (hit && hit.v === RECORD_VERSION) records.push(hit);
-      else todo.push(id);
+    let reachedEnd = false;
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const h = await this.client.getMatchHistory(page * PAGE, (page + 1) * PAGE);
+      const list = (h?.History || []).map((m) => m.MatchID);
+      const fresh = list.filter((id) => !this.hasMatch(puuid, id));
+      todo.push(...fresh);
+      if (list.length < PAGE) { reachedEnd = true; break; }
+      if (complete && !fresh.length) break;
     }
 
-    let done = records.length;
-    const progress = () =>
-      onProgress({ done, total: ids.length, waitUntil: this.client.rateLimitedUntil > Date.now() ? this.client.rateLimitedUntil : null });
-    progress();
-    this.client.onRateLimit = progress;
+    // 2) Historique RR (léger : quelques requêtes), fusionné avec ce qui est déjà connu.
+    await this.syncRR(puuid);
+
+    // 3) Téléchargement des matchs manquants, sauvegardés au fur et à mesure.
+    let done = 0;
+    this.setState({ total: todo.length });
+    this.client.onRateLimit = (bucket, until) => {
+      if (bucket === '/match-details') this.setState({ waitUntil: until });
+    };
     let unsaved = 0;
-    // 3 téléchargements en parallèle pour rester sous la limite de requêtes Riot.
-    const queueIds = [...todo];
+    const queue = [...todo];
     const worker = async () => {
-      while (queueIds.length) {
-        const id = queueIds.shift();
+      while (queue.length && this.client.puuid === puuid) {
+        const id = queue.shift();
         try {
           const d = await this.services.matchDetails(id);
           const r = d && this.record(d, puuid);
           if (r) {
-            this.cache[`${puuid}:${id}`] = r;
-            records.push(r);
-            // Sauvegarde régulière : rien n'est perdu si l'analyse est interrompue.
-            if (++unsaved >= 10) {
-              this.save();
-              unsaved = 0;
-            }
+            this.cache.matches[`${puuid}:${id}`] = r;
+            if (++unsaved >= 10) { this.save(); unsaved = 0; }
           }
-        } catch { /* match ignoré */ }
-        done++;
-        progress();
+        } catch { /* match ignoré, retenté à la prochaine synchro */ }
+        this.setState({ done: ++done, waitUntil: this.client.rateLimitedUntil('/match-details') });
       }
     };
     try {
-      await Promise.all([worker(), worker(), worker()]);
+      await Promise.all(Array.from({ length: WORKERS }, worker));
     } finally {
       this.client.onRateLimit = null;
-      if (unsaved) this.save();
     }
+    if (this.client.puuid === puuid && (reachedEnd || complete) && todo.every((id) => this.hasMatch(puuid, id))) {
+      this.cache.complete[puuid] = true;
+    }
+    this.save();
+  }
 
-    records.sort((a, b) => b.startedAt - a.startedAt);
-
-    let rr = [];
-    if (!queue || queue === 'competitive') {
-      const updates = await this.client.getCompetitiveUpdates(0, 20).catch(() => null);
-      rr = (updates?.Matches || [])
-        .filter((m) => m.TierAfterUpdate > 0)
-        .map((m) => ({
+  async syncRR(puuid) {
+    const known = new Map((this.cache.rr[puuid] || []).map((u) => [u.id, u]));
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const res = await this.client.getCompetitiveUpdates(page * PAGE, (page + 1) * PAGE).catch(() => null);
+      const list = res?.Matches || [];
+      let fresh = 0;
+      for (const m of list) {
+        if (!known.has(m.MatchID)) fresh++;
+        known.set(m.MatchID, {
           id: m.MatchID,
           at: m.MatchStartTime,
+          seasonId: m.SeasonID,
           mapId: this.assets.map(m.MapID)?.uuid || null,
           tierBefore: m.TierBeforeUpdate,
           tier: m.TierAfterUpdate,
           rr: m.RankedRatingAfterUpdate,
           earned: m.RankedRatingEarned,
-        }))
-        .reverse();
+        });
+      }
+      if (list.length < PAGE || !fresh) break;
     }
-
-    const rank = await this.services.rank(puuid).catch(() => null);
-    return { records, rr, rank };
+    this.cache.rr[puuid] = [...known.values()].sort((a, b) => a.at - b.at);
   }
-}
 
-function teams(d) {
-  return d.teams || [];
+  /** Rang par acte, à partir du MMR (un seul appel). */
+  async actRanks(puuid) {
+    if (this.ranksCache?.puuid === puuid && Date.now() - this.ranksCache.at < 60000) return this.ranksCache.value;
+    const mmr = await this.client.getMMR(puuid).catch(() => null);
+    const out = {};
+    for (const [id, s] of Object.entries(mmr?.QueueSkills?.competitive?.SeasonalInfoBySeasonID || {})) {
+      let peak = s.CompetitiveTier || 0;
+      for (const t of Object.keys(s.WinsByTier || {})) peak = Math.max(peak, Number(t));
+      out[id] = { tier: s.CompetitiveTier || 0, rr: s.RankedRating || 0, wins: s.NumberOfWins || 0, games: s.NumberOfGames || 0, peak };
+    }
+    if (mmr) this.ranksCache = { puuid, at: Date.now(), value: out };
+    return out;
+  }
+
+  /** Tout ce que la page Stats affiche, lu depuis le cache (instantané). */
+  async data() {
+    const puuid = this.client.puuid;
+    const prefix = `${puuid}:`;
+    const records = Object.entries(this.cache.matches)
+      .filter(([k, r]) => k.startsWith(prefix) && r.v === RECORD_VERSION)
+      .map(([, r]) => r)
+      .sort((a, b) => b.startedAt - a.startedAt);
+    const [actRanks, rank] = await Promise.all([this.actRanks(puuid), this.services.rank(puuid).catch(() => null)]);
+    return { records, rr: this.cache.rr[puuid] || [], actRanks, rank, sync: this.state };
+  }
 }
 
 module.exports = { Stats };

@@ -22,7 +22,7 @@ const CURRENCY_ICON = {
 const QUEUES = {
   competitive: 'Compétition', unrated: 'Non classé', swiftplay: 'Vélocité', spikerush: 'Spike Rush',
   deathmatch: 'Combat à mort', hurm: 'Combat à mort par équipe', ggteam: 'Escalade', premier: 'Premier',
-  onefa: 'Réplication', snowball: 'Bataille de boules de neige', newmap: 'Nouvelle carte', '': 'Personnalisée', custom: 'Personnalisée',
+  onefa: 'Réplication', skirmish2v2: 'Escarmouche 2c2', abilitydraftarena: 'Draft de compétences', snowball: 'Bataille de boules de neige', newmap: 'Nouvelle carte', '': 'Personnalisée', custom: 'Personnalisée',
 };
 const queueName = (q) => QUEUES[q] ?? (q ? q.charAt(0).toUpperCase() + q.slice(1) : 'Personnalisée');
 
@@ -872,50 +872,119 @@ const f2 = (n) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumF
 const f0 = (n) => Math.round(n).toLocaleString('fr-FR');
 const pct = (n) => `${n.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`;
 
+// Modes exclus de « Tous les modes » (comme sur les trackers) : parties perso et modes « fun ».
+const EXCLUDED_FROM_ALL = new Set(['', 'custom', 'deathmatch', 'hurm', 'ggteam', 'snowball', 'newmap', 'skirmish2v2', 'abilitydraftarena']);
+
 PAGES.stats = async () => {
   const alive = guard();
-  state.statsFilter ||= { queue: 'competitive', count: 20 };
+  const acts = state.assets.acts || [];
+  state.statsFilter ||= { queue: 'competitive', act: state.assets.currentAct?.uuid || 'all' };
   const f = state.statsFilter;
-  const QUEUE_F = [['competitive', 'Compétition'], ['unrated', 'Non classé'], ['swiftplay', 'Vélocité'], ['', 'Tous les modes']];
-  const COUNTS = [20, 50, 100];
+  const QUEUE_F = [['competitive', 'Compétition'], ['unrated', 'Non classé'], ['swiftplay', 'Vélocité'], ['deathmatch', 'Combat à mort'], ['all', 'Tous les modes']];
   let data = null;
+  let sync = null;
+  let refreshedAt = 0;
 
-  const head = () => `
-    <div class="page-head"><h1><small>Tes performances</small>Statistiques</h1></div>
-    <div class="row" style="margin-bottom:20px;flex-wrap:wrap">
-      <div class="chip-group">${QUEUE_F.map(([v, l]) => `<button data-q="${v}" class="${f.queue === v ? 'on' : ''}">${l}</button>`).join('')}</div>
-      <div class="chip-group">${COUNTS.map((c) => `<button data-n="${c}" class="${f.count === c ? 'on' : ''}">${c} matchs</button>`).join('')}</div>
-    </div>`;
+  const actOf = (r) => r.seasonId || acts.find((a) => r.startedAt >= a.start && r.startedAt < a.end)?.uuid || null;
+  const inQueue = (r) => (f.queue === 'all' ? !EXCLUDED_FROM_ALL.has(r.queue) : r.queue === f.queue);
+  const inAct = (r) => f.act === 'all' || actOf(r) === f.act;
+  const actName = (id) => (id === 'all' ? 'toutes les saisons' : acts.find((a) => a.uuid === id)?.name || 'cet acte');
 
-  async function load() {
-    content.innerHTML = `${head()}<div class="stats-loading">${loader()}<div class="muted" id="st-progress">Récupération de l'historique…</div><div class="muted" style="font-size:12px;margin-top:10px">Les matchs déjà analysés sont gardés en cache : les prochaines fois, ce sera instantané.</div></div>`;
-    const off = window.api.on('stats-progress', (p) => {
-      const el = $('#st-progress');
-      if (!el) return;
-      el.innerHTML = p.waitUntil
-        ? `Analyse des matchs… ${p.done} / ${p.total}<br><span class="rate-wait">Limite de requêtes Riot atteinte : reprise dans <b data-ends="${p.waitUntil}">${fmtDuration(p.waitUntil - Date.now())}</b></span>`
-        : `Analyse des matchs… ${p.done} / ${p.total}`;
-    });
-    try {
-      data = await call('stats', f.queue, f.count);
-    } catch (e) {
-      if (alive()) content.innerHTML = head() + errorBox(e.message);
-      return;
-    } finally {
-      off();
+  function syncLine() {
+    const s = sync || data?.sync;
+    if (!s) return '';
+    if (s.running) {
+      if (s.waitUntil && s.waitUntil > Date.now()) {
+        return `<span class="rate-wait">Pause imposée par Riot : reprise dans <b data-ends="${s.waitUntil}">${fmtDuration(s.waitUntil - Date.now())}</b></span> · ${s.done} / ${s.total} nouveaux matchs`;
+      }
+      return s.total ? `<span class="sync-dot"></span>Synchronisation… ${s.done} / ${s.total} nouveaux matchs` : '<span class="sync-dot"></span>Recherche de nouveaux matchs…';
     }
-    if (alive()) draw();
+    if (s.error) return `Synchronisation impossible : ${esc(s.error)}`;
+    return `À jour · ${data?.records.length || 0} matchs en mémoire`;
   }
 
-  function draw() {
-    const recs = data.records;
-    if (!recs.length) {
-      content.innerHTML = `${head()}<div class="empty"><h3>Aucun match</h3><div>Joue quelques parties dans ce mode pour voir tes stats.</div></div>`;
+  async function refresh() {
+    refreshedAt = Date.now();
+    try {
+      data = await call('stats-data');
+    } catch (e) {
+      if (alive()) content.innerHTML = errorBox(e.message);
       return;
     }
+    if (!alive()) return;
+    const scroll = content.scrollTop;
+    draw();
+    content.scrollTop = scroll;
+  }
+
+  const off = window.api.on('stats-sync', (s) => {
+    if (!alive()) return off();
+    const wasRunning = sync?.running;
+    sync = s;
+    const line = $('#sync-line');
+    if (line) line.innerHTML = syncLine();
+    // Les nouveaux matchs apparaissent au fil de la synchro, sans recharger à chaque match.
+    if ((wasRunning && !s.running) || (s.running && s.done && Date.now() - refreshedAt > 4000)) refresh();
+  });
+
+  function draw() {
+    const all = data.records;
+    const inActAnyQueue = all.filter(inAct);
+    const recs = inActAnyQueue.filter(inQueue);
+    const current = state.assets.currentAct?.uuid;
+    const actRank = f.act === 'all' || f.act === current ? data.rank : data.actRanks[f.act];
+    const rankLabel = f.act !== 'all' && f.act !== current ? 'Rang de fin d\'acte' : 'Rang actuel';
+    const rr = data.rr.filter((u) => u.tier > 0 && (f.act === 'all' || u.seasonId === f.act));
+
+    // Actes proposés : l'acte en cours + ceux où tu as des matchs en mémoire.
+    const counts = new Map();
+    for (const r of all) if (inQueue(r)) counts.set(actOf(r), (counts.get(actOf(r)) || 0) + 1);
+    const actOptions = acts.filter((a) => a.uuid === current || counts.has(a.uuid) || a.uuid === f.act);
+    const oldest = all.length ? all[all.length - 1].startedAt : null;
+
+    const head = `
+      <div class="page-head">
+        <h1><small>Tes performances</small>Statistiques</h1>
+        <div class="sync-box"><span id="sync-line">${syncLine()}</span><button class="btn ghost" id="st-refresh">Actualiser</button></div>
+      </div>
+      <div class="row" style="margin-bottom:20px;flex-wrap:wrap">
+        <select id="st-act" class="act-select">
+          ${actOptions.map((a) => `<option value="${a.uuid}" ${f.act === a.uuid ? 'selected' : ''}>${esc(a.name)}${a.uuid === current ? ' (en cours)' : ''} · ${counts.get(a.uuid) || 0} matchs</option>`).join('')}
+          <option value="all" ${f.act === 'all' ? 'selected' : ''}>Toutes les saisons · ${[...counts.values()].reduce((s, v) => s + v, 0)} matchs</option>
+        </select>
+        <div class="chip-group">${QUEUE_F.map(([v, l]) => `<button data-q="${v}" class="${f.queue === v ? 'on' : ''}">${l}</button>`).join('')}</div>
+      </div>`;
+
+    const rt = tierOf(actRank?.tier), pt = tierOf(actRank?.peak);
+    const rankCard = actRank && (actRank.tier || actRank.games)
+      ? `<div class="panel rank-stat">
+          ${rt?.icon && actRank.tier ? `<img src="${rt.icon}" alt="">` : ''}
+          <div>
+            <div class="st-label">${rankLabel}</div>
+            <div class="st-value">${actRank.tier ? esc(rt?.name) : 'Non classé'}</div>
+            <div class="st-sub">${actRank.tier ? `${actRank.rr} RR · ` : ''}Meilleur : ${esc(pt?.name || '—')}</div>
+          </div>
+        </div>`
+      : '';
+
+    if (!recs.length) {
+      const syncing = (sync || data.sync)?.running;
+      const tooOld = f.act !== 'all' && oldest && (acts.find((a) => a.uuid === f.act)?.end || 0) < oldest;
+      content.innerHTML = `${head}
+        ${rankCard ? `<div class="stats-top single">${rankCard}</div>` : ''}
+        <div class="empty">
+          <h3>${syncing ? 'Synchronisation en cours…' : 'Aucun match'}</h3>
+          <div>${syncing
+            ? 'Tes matchs arrivent : cette page se complète toute seule.'
+            : tooOld
+              ? 'Riot ne fournit que tes derniers matchs : cet acte est trop ancien pour être récupéré.<br>À partir de maintenant, Precise Gunplay garde tous tes matchs, pour tous les actes à venir.'
+              : `Aucun match en ${esc(QUEUE_F.find(([v]) => v === f.queue)?.[1] || '')} pour ${esc(actName(f.act))}.`}</div>
+        </div>`;
+      bind();
+      return;
+    }
+
     const a = aggregate(recs);
-    const rank = data.rank;
-    const rt = tierOf(rank?.tier), pt = tierOf(rank?.peak);
     const agents = groupBy(recs, 'agentId');
     const maps = groupBy(recs, 'mapId');
     const weapons = {};
@@ -928,23 +997,15 @@ PAGES.stats = async () => {
     const tile = (label, value, sub) =>
       `<div class="stat-tile"><div class="st-label">${label}</div><div class="st-value">${value}</div>${sub ? `<div class="st-sub">${sub}</div>` : ''}</div>`;
 
-    content.innerHTML = `${head()}
-      <div class="stats-top">
+    content.innerHTML = `${head}
+      <div class="stats-top ${rankCard ? '' : 'single'}">
         <div class="panel hero-stat">
-          <div class="st-label">K/D · ${a.n} matchs</div>
+          <div class="st-label">K/D · ${a.n} matchs · ${esc(actName(f.act))}</div>
           <div class="hero-value">${f2(a.kd)}</div>
-          <div class="st-sub">${f0(a.kills)} éliminations · ${f0(a.deaths)} morts</div>
-          <div class="form">${recs.slice(0, 10).map((r) => `<span class="form-dot ${r.result}" title="${resultLabel[r.result]}">${r.result === 'win' ? 'V' : r.result === 'loss' ? 'D' : 'N'}</span>`).join('')}<span class="muted" style="font-size:11px;margin-left:6px">10 derniers</span></div>
+          <div class="st-sub">${f0(a.kills)} éliminations · ${f0(a.deaths)} morts · ${f0(a.rounds)} manches</div>
+          <div class="form">${recs.slice(0, 10).map((r) => `<span class="form-dot ${r.result}" title="${resultLabel[r.result]}">${r.result === 'win' ? 'V' : r.result === 'loss' ? 'D' : 'N'}</span>`).join('')}<span class="muted" style="font-size:11px;margin-left:6px">${Math.min(10, recs.length)} derniers</span></div>
         </div>
-        ${rank ? `
-        <div class="panel rank-stat">
-          ${rt?.icon && rank.tier ? `<img src="${rt.icon}" alt="">` : ''}
-          <div>
-            <div class="st-label">Rang actuel</div>
-            <div class="st-value">${rank.tier ? esc(rt?.name) : 'Non classé'}</div>
-            <div class="st-sub">${rank.tier ? `${rank.rr} RR · ` : ''}Meilleur : ${esc(pt?.name || '—')}</div>
-          </div>
-        </div>` : ''}
+        ${rankCard}
       </div>
 
       <div class="stat-tiles">
@@ -958,11 +1019,11 @@ PAGES.stats = async () => {
         ${tile('First bloods', f0(a.fb), `${f0(a.fd)} first deaths`)}
       </div>
 
-      ${data.rr.length >= 2 ? `
-        <h2>Évolution du RR <span class="timer">${data.rr.length} derniers matchs classés</span></h2>
+      ${rr.length >= 2 && (f.queue === 'competitive' || f.queue === 'all') ? `
+        <h2>Évolution du RR <span class="timer">${rr.length} matchs classés</span></h2>
         <div class="panel"><div id="rr-chart" class="chart-box"></div></div>` : ''}
 
-      <h2>ACS par match <span class="timer">du plus ancien au plus récent</span></h2>
+      <h2>ACS par match <span class="timer">${recs.length > 80 ? '80 derniers · ' : ''}du plus ancien au plus récent</span></h2>
       <div class="panel">
         <div class="legend">
           <span><i style="background:${CHART.pos}"></i>Victoire</span>
@@ -1025,25 +1086,36 @@ PAGES.stats = async () => {
             }).join('')}
           </table>
         </div>
-      </div>`;
+      </div>
+      ${f.act === 'all' && oldest ? `<p class="muted" style="font-size:12px;margin-top:18px">Matchs en mémoire depuis le ${new Date(oldest).toLocaleDateString('fr-FR')}. Riot ne fournit que tes derniers matchs ; Precise Gunplay garde ensuite tout ton historique.</p>` : ''}`;
 
     const drawCharts = () => {
       const rrEl = $('#rr-chart'), acsEl = $('#acs-chart');
-      if (rrEl) rrChart(rrEl, data.rr);
-      if (acsEl) acsChart(acsEl, [...recs].reverse().slice(-40));
+      if (rrEl) rrChart(rrEl, rr);
+      if (acsEl) acsChart(acsEl, [...recs].reverse().slice(-80));
     };
     drawCharts();
-    const ro = new ResizeObserver(() => (alive() ? drawCharts() : ro.disconnect()));
+    const ro = new ResizeObserver(() => (alive() && $('#acs-chart') ? drawCharts() : ro.disconnect()));
     ro.observe($('#acs-chart'));
+    bind();
+  }
+
+  function bind() {
+    $('#st-act').onchange = (e) => { f.act = e.target.value; draw(); };
+    $('#st-refresh').onclick = async () => {
+      sync = await call('stats-sync').catch(() => sync);
+      $('#sync-line').innerHTML = syncLine();
+    };
   }
 
   content.onclick = (e) => {
     const q = e.target.closest('[data-q]');
-    if (q) { f.queue = q.dataset.q; return load(); }
-    const n = e.target.closest('[data-n]');
-    if (n) { f.count = Number(n.dataset.n); return load(); }
+    if (q) { f.queue = q.dataset.q; draw(); }
   };
-  await load();
+
+  await refresh();
+  // Vérifie s'il y a de nouveaux matchs (1 à 2 requêtes si tout est déjà en mémoire).
+  call('stats-sync').catch(() => {});
 };
 
 // ---------- Groupe ----------
