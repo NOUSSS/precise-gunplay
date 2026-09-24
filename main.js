@@ -22,6 +22,18 @@ function send(channel, payload) {
   if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
 }
 
+// Démarrage avec Windows : l'état réel vient du registre, pas du fichier de paramètres.
+// En portable, il faut pointer vers l'exécutable d'origine et non vers la copie extraite.
+function loginItemOptions() {
+  const opts = { path: process.env.PORTABLE_EXECUTABLE_FILE || process.execPath };
+  if (!app.isPackaged) opts.args = [app.getAppPath()];
+  return opts;
+}
+
+function withLoginItem(value) {
+  return { ...value, openAtLogin: app.getLoginItemSettings(loginItemOptions()).openAtLogin };
+}
+
 function setStatus(next) {
   status = next;
   send('status', status);
@@ -83,10 +95,12 @@ function registerIpc() {
   handle('connect', async () => { await tryConnect(); return status; }, { needsAuth: false });
   handle('assets', async () => { await assets.load(); return assets.summary(); }, { needsAuth: false });
   handle('assets-refresh', async () => { await assets.load(true); return assets.summary(); }, { needsAuth: false });
-  handle('settings-get', () => settings.get(), { needsAuth: false });
+  handle('settings-get', () => withLoginItem(settings.get()), { needsAuth: false });
   handle('settings-set', (patch) => {
     const before = settings.get().regionOverride;
-    const next = settings.update(patch || {});
+    const { openAtLogin, ...rest } = patch || {};
+    if (typeof openAtLogin === 'boolean') app.setLoginItemSettings({ ...loginItemOptions(), openAtLogin });
+    const next = withLoginItem(settings.update(rest));
     if (patch && 'regionOverride' in patch && patch.regionOverride !== before) {
       client.reset();
       tryConnect();
