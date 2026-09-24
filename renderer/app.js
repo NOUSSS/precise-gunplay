@@ -167,9 +167,6 @@ function renderAccount() {
     ? `<div><span class="dot on"></span><span class="who">${esc(s.name || 'Connecté')}</span><span class="muted">#${esc(s.tag || '')}</span></div>
        <div class="sub">Compte lié · ${esc((s.region || '').toUpperCase())}</div>`
     : `<div><span class="dot off"></span><span class="who">Non connecté</span></div><div class="sub">${esc(s.message || '')}</div>`;
-  $('#titlebar-status').innerHTML = s.connected
-    ? `<span class="dot on"></span>Connecté${s.region ? ` · <b>${esc(s.region.toUpperCase())}</b>` : ''}`
-    : '<span class="dot off"></span>Hors ligne';
 }
 
 function navigate(page) {
@@ -197,7 +194,6 @@ function guard() {
 // ================= Mises à jour =================
 function renderUpdate() {
   const u = state.update;
-  if (u?.current) $('#brand-ver').textContent = `v${u.current}`;
   const el = $('#update');
   if (!u || !['downloading', 'ready', 'available'].includes(u.status)) return (el.innerHTML = '');
   if (u.status === 'downloading') {
@@ -228,7 +224,7 @@ function updateLabel(u) {
 function renderConnect() {
   content.innerHTML = `
     <div class="connect">
-      <img class="logo" src="logo.svg" alt="">
+      <div class="logo"></div>
       <h1><small>Lier ton compte</small>Precise Gunplay</h1>
       <p class="muted">L'application se lie automatiquement à ton compte via le Riot Client ouvert sur ce PC.<br>Aucun mot de passe n'est demandé ni stocké.</p>
       <div class="steps">
