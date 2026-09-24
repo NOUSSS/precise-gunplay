@@ -167,6 +167,8 @@ app.whenReady().then(() => {
   autolock = new AutoLock(client, settings, assets);
   updater = new Updater();
   updater.on('state', (s) => send('update', s));
+  // Vérifie les mises à jour immédiatement, avant tout le reste du démarrage.
+  updater.start();
 
   autolock.on('event', (evt) => {
     send('autolock-event', evt);
@@ -180,7 +182,6 @@ app.whenReady().then(() => {
   tryConnect();
   watchConnection();
   autolock.start();
-  updater.start();
 });
 
 app.on('window-all-closed', () => app.quit());

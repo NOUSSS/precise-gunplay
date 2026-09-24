@@ -273,9 +273,15 @@ function renderUpdate() {
     el.innerHTML = `<div class="update-card"><b>Mise à jour v${esc(u.latest)}</b>Téléchargement… ${u.progress || 0}%<div class="update-bar"><div style="width:${u.progress || 0}%"></div></div></div>`;
   } else {
     el.innerHTML = `<div class="update-card"><b>Mise à jour v${esc(u.latest)} ${u.status === 'ready' ? 'prête' : 'disponible'}</b>
-      ${u.status === 'ready' ? "Elle s'installera au prochain lancement." : 'Télécharge la nouvelle version sur GitHub.'}
-      <button class="btn primary" id="update-btn">${u.status === 'ready' ? 'Redémarrer maintenant' : 'Télécharger'}</button></div>`;
-    $('#update-btn').onclick = () => call('update-install');
+      ${u.status === 'ready' ? "Redémarre l'app pour passer à la nouvelle version." : 'Télécharge la nouvelle version sur GitHub.'}
+      <button class="btn primary" id="update-btn">${u.status === 'ready' ? 'Redémarrer' : 'Télécharger'}</button></div>`;
+    $('#update-btn').onclick = (e) => {
+      if (u.status === 'ready') {
+        e.currentTarget.disabled = true;
+        e.currentTarget.textContent = 'Redémarrage…';
+      }
+      call('update-install');
+    };
   }
 }
 
@@ -287,7 +293,7 @@ function updateLabel(u) {
     checking: 'Recherche de mises à jour…',
     none: 'Tu as la dernière version.',
     downloading: `Téléchargement de la v${u.latest}… ${u.progress || 0}%`,
-    ready: `v${u.latest} prête : elle s'installera au redémarrage.`,
+    ready: `v${u.latest} prête : redémarre l'app pour l'installer.`,
     available: `v${u.latest} disponible sur GitHub (version portable : mise à jour manuelle).`,
     error: `Erreur : ${u.error || 'inconnue'}`,
   }[u.status] || '';

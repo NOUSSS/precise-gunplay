@@ -1,5 +1,6 @@
 // Mises à jour automatiques via les Releases GitHub.
-// - Version installée (NSIS) : téléchargement en arrière-plan puis installation au redémarrage.
+// - Version installée (NSIS) : vérification dès le lancement, téléchargement en arrière-plan,
+//   puis installation silencieuse et relance automatique au clic sur « Redémarrer ».
 // - Version portable : impossible de se remplacer elle-même → on signale juste la nouvelle version.
 const { EventEmitter } = require('events');
 const { app, shell } = require('electron');
@@ -42,12 +43,13 @@ class Updater extends EventEmitter {
 
   start() {
     if (!app.isPackaged) return;
-    setTimeout(() => this.check(), 5000);
+    this.check();
     setInterval(() => this.check(), CHECK_EVERY);
   }
 
   async check() {
     if (!app.isPackaged) return this.state;
+    if (['checking', 'downloading', 'ready'].includes(this.state.status)) return this.state;
     if (!this.portable) {
       await autoUpdater.checkForUpdates().catch((e) => this.set({ status: 'error', error: e.message }));
       return this.state;
@@ -65,7 +67,8 @@ class Updater extends EventEmitter {
   }
 
   install() {
-    if (this.state.status === 'ready') autoUpdater.quitAndInstall(false, true);
+    // Installation silencieuse (pas d'assistant NSIS) puis relance automatique de l'app.
+    if (this.state.status === 'ready') setImmediate(() => autoUpdater.quitAndInstall(true, true));
     else shell.openExternal(RELEASES_URL);
   }
 }
