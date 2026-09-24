@@ -1580,6 +1580,10 @@ PAGES.settings = async () => {
         <label class="switch"><input type="checkbox" id="s-notif" ${s.notifications ? 'checked' : ''}><span></span></label>
       </div>
       <div class="setting-row">
+        <div class="label"><div>Lancer au démarrage de Windows</div><div>Ouvre Precise Gunplay automatiquement à l'ouverture de ta session.</div></div>
+        <label class="switch"><input type="checkbox" id="s-login" ${s.openAtLogin ? 'checked' : ''}><span></span></label>
+      </div>
+      <div class="setting-row">
         <div class="label"><div>Données du jeu</div><div>Images et noms (agents, skins, cartes…) fournis par valorant-api.com. À recharger après une mise à jour du jeu.</div></div>
         <button class="btn" id="s-assets">Recharger</button>
       </div>
@@ -1604,6 +1608,7 @@ PAGES.settings = async () => {
     toast('Région enregistrée, reconnexion…');
   };
   $('#s-notif').onchange = async (e) => { state.settings = await call('settings-set', { notifications: e.target.checked }); };
+  $('#s-login').onchange = async (e) => { state.settings = await call('settings-set', { openAtLogin: e.target.checked }); };
   $('#s-assets').onclick = async (e) => {
     e.target.disabled = true;
     try { state.assets = await call('assets-refresh'); state.owned = null; toast('Données du jeu rechargées.'); }
