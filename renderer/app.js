@@ -87,6 +87,22 @@ function rankHtml(rank, { peak = true } = {}) {
   }</div>`;
 }
 
+// Lien vers le profil Tracker d'un joueur (jamais pour un joueur en mode anonyme).
+function trackerBtn(name, tag, hidden = false) {
+  if (hidden || !name || !tag) return '';
+  const url = `https://tracker.gg/valorant/profile/riot/${encodeURIComponent(`${name}#${tag}`)}/overview`;
+  return `<button class="trn-btn" data-tracker="${esc(url)}" title="Voir le profil de ${esc(name)}#${esc(tag)} sur Tracker">TRN<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></button>`;
+}
+
+// Capture : le bouton Tracker ne déclenche pas l'action de la ligne qui le contient.
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-tracker]');
+  if (!b) return;
+  e.stopPropagation();
+  e.preventDefault();
+  call('open-external', b.dataset.tracker).catch(() => {});
+}, true);
+
 // Nettoie les rafraîchissements automatiques quand on change de page.
 function every(ms, fn) {
   const id = setInterval(fn, ms);
@@ -487,6 +503,16 @@ PAGES.agent = async () => {
 };
 
 // ---------- Partie en direct ----------
+function recentHtml(r) {
+  if (r == null) return '<div class="recent muted" title="Chargement de ses derniers matchs…"><span class="mini-loader"></span></div>';
+  if (!r.n) return '<div class="recent muted" title="Aucun match récent">—</div>';
+  const n = (v) => Math.round(v);
+  return `<div class="recent" title="Moyenne sur ses ${r.n} derniers matchs (${r.wins} victoire${r.wins > 1 ? 's' : ''})">
+    <div><b>${n(r.kills)} / ${n(r.deaths)} / ${n(r.assists)}</b></div>
+    <div class="muted">K/D <b>${r.kd.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</b>${r.hs != null ? ` · HS ${Math.round(r.hs)} %` : ''}</div>
+  </div>`;
+}
+
 function playerRow(p, { pregame = false } = {}) {
   const a = agentOf(p.agentId);
   return `
@@ -497,7 +523,9 @@ function playerRow(p, { pregame = false } = {}) {
         <div>${a ? esc(a.name) : 'En sélection…'}${p.level != null ? ` · Niv. ${p.level}` : ''}${p.hidden ? ' · nom masqué' : ''}</div>
       </div>
       ${pregame && p.state ? `<span class="pstate ${p.state}">${p.state === 'locked' ? 'Verrouillé' : 'Survol'}</span>` : ''}
+      ${recentHtml(p.recent)}
       ${rankHtml(p.rank)}
+      ${p.isMe ? '<span class="trn-space"></span>' : trackerBtn(p.name, p.tag, p.hidden) || '<span class="trn-space"></span>'}
     </div>`;
 }
 
@@ -557,6 +585,7 @@ PAGES.live = async () => {
           }).join('')}</div>
         </div>` : ''}
 
+      <div class="live-note muted">K/D/A : moyenne par match sur les 3 derniers matchs de chaque joueur, dans ce mode.</div>
       <div class="${d.enemies.length ? 'cols-2' : ''}">
         <div class="team ally"><h3>Ton équipe</h3>${d.allies.map((p) => playerRow(p, { pregame: d.state === 'pregame' })).join('')}</div>
         ${d.enemies.length ? `<div class="team enemy"><h3>Adversaires</h3>${d.enemies.map((p) => playerRow(p)).join('')}</div>` : ''}
@@ -646,7 +675,7 @@ PAGES.history = async () => {
             ${m.scoreboard.map((p) => {
               const pa = agentOf(p.agentId), pt = tierOf(p.tier);
               return `<tr class="${p.team} ${p.isMe ? 'me' : ''}">
-                <td>${esc(p.name)}<span class="muted">#${esc(p.tag)}</span></td>
+                <td><div class="row" style="gap:8px">${esc(p.name)}<span class="muted" style="margin-left:-8px">#${esc(p.tag)}</span>${p.isMe ? '' : trackerBtn(p.name, p.tag)}</div></td>
                 <td>${pa ? `<img src="${pa.icon}" alt="" title="${esc(pa.name)}">` : ''}</td>
                 <td><b>${p.acs}</b></td><td>${p.kills}</td><td>${p.deaths}</td><td>${p.assists}</td>
                 <td>${pt?.icon && p.tier ? `<img src="${pt.icon}" alt="" title="${esc(pt.name)}">` : '<span class="muted">—</span>'}</td></tr>`;
@@ -1169,6 +1198,7 @@ PAGES.party = async () => {
             <div class="mname">${esc(m.name)}</div><div class="mtag">#${esc(m.tag)} · Niv. ${m.level ?? '?'}</div>
             ${m.owner ? '<div class="crown">★ Chef de groupe</div>' : ''}
             ${rankHtml(m.rank)}
+            ${m.isMe ? '' : `<div style="margin-top:10px">${trackerBtn(m.name, m.tag)}</div>`}
           </div>`).join('')}
       </div>`;
   }
@@ -1227,6 +1257,7 @@ PAGES.friends = async () => {
           ${pill}
           ${v?.level ? `<span class="pill">Niv. ${v.level}</span>` : ''}
           ${t?.icon ? `<img src="${t.icon}" alt="" title="${esc(t.name)}" style="width:28px;height:28px">` : ''}
+          ${trackerBtn(f.name, f.tag)}
         </div>`;
     }).join('') || '<div class="empty">Aucun ami trouvé.</div>';
   }

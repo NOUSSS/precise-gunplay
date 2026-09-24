@@ -18,11 +18,12 @@ Va sur la page [**Releases**](https://github.com/NOUSSS/precise-gunplay/releases
 | **Accueil** | Profil (pseudo, niveau, carte, titre), rang actuel + meilleur rang, portefeuille VP / Radianite / Kingdom Credits |
 | **Boutique** | Les 4 offres du jour avec compte à rebours, packs en vedette, marché nocturne, boutique d'accessoires |
 | **Agent auto** | Sélection automatique de l'agent quand une partie est trouvée : mode survol ou verrouillage, délai, agents de secours, agent différent par carte |
-| **Partie en direct** | Sélection d'agent et partie en cours : agents, niveaux, rangs actuels et meilleurs rangs des 10 joueurs. Choix/verrouillage manuel et bouton d'esquive |
+| **Partie en direct** | Sélection d'agent et partie en cours : agent, niveau, rang, meilleur rang et **K/D/A moyen, K/D et HS % sur les 3 derniers matchs** de chaque joueur. Choix/verrouillage manuel et bouton d'esquive |
 | **Statistiques** | Façon tracker, **par acte** et par mode : K/D, KDA, ACS, ADR, headshot %, KAST, first bloods, 3K/4K/ACE, rang de l'acte, évolution du RR, ACS par match, stats par agent, carte et arme. Les matchs sont synchronisés en arrière-plan et gardés sur le PC : la page s'ouvre instantanément |
 | **Historique** | 15 derniers matchs (filtrables par mode) avec score, K/D/A, ACS, stats globales et tableau des scores dépliable |
 | **Groupe** | Membres du groupe, changement de mode, lancer/annuler la recherche, ouvrir/fermer le groupe |
 | **Amis** | Amis en ligne : dans les menus, en sélection ou en partie (mode, carte, score) |
+| **Profils Tracker** | Bouton « TRN » sur les joueurs (partie en direct, historique, groupe, amis) qui ouvre leur profil tracker.gg — jamais pour un joueur en mode anonyme |
 | **Collection** | Tous tes skins, triés par rareté, avec recherche |
 
 ## Liaison du compte

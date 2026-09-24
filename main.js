@@ -157,6 +157,7 @@ app.whenReady().then(() => {
   settings = new Settings(dataDir);
   services = new Services(client, assets);
   stats = new Stats(client, assets, services, dataDir);
+  services.stats = stats;
   stats.on('state', (s) => send('stats-sync', s));
   setInterval(() => stats.sync(), 5 * 60 * 1000);
   autolock = new AutoLock(client, settings, assets);
