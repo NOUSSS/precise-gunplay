@@ -4,6 +4,7 @@ const path = require('path');
 
 const BASE = 'https://valorant-api.com/v1';
 const LANG = 'fr-FR';
+const SCHEMA = 2; // à incrémenter quand la forme du cache change
 
 const ITEM_TYPES = {
   skin: 'e7c63390-eda7-46e0-bb7a-a6abdacd2433',
@@ -55,14 +56,14 @@ class Assets {
     if (!force) {
       try {
         const cached = JSON.parse(fs.readFileSync(this.cacheFile, 'utf8'));
-        if (cached && (!version || cached.version === version)) {
+        if (cached && cached.schema === SCHEMA && (!version || cached.version === version)) {
           this.index(cached);
           return;
         }
       } catch { /* pas de cache */ }
     }
 
-    const [agents, skins, contentTiers, maps, compTiers, bundles, cards, sprays, buddies, titles, seasons, flex] =
+    const [agents, skins, contentTiers, maps, compTiers, bundles, cards, sprays, buddies, titles, seasons, flex, weapons] =
       await Promise.all([
         get('/agents?isPlayableCharacter=true'),
         get('/weapons/skins'),
@@ -76,9 +77,11 @@ class Assets {
         get('/playertitles'),
         get('/seasons'),
         get('/flex').catch(() => []),
+        get('/weapons'),
       ]);
 
     const raw = {
+      schema: SCHEMA,
       version,
       agents: agents
         .map((a) => ({
@@ -114,6 +117,7 @@ class Assets {
       buddies: buddies.map((b) => ({ uuid: b.uuid, name: b.displayName, icon: b.displayIcon, levels: (b.levels || []).map((l) => l.uuid) })),
       titles: titles.map((t) => ({ uuid: t.uuid, name: t.titleText || t.displayName })),
       flex: (flex || []).map((f) => ({ uuid: f.uuid, name: f.displayName, icon: f.displayIcon })),
+      weapons: weapons.map((w) => ({ uuid: w.uuid, name: w.displayName, icon: w.killStreamIcon || w.displayIcon, category: w.category })),
       seasons: seasons.map((s) => ({ uuid: s.uuid, name: s.displayName, type: s.type, start: s.startTime, end: s.endTime, parent: s.parentUuid })),
     };
 
@@ -147,7 +151,7 @@ class Assets {
   /** Données légères envoyées à l'interface. */
   summary() {
     const d = this.data;
-    return { agents: d.agents, maps: d.maps, tiers: d.tiers, currentAct: this.currentAct() };
+    return { agents: d.agents, maps: d.maps, tiers: d.tiers, weapons: d.weapons, currentAct: this.currentAct() };
   }
 
   currentAct() {
