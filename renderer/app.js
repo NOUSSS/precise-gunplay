@@ -178,7 +178,7 @@ function renderHeaderArt() {
   const el = $('#titlebar-art');
   if (el.dataset.agent === a?.uuid) return;
   el.dataset.agent = a?.uuid || '';
-  el.innerHTML = a?.portrait ? `<div class="titlebar-agent" style="background-image:url('${a.portrait}')"></div>` : '';
+  el.style.backgroundImage = a?.portrait ? `url('${a.portrait}')` : '';
 }
 
 function navigate(page) {
@@ -236,7 +236,7 @@ function updateLabel(u) {
 function renderConnect() {
   content.innerHTML = `
     <div class="connect">
-      <img class="logo" src="logo.svg" alt="">
+      <img class="logo" src="logo-mark.png" alt="">
       <h1><small>Lier ton compte</small>Precise Gunplay</h1>
       <p class="muted">L'application se lie automatiquement à ton compte via le Riot Client ouvert sur ce PC.<br>Aucun mot de passe n'est demandé ni stocké.</p>
       <div class="steps">
