@@ -8,13 +8,85 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="titlebar">
-    <div class="titlebar-art" id="titlebar-art"></div>
-    <div class="brand">
-      <img class="brand-logo" src="logo.svg" alt="" />
-      <div class="brand-name"><b>PRECISE</b><span>GUNPLAY</span></div>
+  <header class="titlebar">
+    <!-- Décor gauche : lueur d'angle, bandes diagonales, liseré inférieur et repères -->
+    <svg class="hdr-left" viewBox="0 0 900 84" width="900" height="84" aria-hidden="true">
+      <defs>
+        <radialGradient id="hl-glow" cx="0" cy="0" r="1" gradientTransform="scale(360 120)" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#ff4655" stop-opacity=".22"/><stop offset="1" stop-color="#ff4655" stop-opacity="0"/>
+        </radialGradient>
+        <linearGradient id="hl-corner" x1="0" y1="1" x2="1" y2="0">
+          <stop offset="0" stop-color="#ff4655" stop-opacity="0"/><stop offset=".45" stop-color="#ff4655"/><stop offset="1" stop-color="#ff4655" stop-opacity="0"/>
+        </linearGradient>
+        <linearGradient id="hl-step" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#ff4655" stop-opacity="0"/><stop offset="1" stop-color="#ff4655" stop-opacity=".35"/>
+        </linearGradient>
+        <linearGradient id="hl-base" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#ff4655" stop-opacity=".75"/><stop offset="1" stop-color="#ff4655" stop-opacity=".25"/>
+        </linearGradient>
+        <filter id="hl-blur" x="-20%" y="-200%" width="140%" height="500%"><feGaussianBlur stdDeviation="3"/></filter>
+        <pattern id="hl-dots" width="7" height="7" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r=".8" fill="#ff4655" fill-opacity=".35"/></pattern>
+      </defs>
+      <rect width="900" height="84" fill="url(#hl-glow)"/>
+      <path fill="#ffffff" fill-opacity=".035" d="M330 0h140l-70 84H260zM520 0h40l-70 84h-40zM640 0h120l-70 84H570z"/>
+      <path fill="none" stroke="#ffffff" stroke-opacity=".06" d="M405 83l38-45h120"/>
+      <!-- coin arrondi lumineux -->
+      <path fill="none" stroke="url(#hl-corner)" stroke-width="2" d="M1.5 70V14A12.5 12.5 0 0 1 14 1.5H150" filter="url(#hl-blur)"/>
+      <path fill="none" stroke="url(#hl-corner)" stroke-width="1.2" d="M1.5 70V14A12.5 12.5 0 0 1 14 1.5H150"/>
+      <!-- liseré inférieur en escalier -->
+      <path fill="url(#hl-step)" d="M272 84l24-24h66v24z"/>
+      <path fill="none" stroke="url(#hl-base)" d="M0 83.5H272"/>
+      <path fill="none" stroke="#ff4655" stroke-width="3" opacity=".8" filter="url(#hl-blur)" d="M272 83l24-23h66"/>
+      <path fill="none" stroke="#ff4655" stroke-width="1.5" d="M272 83.2l24-23h66M272 83.2h90"/>
+      <path fill="none" stroke="#ffffff" stroke-opacity=".08" d="M362 83.5H900"/>
+      <!-- repères -->
+      <path fill="none" stroke="#ff4655" stroke-opacity=".75" stroke-width="2" d="M527 54v20M539 72h32"/>
+      <rect x="582" y="48" width="84" height="30" fill="url(#hl-dots)"/>
+      <path fill="none" stroke="#ffffff" stroke-opacity=".18" d="M244 34l6 6m0-6l-6 6"/>
+    </svg>
+
+    <!-- Décor droit : éclats rouges, portrait de l'agent, panneau des boutons de fenêtre -->
+    <div class="hdr-right">
+      <svg class="hdr-right-bg" viewBox="0 0 760 100" width="760" height="100" aria-hidden="true">
+        <defs>
+          <linearGradient id="hr-bg" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#0d1520" stop-opacity="0"/><stop offset=".25" stop-color="#1c0d15"/><stop offset=".7" stop-color="#220d15"/><stop offset="1" stop-color="#101820"/>
+          </linearGradient>
+          <filter id="hr-blur" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="6"/></filter>
+          <pattern id="hr-dots" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r=".7" fill="#ff4655" fill-opacity=".22"/></pattern>
+        </defs>
+        <rect width="760" height="100" fill="url(#hr-bg)"/>
+        <rect x="60" width="560" height="100" fill="url(#hr-dots)"/>
+        <!-- éclats : halo flou puis formes nettes -->
+        <g filter="url(#hr-blur)" opacity=".7">
+          <path fill="#ff4655" d="M190 100h44l84-100h-44zM432 0h30l62 60h-30zM470 100h36l72-58h-36z"/>
+        </g>
+        <path fill="#ff4655" fill-opacity=".9" d="M190 100h44l84-100h-44z"/>
+        <path fill="#ff4655" fill-opacity=".55" d="M130 100h22l84-100h-22z"/>
+        <path fill="#ff4655" fill-opacity=".85" d="M432 0h30l62 60h-30z"/>
+        <path fill="#ff4655" fill-opacity=".85" d="M470 100h36l72-58h-36z"/>
+        <path fill="#ff4655" fill-opacity=".35" d="M640 84h20l40-40h-20z"/>
+        <path fill="none" stroke="#ff4655" stroke-opacity=".7" stroke-width="1.5" d="M92 84l22-26"/>
+        <rect x="118" y="30" width="3" height="3" fill="#ff4655"/>
+        <rect x="100" y="50" width="2" height="4" fill="#ff4655" fill-opacity=".7"/>
+      </svg>
+      <div class="titlebar-agent" id="titlebar-art"></div>
+      <svg class="hdr-right-fg" viewBox="0 0 760 100" width="760" height="100" aria-hidden="true">
+        <defs>
+          <filter id="hf-blur" x="-10%" y="-300%" width="120%" height="700%"><feGaussianBlur stdDeviation="2.5"/></filter>
+        </defs>
+        <!-- panneau angulaire derrière les boutons de fenêtre -->
+        <path fill="#0b121a" fill-opacity=".92" stroke="#ffffff" stroke-opacity=".06" d="M578 0H760V46H616L590 20Z"/>
+        <path fill="none" stroke="#ff4655" stroke-dasharray="3 3" stroke-opacity=".8" d="M566.5 10v30"/>
+        <rect x="604.5" y="66.5" width="6" height="7" fill="none" stroke="#ff4655" stroke-opacity=".9"/>
+        <!-- bordure et lueur de la languette -->
+        <path fill="none" stroke="#ff4655" stroke-width="3" opacity=".7" filter="url(#hf-blur)" d="M150 84l16 15h418l16-15"/>
+        <path fill="none" stroke="#ff4655" stroke-opacity=".9" stroke-width="1.2" d="M0 83.5H150l16 15.5h418l16-15.5H760"/>
+      </svg>
     </div>
-  </div>
+
+    <img class="brand-full" src="logo-full.png" alt="Precise Gunplay" />
+  </header>
 
   <div class="shell">
     <aside class="sidebar">
