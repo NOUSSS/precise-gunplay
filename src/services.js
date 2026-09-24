@@ -349,53 +349,121 @@ class Services {
     };
   }
 
-  summarizeMatch(d) {
+  /** Pseudos via le service de noms de Riot (le détail des matchs ne les fournit plus), mis en cache. */
+  async namesCached(puuids) {
+    this.nameCache ||= new Map();
+    const missing = [...new Set(puuids)].filter((id) => id && !this.nameCache.has(id));
+    for (let i = 0; i < missing.length; i += 50) {
+      const res = await this.client.getNames(missing.slice(i, i + 50)).catch(() => []);
+      for (const n of res || []) this.nameCache.set(n.Subject, { name: n.GameName || '', tag: n.TagLine || '' });
+    }
+    return this.nameCache;
+  }
+
+  summarizeMatch(d, names = new Map()) {
     const me = d.players?.find((p) => p.subject === this.client.puuid);
     if (!me) return null;
     const teams = d.teams || [];
     const myTeam = teams.find((t) => t.teamId === me.teamId);
     const other = teams.find((t) => t.teamId !== me.teamId);
-    const rounds = me.stats?.roundsPlayed || d.roundResults?.length || 1;
     let result = 'loss';
     if (myTeam?.won) result = 'win';
     else if (myTeam && other && !other.won && myTeam.roundsWon === other.roundsWon) result = 'draw';
-    const scoreboard = (d.players || [])
-      .map((p) => ({
-        name: p.gameName,
-        tag: p.tagLine,
-        agentId: p.characterId?.toLowerCase(),
-        team: p.teamId === me.teamId ? 'ally' : 'enemy',
-        kills: p.stats?.kills || 0,
-        deaths: p.stats?.deaths || 0,
-        assists: p.stats?.assists || 0,
-        acs: Math.round((p.stats?.score || 0) / (p.stats?.roundsPlayed || rounds)),
-        tier: p.competitiveTier || 0,
-        isMe: p.subject === this.client.puuid,
-      }))
+
+    // Résumé détaillé de chaque joueur (même calcul que l'onglet Stats).
+    const partySizes = new Map();
+    for (const p of d.players) partySizes.set(p.partyId, (partySizes.get(p.partyId) || 0) + 1);
+    const partyLabels = new Map();
+    const players = d.players
+      .filter((p) => !p.isObserver)
+      .map((p) => {
+        const r = this.stats?.record(d, p.subject) || {};
+        const rounds = Math.max(1, r.rounds || p.stats?.roundsPlayed || 1);
+        const shots = (r.head || 0) + (r.body || 0) + (r.leg || 0);
+        const n = names.get(p.subject) || {};
+        const agent = this.assets.agentById.get(String(p.characterId || '').toLowerCase());
+        const party = p.partyId && partySizes.get(p.partyId) > 1 ? p.partyId : null;
+        return {
+          puuid: p.subject,
+          name: n.name || p.gameName || agent?.name || 'Joueur',
+          tag: n.tag || p.tagLine || '',
+          agentId: String(p.characterId || '').toLowerCase(),
+          teamId: p.teamId,
+          team: p.teamId === me.teamId ? 'ally' : 'enemy',
+          level: p.accountLevel ?? null,
+          tier: p.competitiveTier || 0,
+          party,
+          kills: p.stats?.kills || 0,
+          deaths: p.stats?.deaths || 0,
+          assists: p.stats?.assists || 0,
+          acs: Math.round((p.stats?.score || 0) / rounds),
+          adr: Math.round((r.damage || 0) / rounds),
+          hs: shots ? Math.round(((r.head || 0) / shots) * 100) : null,
+          fb: r.fb || 0,
+          kast: r.kast != null ? Math.round((r.kast / rounds) * 100) : null,
+          isMe: p.subject === this.client.puuid,
+        };
+      })
       .sort((x, y) => y.acs - x.acs);
+
+    // Groupes numérotés par équipe (Groupe 1, Groupe 2…) dans l'ordre d'affichage.
+    const perTeam = new Map();
+    for (const p of players) {
+      if (!p.party) continue;
+      if (!partyLabels.has(p.party)) {
+        const n = (perTeam.get(p.teamId) || 0) + 1;
+        perTeam.set(p.teamId, n);
+        partyLabels.set(p.party, n);
+      }
+      p.party = partyLabels.get(p.party);
+    }
+
+    // MVP de la partie (meilleur ACS) et MVP de l'autre équipe.
+    if (players.length) {
+      players[0].mvp = 'match';
+      const otherBest = players.find((p) => p.teamId !== players[0].teamId);
+      if (otherBest && teams.length === 2) otherBest.mvp = 'team';
+    }
+    const mine = players.find((p) => p.isMe);
+    const placement = players.indexOf(mine) + 1;
+
     return {
       id: d.matchInfo?.matchId,
       map: this.assets.map(d.matchInfo?.mapId),
       queue: d.matchInfo?.queueID || d.matchInfo?.queueId || '',
       startedAt: d.matchInfo?.gameStartMillis,
       lengthMs: d.matchInfo?.gameLengthMillis,
-      agentId: me.characterId?.toLowerCase(),
-      kills: me.stats?.kills || 0,
-      deaths: me.stats?.deaths || 0,
-      assists: me.stats?.assists || 0,
-      acs: Math.round((me.stats?.score || 0) / rounds),
-      tier: me.competitiveTier || 0,
+      agentId: mine.agentId,
+      kills: mine.kills,
+      deaths: mine.deaths,
+      assists: mine.assists,
+      acs: mine.acs,
+      adr: mine.adr,
+      hs: mine.hs,
+      tier: mine.tier,
+      mvp: mine.mvp || null,
+      placement,
+      playerCount: players.length,
       result,
       score: myTeam && other ? [myTeam.roundsWon, other.roundsWon] : null,
-      scoreboard,
+      teams: teams.length === 2
+        ? [myTeam, other].map((t) => ({
+            teamId: t.teamId,
+            side: t.teamId === me.teamId ? 'ally' : 'enemy',
+            won: !!t.won,
+            rounds: t.roundsWon,
+            players: players.filter((p) => p.teamId === t.teamId),
+          }))
+        : [{ teamId: 'all', side: 'all', won: result === 'win', rounds: null, players }], // combat à mort : classement unique
     };
   }
 
   async history(queue) {
     const h = await this.client.getMatchHistory(0, 15, queue);
     const list = h?.History || [];
-    const details = await Promise.all(list.map((m) => this.matchDetails(m.MatchID).catch(() => null)));
-    return details.filter(Boolean).map((d) => this.summarizeMatch(d)).filter(Boolean);
+    const details = (await Promise.all(list.map((m) => this.matchDetails(m.MatchID).catch(() => null)))).filter(Boolean);
+    const names = await this.namesCached(details.flatMap((d) => (d.players || []).map((p) => p.subject)));
+    return details.map((d) => this.summarizeMatch(d, names)).filter(Boolean);
   }
 
   // ---------- Groupe ----------
