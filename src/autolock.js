@@ -44,6 +44,11 @@ class AutoLock extends EventEmitter {
 
       const map = this.assets.map(match.MapID);
       const candidates = [...new Set([map && cfg.perMap?.[map.uuid], cfg.agentId, ...(cfg.fallbacks || [])].filter(Boolean))];
+      // Rien de configuré pour cette carte (pas d'agent dédié ni de liste par défaut) : on laisse le joueur choisir.
+      if (!candidates.length) {
+        this.done.add(matchId);
+        return;
+      }
       const taken = new Set(
         players
           .filter((p) => p.Subject !== me.Subject && p.CharacterSelectionState === 'locked')
