@@ -73,6 +73,7 @@ const state = {
   renderId: 0,
   update: null,
   unread: {}, // { pid: nombre de messages non lus }
+  profile: null, // carte du compte dans la barre latérale
   onUnread: null,
 };
 
@@ -189,13 +190,44 @@ async function refreshUnread() {
   try { rawUnread = await call('chat-unread'); applyUnread(); } catch { /* chat indisponible */ }
 }
 
+// Carte du compte en bas de la barre latérale : bannière de la carte de joueur, niveau et rang.
 function renderAccount() {
   const s = state.status;
-  $('#account').innerHTML = s.connected
-    ? `<div><span class="dot on"></span><span class="who">${esc(s.name || 'Connecté')}</span><span class="muted">#${esc(s.tag || '')}</span></div>
-       <div class="sub">Compte lié · ${esc((s.region || '').toUpperCase())}</div>`
-    : `<div><span class="dot off"></span><span class="who">Non connecté</span></div><div class="sub">${esc(s.message || '')}</div>`;
+  const el = $('#account');
+  if (!s.connected) {
+    el.className = 'account off';
+    el.style.backgroundImage = '';
+    el.title = '';
+    el.innerHTML = `<div class="acc-top">
+        <div class="acc-avatar idle"><span class="dot off"></span></div>
+        <div class="acc-id"><div class="who">Non connecté</div><div class="acc-title">${esc(s.message || '')}</div></div>
+      </div>`;
+    return;
+  }
+  const p = state.profile?.puuid === s.puuid ? state.profile : null;
+  const t = tierOf(p?.rank?.tier);
+  el.className = 'account';
+  el.style.backgroundImage = p?.card?.wide ? `url('${p.card.wide}')` : '';
+  el.title = 'Voir mon profil';
+  el.innerHTML = `
+    <div class="acc-top">
+      <div class="acc-avatar">${p?.card?.small ? `<img src="${p.card.small}" alt="">` : ''}<span class="dot on"></span>${p?.level != null ? `<span class="acc-lvl">${esc(p.level)}</span>` : ''}</div>
+      <div class="acc-id">
+        <div class="who">${esc(p?.name || s.name || 'Connecté')}<span>#${esc(p?.tag || s.tag || '')}</span></div>
+        <div class="acc-title">${esc(p?.title || 'Compte lié')}</div>
+      </div>
+    </div>
+    <div class="acc-foot">
+      <span class="acc-rank">${t?.icon ? `<img src="${t.icon}" alt="">` : ''}${p ? (p.rank?.tier ? `${esc(t?.name)}<b>${p.rank.rr} RR</b>` : 'Non classé') : ''}</span>
+      <span class="acc-chip" title="Région">${esc((s.region || '').toUpperCase())}</span>
+    </div>`;
 }
+
+async function refreshProfile() {
+  if (!state.status.connected) return;
+  try { state.profile = await call('profile'); renderAccount(); } catch { /* on garde l'ancienne carte */ }
+}
+$('#account').addEventListener('click', () => state.status.connected && navigate('home'));
 
 // Portrait du bandeau : l'agent principal de l'Agent auto, Jett par défaut.
 const DEFAULT_HEADER_AGENT = 'add6443a-41bd-e414-f6ad-e58d267f4e95';
@@ -302,6 +334,8 @@ function onStatus(s) {
   if (s.connected !== was) {
     if (s.connected) {
       state.owned = null;
+      state.profile = null;
+      if (state.page !== 'home') refreshProfile(); // l'accueil charge déjà le profil
       toast(`Compte lié : ${s.name || ''}#${s.tag || ''}`);
     }
     navigate(state.page);
@@ -322,10 +356,13 @@ const PAGES = {};
 PAGES.home = async () => {
   const alive = guard();
   const p = await call('profile');
+  state.profile = p;
+  renderAccount();
   if (!alive()) return;
   const t = tierOf(p.rank?.tier);
   const al = state.settings.autolock;
   const alAgent = agentOf(al.agentId);
+  const alMaps = Object.values(al.perMap || {}).filter(Boolean).length;
   content.innerHTML = `
     <div class="hero" style="${p.card?.wide ? `background-image:url('${p.card.wide}')` : ''}">
       <div class="hero-body">
@@ -356,7 +393,9 @@ PAGES.home = async () => {
     <div class="tiles">
       <div class="tile" data-go="store">${icon('store')}<h3>Boutique du jour</h3><p>Tes 4 skins du jour, les packs, le marché nocturne et les accessoires.</p></div>
       <div class="tile" data-go="agent">${icon('agent')}<h3>Agent auto · ${al.enabled ? '<span style="color:var(--win)">activé</span>' : '<span class="muted">désactivé</span>'}</h3>
-        <p>${alAgent ? `Agent principal : <b>${esc(alAgent.name)}</b> (${al.mode === 'lock' ? 'verrouillage' : 'survol'})` : 'Choisis l\'agent à sélectionner automatiquement.'}</p>
+        <p>${alAgent ? `Agent principal : <b>${esc(alAgent.name)}</b> (${al.mode === 'lock' ? 'verrouillage' : 'survol'})`
+          : alMaps ? `Agent choisi sur ${alMaps} carte${alMaps > 1 ? 's' : ''} (${al.mode === 'lock' ? 'verrouillage' : 'survol'})`
+          : 'Choisis l\'agent à sélectionner automatiquement.'}</p>
         ${alAgent ? `<img class="tile-agent" src="${alAgent.icon}" alt="">` : ''}</div>
       <div class="tile" data-go="live">${icon('live')}<h3>Partie en direct</h3><p>Rangs, niveaux et agents de tous les joueurs de ta partie.</p></div>
       <div class="tile" data-go="stats">${icon('stats')}<h3>Statistiques</h3><p>K/D, ACS, ADR, headshot %, évolution du RR, stats par agent, carte et arme.</p></div>
@@ -428,34 +467,73 @@ PAGES.store = async () => {
 };
 
 // ---------- Agent auto ----------
+// Une seule grille d'agents : elle édite la liste par défaut (ordre de priorité) ou l'agent d'une carte précise.
+const MAX_DEFAULT_AGENTS = 4;
+const defaultAgents = (al) => [al.agentId, ...(al.fallbacks || [])].filter(Boolean);
+const autolockReady = (al) => !!al.agentId || Object.values(al.perMap || {}).some(Boolean);
+
 PAGES.agent = async () => {
   const alive = guard();
   const owned = await ownedAgents();
   if (!alive()) return;
   let roleFilter = '';
+  let scope = ''; // '' = liste par défaut, sinon uuid de la carte
   const roles = [...new Set(state.assets.agents.map((a) => a.role))].sort();
   const maps = state.assets.maps.filter((m) => m.tactical);
 
   const save = async (patch) => {
     state.settings = await call('settings-set', { autolock: patch });
+    // Plus rien de configuré : on coupe pour ne pas laisser un interrupteur « ON » qui ne fait rien.
+    const al = state.settings.autolock;
+    if (al.enabled && !autolockReady(al)) state.settings = await call('settings-set', { autolock: { enabled: false } });
     renderNav();
     renderHeaderArt();
     draw();
   };
+  const saveDefaults = (list) => save({ agentId: list[0] || null, fallbacks: list.slice(1) });
 
-  const agentGrid = (selectedId, fallbacks, action) => state.assets.agents
-    .filter((a) => !roleFilter || a.role === roleFilter)
-    .map((a) => {
-      const has = owned.has(a.uuid.toLowerCase());
-      const order = fallbacks ? fallbacks.indexOf(a.uuid) : -1;
-      return `<button class="agent ${selectedId === a.uuid || order >= 0 ? 'on' : ''}" data-${action}="${a.uuid}" ${has ? '' : 'disabled title="Agent non débloqué"'}>
-        ${order >= 0 ? `<span class="order">${order + 1}</span>` : ''}
-        <img src="${a.icon}" alt=""><span class="aname">${esc(a.name)}</span></button>`;
-    }).join('');
+  function scopeTile(m) {
+    const al = state.settings.autolock;
+    const id = m?.uuid || '';
+    const picks = (m ? [al.perMap?.[id]] : defaultAgents(al)).map(agentOf).filter(Boolean);
+    return `<button class="scope ${m ? '' : 'default'} ${scope === id ? 'on' : ''}" data-scope="${id}"
+        style="${m ? `background-image:url('${m.listIcon || m.splash}')` : ''}">
+      <span class="sname">${m ? esc(m.name) : 'Par défaut'}</span>
+      <span class="spicks">${picks.length
+        ? picks.map((a) => `<img src="${a.icon}" alt="" title="${esc(a.name)}">`).join('')
+        : `<em>${m ? 'Liste par défaut' : 'Aucun agent'}</em>`}</span>
+    </button>`;
+  }
 
   function draw() {
     const al = state.settings.autolock;
-    const main = agentOf(al.agentId);
+    const defaults = defaultAgents(al);
+    const map = maps.find((m) => m.uuid === scope);
+    const mapPick = map ? al.perMap?.[map.uuid] : null;
+    const defaultNames = esc(defaults.map((x) => agentOf(x)?.name).filter(Boolean).join(' → '));
+
+    const hint = map
+      ? mapPick
+        ? `Sur <b>${esc(map.name)}</b>, l'app prend <b>${esc(agentOf(mapPick)?.name)}</b>. S'il est déjà pris : ${defaults.length ? `liste par défaut (${defaultNames}).` : 'rien n\'est fait.'}`
+        : defaults.length
+          ? `Aucun agent dédié : la liste par défaut s'applique (${defaultNames}). Clique sur un agent pour en choisir un pour cette carte.`
+          : `Aucun agent dédié et liste par défaut vide : rien n'est fait sur ${esc(map.name)}. Clique sur un agent pour en choisir un.`
+      : defaults.length
+        ? `Utilisée sur les cartes sans agent dédié, et en secours si l'agent de la carte est déjà pris. Le premier disponible dans l'ordre est choisi (${MAX_DEFAULT_AGENTS} max).`
+        : `Vide : l'app n'agit que sur les cartes où tu as choisi un agent. Clique sur des agents pour les ajouter par ordre de priorité (${MAX_DEFAULT_AGENTS} max).`;
+    const canClear = map ? !!mapPick : defaults.length > 0;
+
+    const grid = state.assets.agents
+      .filter((a) => !roleFilter || a.role === roleFilter)
+      .map((a) => {
+        const has = owned.has(a.uuid.toLowerCase());
+        const order = map ? -1 : defaults.indexOf(a.uuid);
+        const on = map ? mapPick === a.uuid : order >= 0;
+        return `<button class="agent ${on ? 'on' : ''}" data-pick="${a.uuid}" ${has ? '' : 'disabled title="Agent non débloqué"'}>
+          ${order >= 0 ? `<span class="order">${order + 1}</span>` : ''}
+          <img src="${a.icon}" alt=""><span class="aname">${esc(a.name)}</span></button>`;
+      }).join('');
+
     content.innerHTML = `
       <div class="page-head">
         <h1><small>Sélection d'agent</small>Agent auto</h1>
@@ -483,33 +561,26 @@ PAGES.agent = async () => {
         </div>
       </div>
 
-      <h2>Agent principal ${main ? `<span class="muted" style="letter-spacing:.05em;text-transform:none">— ${esc(main.name)}</span>` : ''}</h2>
+      <h2>Cartes <span class="muted" style="letter-spacing:.05em;text-transform:none;font-size:13px">— choisis ce que tu configures</span></h2>
+      <div class="scopes">${scopeTile(null)}${maps.map(scopeTile).join('')}</div>
+
+      <div class="scope-head">
+        <div>
+          <h2>${map ? `Agent sur ${esc(map.name)}` : 'Liste par défaut'}</h2>
+          <div class="muted">${hint}</div>
+        </div>
+        ${canClear ? `<button class="btn ghost" data-clear="1">${map ? 'Retirer' : 'Vider la liste'}</button>` : ''}
+      </div>
       <div class="chip-group role-filter" id="role-filter">
         <button data-role="" class="${!roleFilter ? 'on' : ''}">Tous</button>
         ${roles.map((r) => `<button data-role="${esc(r)}" class="${roleFilter === r ? 'on' : ''}">${esc(r)}</button>`).join('')}
       </div>
-      <div class="agents">${agentGrid(al.agentId, null, 'main')}</div>
-
-      <h2>Agents de secours <span class="muted" style="letter-spacing:.05em;text-transform:none;font-size:13px">— si ton agent est déjà pris (3 max, dans l'ordre)</span></h2>
-      <div class="agents">${agentGrid(null, al.fallbacks, 'fallback')}</div>
-
-      <h2>Agent par carte</h2>
-      <div class="maps">
-        ${maps.map((m) => `
-          <div class="map-row">
-            <img src="${m.listIcon || m.splash}" alt="" loading="lazy">
-            <div class="mname">${esc(m.name)}</div>
-            <select data-map="${m.uuid}">
-              <option value="">Par défaut</option>
-              ${state.assets.agents.filter((a) => owned.has(a.uuid.toLowerCase())).map((a) => `<option value="${a.uuid}" ${al.perMap?.[m.uuid] === a.uuid ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}
-            </select>
-          </div>`).join('')}
-      </div>`;
+      <div class="agents">${grid}</div>`;
 
     $('#al-enabled').onchange = (e) => {
-      if (e.target.checked && !state.settings.autolock.agentId) {
+      if (e.target.checked && !autolockReady(state.settings.autolock)) {
         e.target.checked = false;
-        return toast('Choisis d\'abord un agent principal.', 'error');
+        return toast('Choisis d\'abord un agent, par défaut ou pour une carte.', 'error');
       }
       save({ enabled: e.target.checked });
     };
@@ -523,23 +594,27 @@ PAGES.agent = async () => {
     if (!t || t.disabled) return;
     if (t.dataset.mode) return save({ mode: t.dataset.mode });
     if (t.dataset.role !== undefined) { roleFilter = t.dataset.role; return draw(); }
-    if (t.dataset.main) return save({ agentId: t.dataset.main });
-    if (t.dataset.fallback) {
-      const id = t.dataset.fallback;
-      let list = [...(al.fallbacks || [])];
-      if (list.includes(id)) list = list.filter((x) => x !== id);
-      else if (list.length < 3) list.push(id);
-      else return toast('3 agents de secours maximum.', 'error');
-      return save({ fallbacks: list });
+    if (t.dataset.scope !== undefined) { scope = t.dataset.scope; return draw(); }
+    if (t.dataset.clear) {
+      if (!scope) return saveDefaults([]);
+      const perMap = { ...(al.perMap || {}) };
+      delete perMap[scope];
+      return save({ perMap });
     }
-  };
-  content.onchange = (e) => {
-    const sel = e.target.closest('select[data-map]');
-    if (!sel) return;
-    const perMap = { ...(state.settings.autolock.perMap || {}) };
-    if (sel.value) perMap[sel.dataset.map] = sel.value;
-    else delete perMap[sel.dataset.map];
-    call('settings-set', { autolock: { perMap } }).then((s) => (state.settings = s));
+    if (t.dataset.pick) {
+      const id = t.dataset.pick;
+      if (scope) {
+        const perMap = { ...(al.perMap || {}) };
+        if (perMap[scope] === id) delete perMap[scope];
+        else perMap[scope] = id;
+        return save({ perMap });
+      }
+      let list = defaultAgents(al);
+      if (list.includes(id)) list = list.filter((x) => x !== id);
+      else if (list.length < MAX_DEFAULT_AGENTS) list.push(id);
+      else return toast(`${MAX_DEFAULT_AGENTS} agents maximum dans la liste par défaut.`, 'error');
+      return saveDefaults(list);
+    }
   };
   draw();
 };
@@ -1549,6 +1624,7 @@ PAGES.settings = async () => {
   }
   renderHeaderArt();
   setInterval(refreshUnread, 8000);
+  setInterval(refreshProfile, 5 * 60 * 1000);
   window.api.on('status', onStatus);
   window.api.on('update', onUpdate);
   onUpdate(await call('update-state'));
