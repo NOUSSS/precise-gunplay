@@ -43,20 +43,22 @@ button, input, select { font: inherit; color: inherit; }
   z-index: 20;
 }
 .hdr-left { position: absolute; left: 0; top: 0; pointer-events: none; }
-/* Partie droite : déborde de 16 px sous le bandeau (languette sous l'agent) */
+/* Partie droite : déborde de 22 px sous le bandeau (languette sous l'agent) */
 .hdr-right {
-  position: absolute; right: 0; top: 0; width: 760px; height: 100px; pointer-events: none;
-  clip-path: polygon(0 0, 100% 0, 100% 84px, 600px 84px, 584px 100px, 166px 100px, 150px 84px, 0 84px);
+  position: absolute; right: 0; top: 0; width: 860px; height: 106px; pointer-events: none;
+  clip-path: polygon(0 0, 100% 0, 100% 84px, 787px 84px, 765px 106px, 350px 106px, 322px 84px, 0 84px);
 }
 .hdr-right-bg, .hdr-right-fg { position: absolute; inset: 0; }
 /* Portrait recadré sur le visage ; les portraits valorant-api sont centrés sur l'agent */
 .titlebar-agent {
-  position: absolute; top: 0; left: 190px; width: 380px; height: 100px;
+  position: absolute; top: 0; left: 320px; width: 380px; height: 106px;
   background: center -128px / auto 960px no-repeat;
   -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 24%, #000 76%, transparent 100%);
   filter: drop-shadow(0 0 12px #0b131b);
 }
 .brand-full { position: relative; height: 50px; width: auto; filter: drop-shadow(0 0 14px #ff46552e); }
+/* Fenêtre étroite : le décor gauche s'efface pour ne pas chevaucher les éclats */
+@media (max-width: 1240px) { .hdr-left { -webkit-mask-image: linear-gradient(90deg, #000 45%, transparent 70%); } }
 
 .shell { display: flex; height: calc(100% - 84px); }
 

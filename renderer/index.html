@@ -9,79 +9,95 @@
 </head>
 <body>
   <header class="titlebar">
-    <!-- Décor gauche : lueur d'angle, bandes diagonales, liseré inférieur et repères -->
+    <!-- Décor gauche : cadre arrondi, lueur d'angle, bandes diagonales, liseré en escalier et repères -->
     <svg class="hdr-left" viewBox="0 0 900 84" width="900" height="84" aria-hidden="true">
       <defs>
-        <radialGradient id="hl-glow" cx="0" cy="0" r="1" gradientTransform="scale(360 120)" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stop-color="#ff4655" stop-opacity=".22"/><stop offset="1" stop-color="#ff4655" stop-opacity="0"/>
+        <radialGradient id="hl-glow" cx="0" cy="0" r="1" gradientTransform="scale(380 130)" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#ff4655" stop-opacity=".2"/><stop offset="1" stop-color="#ff4655" stop-opacity="0"/>
         </radialGradient>
         <linearGradient id="hl-corner" x1="0" y1="1" x2="1" y2="0">
-          <stop offset="0" stop-color="#ff4655" stop-opacity="0"/><stop offset=".45" stop-color="#ff4655"/><stop offset="1" stop-color="#ff4655" stop-opacity="0"/>
+          <stop offset="0" stop-color="#ff4655" stop-opacity=".15"/><stop offset=".4" stop-color="#ff4655"/><stop offset="1" stop-color="#ff4655" stop-opacity="0"/>
         </linearGradient>
         <linearGradient id="hl-step" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="#ff4655" stop-opacity="0"/><stop offset="1" stop-color="#ff4655" stop-opacity=".35"/>
+          <stop offset="0" stop-color="#ff4655" stop-opacity="0"/><stop offset="1" stop-color="#ff4655" stop-opacity=".38"/>
         </linearGradient>
         <linearGradient id="hl-base" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stop-color="#ff4655" stop-opacity=".75"/><stop offset="1" stop-color="#ff4655" stop-opacity=".25"/>
+          <stop offset="0" stop-color="#ff4655" stop-opacity=".7"/><stop offset="1" stop-color="#ff4655" stop-opacity=".3"/>
+        </linearGradient>
+        <linearGradient id="hl-top" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#ff4655" stop-opacity=".5"/><stop offset=".15" stop-color="#2a3a48"/><stop offset="1" stop-color="#2a3a48"/>
         </linearGradient>
         <filter id="hl-blur" x="-20%" y="-200%" width="140%" height="500%"><feGaussianBlur stdDeviation="3"/></filter>
-        <pattern id="hl-dots" width="7" height="7" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r=".8" fill="#ff4655" fill-opacity=".35"/></pattern>
+        <pattern id="hl-dots" width="9" height="9" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r=".75" fill="#ff4655" fill-opacity=".28"/></pattern>
       </defs>
       <rect width="900" height="84" fill="url(#hl-glow)"/>
-      <path fill="#ffffff" fill-opacity=".035" d="M330 0h140l-70 84H260zM520 0h40l-70 84h-40zM640 0h120l-70 84H570z"/>
-      <path fill="none" stroke="#ffffff" stroke-opacity=".06" d="M405 83l38-45h120"/>
-      <!-- coin arrondi lumineux -->
-      <path fill="none" stroke="url(#hl-corner)" stroke-width="2" d="M1.5 70V14A12.5 12.5 0 0 1 14 1.5H150" filter="url(#hl-blur)"/>
-      <path fill="none" stroke="url(#hl-corner)" stroke-width="1.2" d="M1.5 70V14A12.5 12.5 0 0 1 14 1.5H150"/>
+      <!-- bandes diagonales discrètes -->
+      <path fill="#ffffff" fill-opacity=".03" d="M300 0h150l-70 84H230zM500 0h36l-70 84h-36zM600 0h150l-70 84H530z"/>
+      <!-- cadre : bord haut, coin haut-gauche lumineux, coin bas-gauche arrondi -->
+      <path fill="none" stroke="url(#hl-top)" stroke-opacity=".8" d="M12 .5H900"/>
+      <path fill="none" stroke="url(#hl-corner)" stroke-width="2.5" opacity=".8" filter="url(#hl-blur)" d="M1.5 74V13A11.5 11.5 0 0 1 13 1.5H170"/>
+      <path fill="none" stroke="url(#hl-corner)" stroke-width="1.3" d="M1.5 74V13A11.5 11.5 0 0 1 13 1.5H170"/>
+      <path fill="none" stroke="#ff4655" stroke-opacity=".45" d="M1.5 70v4.5a9 9 0 0 0 9 9"/>
       <!-- liseré inférieur en escalier -->
-      <path fill="url(#hl-step)" d="M272 84l24-24h66v24z"/>
-      <path fill="none" stroke="url(#hl-base)" d="M0 83.5H272"/>
-      <path fill="none" stroke="#ff4655" stroke-width="3" opacity=".8" filter="url(#hl-blur)" d="M272 83l24-23h66"/>
-      <path fill="none" stroke="#ff4655" stroke-width="1.5" d="M272 83.2l24-23h66M272 83.2h90"/>
-      <path fill="none" stroke="#ffffff" stroke-opacity=".08" d="M362 83.5H900"/>
-      <!-- repères -->
-      <path fill="none" stroke="#ff4655" stroke-opacity=".75" stroke-width="2" d="M527 54v20M539 72h32"/>
-      <rect x="582" y="48" width="84" height="30" fill="url(#hl-dots)"/>
-      <path fill="none" stroke="#ffffff" stroke-opacity=".18" d="M244 34l6 6m0-6l-6 6"/>
+      <path fill="url(#hl-step)" d="M267 84l27-27h63v27z"/>
+      <path fill="none" stroke="url(#hl-base)" d="M10.5 83.5H267"/>
+      <path fill="none" stroke="#ff4655" stroke-width="3" opacity=".85" filter="url(#hl-blur)" d="M267 83l27-26h63M267 83h90"/>
+      <path fill="none" stroke="#ff4655" stroke-width="1.5" d="M267 83.2l27-26M267 83.2h90"/>
+      <path fill="none" stroke="#ff4655" stroke-opacity=".35" d="M294 57.5h230"/>
+      <path fill="none" stroke="#ff4655" stroke-opacity=".28" d="M357 83.5H900"/>
+      <path fill="none" stroke="#ff4655" stroke-opacity=".3" d="M408 82l66-75"/>
+      <!-- repères : trait vertical, trait horizontal, rangée de points -->
+      <path fill="none" stroke="#ff4655" stroke-opacity=".8" stroke-width="2" d="M526 47v28M538 70.5h30"/>
+      <path fill="none" stroke="#ff4655" stroke-opacity=".55" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="0 9" d="M582 70.5H760"/>
+      <rect x="580" y="8" width="320" height="56" fill="url(#hl-dots)"/>
     </svg>
 
-    <!-- Décor droit : éclats rouges, portrait de l'agent, panneau des boutons de fenêtre -->
+    <!-- Décor droit : fond rouge sombre, éclats, portrait de l'agent, languette et panneau des boutons de fenêtre -->
     <div class="hdr-right">
-      <svg class="hdr-right-bg" viewBox="0 0 760 100" width="760" height="100" aria-hidden="true">
+      <svg class="hdr-right-bg" viewBox="0 0 860 106" width="860" height="106" aria-hidden="true">
         <defs>
           <linearGradient id="hr-bg" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0" stop-color="#0d1520" stop-opacity="0"/><stop offset=".25" stop-color="#1c0d15"/><stop offset=".7" stop-color="#220d15"/><stop offset="1" stop-color="#101820"/>
+            <stop offset="0" stop-color="#150d14" stop-opacity="0"/><stop offset=".22" stop-color="#1a0c13" stop-opacity=".9"/><stop offset=".55" stop-color="#2a0d16"/><stop offset=".8" stop-color="#200c14"/><stop offset="1" stop-color="#140d13"/>
           </linearGradient>
-          <filter id="hr-blur" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="6"/></filter>
-          <pattern id="hr-dots" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r=".7" fill="#ff4655" fill-opacity=".22"/></pattern>
+          <filter id="hr-blur" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="7"/></filter>
+          <pattern id="hr-dots" width="9" height="9" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r=".7" fill="#ff4655" fill-opacity=".22"/></pattern>
         </defs>
-        <rect width="760" height="100" fill="url(#hr-bg)"/>
-        <rect x="60" width="560" height="100" fill="url(#hr-dots)"/>
-        <!-- éclats : halo flou puis formes nettes -->
-        <g filter="url(#hr-blur)" opacity=".7">
-          <path fill="#ff4655" d="M190 100h44l84-100h-44zM432 0h30l62 60h-30zM470 100h36l72-58h-36z"/>
+        <rect width="860" height="106" fill="url(#hr-bg)"/>
+        <rect x="120" width="620" height="106" fill="url(#hr-dots)"/>
+        <!-- halo des éclats -->
+        <g filter="url(#hr-blur)" opacity=".75">
+          <path fill="#ff4655" d="M282 106h55L435 0h-55zM563 18h26l44 44h-26zM600 106h40l50-50h-40z"/>
         </g>
-        <path fill="#ff4655" fill-opacity=".9" d="M190 100h44l84-100h-44z"/>
-        <path fill="#ff4655" fill-opacity=".55" d="M130 100h22l84-100h-22z"/>
-        <path fill="#ff4655" fill-opacity=".85" d="M432 0h30l62 60h-30z"/>
-        <path fill="#ff4655" fill-opacity=".85" d="M470 100h36l72-58h-36z"/>
-        <path fill="#ff4655" fill-opacity=".35" d="M640 84h20l40-40h-20z"/>
-        <path fill="none" stroke="#ff4655" stroke-opacity=".7" stroke-width="1.5" d="M92 84l22-26"/>
-        <rect x="118" y="30" width="3" height="3" fill="#ff4655"/>
-        <rect x="100" y="50" width="2" height="4" fill="#ff4655" fill-opacity=".7"/>
+        <!-- éclats nets -->
+        <path fill="#ff4655" fill-opacity=".18" d="M206 84h40l20-22h-40z"/>
+        <path fill="none" stroke="#ff4655" stroke-width="1.5" d="M280 82l20-18"/>
+        <path fill="#ff2e46" d="M282 106h55L435 0h-55z"/>
+        <path fill="#b3203a" fill-opacity=".75" d="M337 106h40L475 0h-40z"/>
+        <path fill="#ff4655" fill-opacity=".9" d="M563 18h26l44 44h-26z"/>
+        <path fill="#ff4655" d="M600 106h40l50-50h-40z"/>
+        <!-- petits carrés rouges -->
+        <rect x="282" y="29" width="3.5" height="3.5" fill="#ff4655"/>
+        <rect x="238" y="40" width="2.5" height="4" fill="#ff4655" fill-opacity=".8"/>
       </svg>
       <div class="titlebar-agent" id="titlebar-art"></div>
-      <svg class="hdr-right-fg" viewBox="0 0 760 100" width="760" height="100" aria-hidden="true">
+      <svg class="hdr-right-fg" viewBox="0 0 860 106" width="860" height="106" aria-hidden="true">
         <defs>
           <filter id="hf-blur" x="-10%" y="-300%" width="120%" height="700%"><feGaussianBlur stdDeviation="2.5"/></filter>
+          <linearGradient id="hf-panel" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#0c1219"/><stop offset=".47" stop-color="#0c1219"/><stop offset="1" stop-color="#140d13"/>
+          </linearGradient>
         </defs>
-        <!-- panneau angulaire derrière les boutons de fenêtre -->
-        <path fill="#0b121a" fill-opacity=".92" stroke="#ffffff" stroke-opacity=".06" d="M578 0H760V46H616L590 20Z"/>
-        <path fill="none" stroke="#ff4655" stroke-dasharray="3 3" stroke-opacity=".8" d="M566.5 10v30"/>
-        <rect x="604.5" y="66.5" width="6" height="7" fill="none" stroke="#ff4655" stroke-opacity=".9"/>
-        <!-- bordure et lueur de la languette -->
-        <path fill="none" stroke="#ff4655" stroke-width="3" opacity=".7" filter="url(#hf-blur)" d="M150 84l16 15h418l16-15"/>
-        <path fill="none" stroke="#ff4655" stroke-opacity=".9" stroke-width="1.2" d="M0 83.5H150l16 15.5h418l16-15.5H760"/>
+        <!-- panneau en « > » derrière les boutons de fenêtre : même couleur que la zone des boutons -->
+        <path fill="url(#hf-panel)" d="M652 0H860V84H787L743 40H628Z"/>
+        <path fill="none" stroke="#ffffff" stroke-opacity=".07" d="M652 .5L628 40H743"/>
+        <path fill="none" stroke="#ff4655" stroke-opacity=".75" d="M743 40l44 44H860"/>
+        <path fill="#ff4655" fill-opacity=".3" d="M792 46h18l40 38h-18z"/>
+        <!-- pointillé vertical et petit rectangle -->
+        <path fill="none" stroke="#ff4655" stroke-width="2" stroke-dasharray="3 3" stroke-opacity=".85" d="M682 12v28"/>
+        <rect x="726.5" y="88.5" width="6" height="8" rx="1" fill="none" stroke="#ff4655" stroke-width="1.5"/>
+        <!-- contour de la languette sous l'agent -->
+        <path fill="none" stroke="#ff4655" stroke-width="3" opacity=".6" filter="url(#hf-blur)" d="M787 84l-22 21H346"/>
+        <path fill="none" stroke="#ff4655" stroke-opacity=".6" d="M0 83.5H320a14 14 0 0 1 10 4.1l13.5 13.5a14 14 0 0 0 10 4.4H765l22-22H860"/>
       </svg>
     </div>
 
