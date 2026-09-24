@@ -913,6 +913,7 @@ PAGES.stats = async () => {
   let data = null;
   let sync = null;
   let refreshedAt = 0;
+  let refreshTimer = null;
 
   const actOf = (r) => r.seasonId || acts.find((a) => r.startedAt >= a.start && r.startedAt < a.end)?.uuid || null;
   const inQueue = (r) => (f.queue === 'all' ? !EXCLUDED_FROM_ALL.has(r.queue) : r.queue === f.queue);
@@ -946,14 +947,23 @@ PAGES.stats = async () => {
     content.scrollTop = scroll;
   }
 
+  // Rafraîchit au plus toutes les 3 s, mais toujours après le dernier événement : les matchs reçus
+  // juste avant une pause imposée par Riot s'affichent quand même.
+  function scheduleRefresh(now = false) {
+    clearTimeout(refreshTimer);
+    const delay = now ? 0 : Math.max(0, 3000 - (Date.now() - refreshedAt));
+    refreshTimer = setTimeout(() => alive() && refresh(), delay);
+  }
+
   const off = window.api.on('stats-sync', (s) => {
     if (!alive()) return off();
     const wasRunning = sync?.running;
     sync = s;
     const line = $('#sync-line');
     if (line) line.innerHTML = syncLine();
-    // Les nouveaux matchs apparaissent au fil de la synchro, sans recharger à chaque match.
-    if ((wasRunning && !s.running) || (s.running && s.done && Date.now() - refreshedAt > 4000)) refresh();
+    if (wasRunning && !s.running) scheduleRefresh(true);
+    else if (s.running && s.done) scheduleRefresh();
+    else if (data && $('.empty')) draw(); // met à jour le message « synchronisation en cours »
   });
 
   function draw() {
@@ -997,7 +1007,8 @@ PAGES.stats = async () => {
       : '';
 
     if (!recs.length) {
-      const syncing = (sync || data.sync)?.running;
+      const st = sync || data.sync;
+      const syncing = st?.running || !st?.lastSync; // première connexion : la synchro n'a encore jamais tourné
       const tooOld = f.act !== 'all' && oldest && (acts.find((a) => a.uuid === f.act)?.end || 0) < oldest;
       content.innerHTML = `${head}
         ${rankCard ? `<div class="stats-top single">${rankCard}</div>` : ''}
@@ -1142,9 +1153,10 @@ PAGES.stats = async () => {
     if (q) { f.queue = q.dataset.q; draw(); }
   };
 
+  // Vérifie s'il y a de nouveaux matchs (1 à 2 requêtes si tout est déjà en mémoire), avant le premier affichage
+  // pour que la page sache tout de suite qu'une synchro est en cours.
+  sync = await call('stats-sync').catch(() => null);
   await refresh();
-  // Vérifie s'il y a de nouveaux matchs (1 à 2 requêtes si tout est déjà en mémoire).
-  call('stats-sync').catch(() => {});
 };
 
 // ---------- Groupe ----------
