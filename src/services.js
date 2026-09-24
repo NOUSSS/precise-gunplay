@@ -33,6 +33,11 @@ class Services {
     this.assets = assets;
     this.rankCache = new Map();
     this.matchCache = new Map();
+    this.matchPending = new Map();
+    this.recent = new Map(); // stats récentes des joueurs croisés en partie
+    this.recentQueue = [];
+    this.recentRunning = 0;
+    this.stats = null; // branché par main.js (calcul des résumés de match)
   }
 
   // ---------- Rangs ----------
@@ -192,7 +197,7 @@ class Services {
   }
 
   // ---------- Partie en direct ----------
-  async decorate(players, partyMembers = new Set()) {
+  async decorate(players, partyMembers = new Set(), queue = null) {
     const names = await this.names(players.map((p) => p.puuid));
     const ranks = await Promise.all(players.map((p) => this.rank(p.puuid)));
     return players.map((p, i) => {
@@ -210,6 +215,7 @@ class Services {
         agentId: agent?.uuid || null,
         state: p.state || null,
         rank: ranks[i],
+        recent: this.recentStats(p.puuid, queue),
       };
     });
   }
@@ -234,7 +240,8 @@ class Services {
         const party = await this.partyMemberSet();
         const allies = await this.decorate(
           (m.AllyTeam?.Players || []).map((p) => ({ puuid: p.Subject, agent: p.CharacterID, state: p.CharacterSelectionState, identity: p.PlayerIdentity })),
-          party
+          party,
+          m.QueueID
         );
         return {
           state: 'pregame',
@@ -255,7 +262,8 @@ class Services {
         const myTeam = (m.Players || []).find((p) => p.Subject === c.puuid)?.TeamID;
         const all = await this.decorate(
           (m.Players || []).map((p) => ({ puuid: p.Subject, agent: p.CharacterID, identity: p.PlayerIdentity, team: p.TeamID })),
-          party
+          party,
+          m.MatchmakingData?.QueueID
         );
         const teamOf = new Map((m.Players || []).map((p) => [p.Subject, p.TeamID]));
         return {
@@ -274,13 +282,71 @@ class Services {
   // ---------- Historique ----------
   async matchDetails(id) {
     if (this.matchCache.has(id)) return this.matchCache.get(id);
-    const d = await this.client.getMatchDetails(id);
+    // Deux demandes simultanées du même match (ex : deux coéquipiers) ne font qu'une requête.
+    if (!this.matchPending.has(id)) {
+      this.matchPending.set(
+        id,
+        this.client.getMatchDetails(id).finally(() => this.matchPending.delete(id))
+      );
+    }
+    const d = await this.matchPending.get(id);
     if (d) {
       this.matchCache.set(id, d);
-      // Garde seulement les 30 derniers matchs complets en mémoire.
-      if (this.matchCache.size > 30) this.matchCache.delete(this.matchCache.keys().next().value);
+      // Garde seulement les 60 derniers matchs complets en mémoire.
+      if (this.matchCache.size > 60) this.matchCache.delete(this.matchCache.keys().next().value);
     }
     return d;
+  }
+
+  // ---------- Stats récentes des joueurs (partie en direct) ----------
+  /** Renvoie les stats en cache ou lance leur calcul en arrière-plan (null en attendant). */
+  recentStats(puuid, queue) {
+    const key = `${puuid}:${queue || ''}`;
+    const hit = this.recent.get(key);
+    if (hit && Date.now() - hit.at < 15 * 60 * 1000) return hit.value;
+    this.recent.set(key, { at: Date.now(), value: null });
+    this.recentQueue.push({ key, puuid, queue });
+    this.pumpRecent();
+    return null;
+  }
+
+  pumpRecent() {
+    while (this.recentRunning < 2 && this.recentQueue.length) {
+      const job = this.recentQueue.shift();
+      this.recentRunning++;
+      this.loadRecent(job.puuid, job.queue)
+        .then((value) => this.recent.set(job.key, { at: Date.now(), value }))
+        .catch(() => this.recent.delete(job.key)) // retenté au prochain rafraîchissement
+        .finally(() => {
+          this.recentRunning--;
+          this.pumpRecent();
+        });
+    }
+  }
+
+  async loadRecent(puuid, queue) {
+    let h = queue ? await this.client.getMatchHistory(0, 3, queue, puuid) : null;
+    if (!h?.History?.length) h = await this.client.getMatchHistory(0, 3, undefined, puuid);
+    const ids = (h?.History || []).slice(0, 3).map((m) => m.MatchID);
+    const recs = [];
+    for (const id of ids) {
+      const d = await this.matchDetails(id).catch(() => null);
+      const r = d && this.stats?.record(d, puuid);
+      if (r) recs.push(r);
+    }
+    if (!recs.length) return { n: 0 };
+    const sum = (k) => recs.reduce((s, r) => s + (r[k] || 0), 0);
+    const shots = sum('head') + sum('body') + sum('leg');
+    return {
+      n: recs.length,
+      kills: sum('kills') / recs.length,
+      deaths: sum('deaths') / recs.length,
+      assists: sum('assists') / recs.length,
+      kd: sum('kills') / Math.max(1, sum('deaths')),
+      acs: sum('combat') / Math.max(1, sum('rounds')),
+      hs: shots ? (sum('head') / shots) * 100 : null,
+      wins: recs.filter((r) => r.result === 'win').length,
+    };
   }
 
   summarizeMatch(d) {

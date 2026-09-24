@@ -212,9 +212,9 @@ class RiotClient {
   }
 
   // ---- Historique ----
-  getMatchHistory(start = 0, end = 10, queue) {
+  getMatchHistory(start = 0, end = 10, queue, puuid = this.puuid) {
     const q = queue ? `&queue=${encodeURIComponent(queue)}` : '';
-    return this.pd('GET', `/match-history/v1/history/${this.puuid}?startIndex=${start}&endIndex=${end}${q}`);
+    return this.pd('GET', `/match-history/v1/history/${puuid}?startIndex=${start}&endIndex=${end}${q}`);
   }
   rateLimitedUntil(bucket) {
     const until = this.rateLimits.get(bucket) || 0;
