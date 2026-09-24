@@ -189,8 +189,10 @@ class RiotClient {
   getAccountXP() {
     return this.pd('GET', `/account-xp/v1/players/${this.puuid}`);
   }
-  getLoadout() {
-    return this.pd('GET', `/personalization/v2/players/${this.puuid}/playerloadout`);
+  async getLoadout() {
+    // Riot a retiré la v2 (404) ; on la garde en secours au cas où.
+    return (await this.pd('GET', `/personalization/v3/players/${this.puuid}/playerloadout`))
+      || this.pd('GET', `/personalization/v2/players/${this.puuid}/playerloadout`);
   }
   getMMR(puuid = this.puuid) {
     return this.pd('GET', `/mmr/v1/players/${puuid}`);
