@@ -888,10 +888,13 @@ PAGES.stats = async () => {
     </div>`;
 
   async function load() {
-    content.innerHTML = `${head()}<div class="stats-loading">${loader()}<div class="muted" id="st-progress">Récupération de l'historique…</div></div>`;
+    content.innerHTML = `${head()}<div class="stats-loading">${loader()}<div class="muted" id="st-progress">Récupération de l'historique…</div><div class="muted" style="font-size:12px;margin-top:10px">Les matchs déjà analysés sont gardés en cache : les prochaines fois, ce sera instantané.</div></div>`;
     const off = window.api.on('stats-progress', (p) => {
       const el = $('#st-progress');
-      if (el) el.textContent = `Analyse des matchs… ${p.done} / ${p.total}`;
+      if (!el) return;
+      el.innerHTML = p.waitUntil
+        ? `Analyse des matchs… ${p.done} / ${p.total}<br><span class="rate-wait">Limite de requêtes Riot atteinte : reprise dans <b data-ends="${p.waitUntil}">${fmtDuration(p.waitUntil - Date.now())}</b></span>`
+        : `Analyse des matchs… ${p.done} / ${p.total}`;
     });
     try {
       data = await call('stats', f.queue, f.count);
