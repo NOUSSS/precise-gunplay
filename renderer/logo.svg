@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Monogramme P anguleux ; le creux en losange sert de point de visée -->
+  <path fill="#ff4655" fill-rule="evenodd" d="M8 6H48L58 16V32L48 42H24V50L16 58H8Z M36 14L45 24L36 34L27 24Z"/>
+  <path fill="#ece8e1" d="M36 21.5L38.5 24L36 26.5L33.5 24Z"/>
+</svg>
