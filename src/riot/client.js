@@ -37,6 +37,7 @@ class RiotClient {
     this.region = null;
     this.shard = null;
     this.version = null;
+    this.rateLimitedUntil = 0;
   }
 
   get connected() {
@@ -127,6 +128,9 @@ class RiotClient {
 
   async request(base, method, urlPath, body, retry = true, attempt = 0) {
     if (!this.connected) throw new RiotError('NOT_CONNECTED', 'Compte non connecté.');
+    // Pause commune : si Riot a demandé d'attendre, toutes les requêtes patientent ensemble.
+    const wait = this.rateLimitedUntil - Date.now();
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
     if (Date.now() - this.tokensAt > 4 * 60 * 1000) {
       await this.refreshTokens().catch(() => {});
     }
@@ -144,10 +148,11 @@ class RiotClient {
       await this.refreshTokens();
       return this.request(base, method, urlPath, body, false);
     }
-    if (res.status === 429 && attempt < 3) {
-      // Limite de requêtes Riot : on patiente puis on réessaie.
-      const wait = Number(res.headers.get('retry-after')) * 1000 || 2000 * (attempt + 1);
-      await new Promise((r) => setTimeout(r, Math.min(wait, 15000)));
+    if (res.status === 429 && attempt < 5) {
+      // Limite de requêtes Riot : on respecte le délai demandé (souvent jusqu'à 60 s) puis on réessaie.
+      const delay = Math.min(Number(res.headers.get('retry-after')) * 1000 || 5000 * (attempt + 1), 120000);
+      this.rateLimitedUntil = Math.max(this.rateLimitedUntil, Date.now() + delay + 500);
+      this.onRateLimit?.(this.rateLimitedUntil);
       return this.request(base, method, urlPath, body, retry, attempt + 1);
     }
     if (res.status === 404) return null;

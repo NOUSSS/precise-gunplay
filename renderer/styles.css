@@ -311,6 +311,8 @@ input[type=range] { accent-color: var(--red); width: 220px; }
 /* ---------- Statistiques ---------- */
 .stats-loading { text-align: center; }
 .stats-loading .loader { margin: 60px auto 16px; }
+.stats-loading #st-progress { line-height: 1.8; }
+.rate-wait { color: var(--gold); }
 .stats-top { display: grid; grid-template-columns: 1fr auto; gap: 14px; margin-bottom: 14px; }
 .hero-stat .hero-value { font-size: 56px; font-weight: 700; line-height: 1.05; margin: 4px 0 6px; }
 .st-label { font-size: 11px; color: var(--muted); letter-spacing: .14em; text-transform: uppercase; }

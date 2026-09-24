@@ -146,7 +146,11 @@ class Stats {
     }
 
     let done = records.length;
-    onProgress({ done, total: ids.length });
+    const progress = () =>
+      onProgress({ done, total: ids.length, waitUntil: this.client.rateLimitedUntil > Date.now() ? this.client.rateLimitedUntil : null });
+    progress();
+    this.client.onRateLimit = progress;
+    let unsaved = 0;
     // 3 téléchargements en parallèle pour rester sous la limite de requêtes Riot.
     const queueIds = [...todo];
     const worker = async () => {
@@ -158,13 +162,23 @@ class Stats {
           if (r) {
             this.cache[`${puuid}:${id}`] = r;
             records.push(r);
+            // Sauvegarde régulière : rien n'est perdu si l'analyse est interrompue.
+            if (++unsaved >= 10) {
+              this.save();
+              unsaved = 0;
+            }
           }
         } catch { /* match ignoré */ }
-        onProgress({ done: ++done, total: ids.length });
+        done++;
+        progress();
       }
     };
-    await Promise.all([worker(), worker(), worker()]);
-    if (todo.length) this.save();
+    try {
+      await Promise.all([worker(), worker(), worker()]);
+    } finally {
+      this.client.onRateLimit = null;
+      if (unsaved) this.save();
+    }
 
     records.sort((a, b) => b.startedAt - a.startedAt);
 
