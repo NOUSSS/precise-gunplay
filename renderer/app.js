@@ -1436,6 +1436,7 @@ PAGES.friends = async () => {
         }).join('')
       : `<div class="chat-none muted">Aucun message récent avec ${esc(friendOf(pid)?.name || 'cet ami')}.<br>Dis-lui bonjour !</div>`;
     if (forceBottom || atBottom) log.scrollTop = log.scrollHeight;
+    if (msgs.length && rawUnread[pid]) call('chat-read', pid, msgs[msgs.length - 1].id).then(refreshUnread, () => {});
     markChatSeen(pid, msgs.map((m) => m.id));
   }
 
