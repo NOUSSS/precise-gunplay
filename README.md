@@ -40,6 +40,11 @@ npm start          # lancer en développement
 npm run dist       # génère l'installeur et la version portable dans dist/
 ```
 
+## Vidéo de présentation
+
+Le dossier [`video/`](video/) contient une vidéo motion design (~1 min 30) qui présente les fonctionnalités et
+l'utilisation de l'app, rendue image par image depuis une page HTML animée : voir [`video/README.md`](video/README.md).
+
 ## Publier une mise à jour
 
 1. Change `"version"` dans `package.json` (ex : `1.0.1`) et commit.
