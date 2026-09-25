@@ -462,6 +462,15 @@ input[type=range] { accent-color: var(--red); width: 220px; }
 .toast.error { border-left-color: var(--red); }
 @keyframes toast-in { from { transform: translateY(12px); opacity: 0; } }
 
+/* ---------- Fenêtre de confirmation ---------- */
+.modal-back { position: fixed; inset: 0; background: #0009; display: grid; place-items: center; z-index: 200; padding: 16px; animation: fade-in .15s ease-out; }
+.modal { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px 24px; width: 100%; max-width: 440px; box-shadow: 0 20px 50px #000a; animation: toast-in .2s ease-out; }
+.modal h3 { margin: 0 0 10px; font-size: 16px; letter-spacing: .06em; text-transform: uppercase; }
+.modal p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.modal p b { color: var(--text); font-weight: 600; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+@keyframes fade-in { from { opacity: 0; } }
+
 /* ---------- Messagerie (onglet Amis) ---------- */
 .friends-layout { display: grid; grid-template-columns: minmax(360px, 1fr) minmax(360px, 1.05fr); gap: 18px; align-items: start; }
 .friends-layout .friend { cursor: pointer; transition: border-color .15s; }

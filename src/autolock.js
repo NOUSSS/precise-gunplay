@@ -63,7 +63,11 @@ class AutoLock extends EventEmitter {
 
       if (cfg.delayMs > 0) await sleep(cfg.delayMs);
       await this.client.selectAgent(matchId, pick);
-      if (cfg.mode === 'lock') await this.client.lockAgent(matchId, pick);
+      if (cfg.mode === 'lock') {
+        // Un verrouillage instantané après le survol ressemble à un bot : on laisse un court temps de réaction.
+        if (cfg.lockDelayMs > 0) await sleep(cfg.lockDelayMs);
+        await this.client.lockAgent(matchId, pick);
+      }
       this.done.add(matchId);
 
       const agent = this.assets.agentById.get(pick.toLowerCase());

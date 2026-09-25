@@ -10,7 +10,8 @@ const DEFAULTS = {
     agentId: null,
     fallbacks: [],
     perMap: {}, // { [mapUuid]: agentUuid }
-    delayMs: 0,
+    delayMs: 2500, // attente avant de survoler l'agent
+    lockDelayMs: 250, // mode 'lock' : attente entre le survol et le verrouillage
   },
 };
 
@@ -20,6 +21,8 @@ class Settings {
     this.value = structuredClone(DEFAULTS);
     try {
       const saved = JSON.parse(fs.readFileSync(this.file, 'utf8'));
+      // Anciens réglages (avant lockDelayMs) : le délai valait 0 par défaut, on passe au nouveau défaut anti-ban.
+      if (saved.autolock && saved.autolock.lockDelayMs == null && !saved.autolock.delayMs) delete saved.autolock.delayMs;
       this.value = { ...this.value, ...saved, autolock: { ...DEFAULTS.autolock, ...(saved.autolock || {}) } };
     } catch { /* premier lancement */ }
   }
