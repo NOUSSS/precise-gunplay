@@ -99,22 +99,32 @@ button, input, select { font: inherit; color: inherit; }
 .account::before { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, #0b131b40 0%, #0b131bb3 50%, #0b131bf0 100%); }
 .account::after { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--red); }
 .account:hover { border-color: #ffffff30; transform: translateY(-1px); }
-.account.off { cursor: default; }
+.account.off { cursor: default; gap: 12px; background: linear-gradient(160deg, #1a2733 0%, var(--panel) 55%, #131d27 100%); }
+.account.off::before { background: repeating-linear-gradient(135deg, transparent 0 10px, #ffffff05 10px 11px); }
 .account.off::after { background: var(--gold); }
+.account.off.error::after { background: var(--red); }
+.account.off.search::after { background: var(--muted); }
 .account.off:hover { border-color: var(--line); transform: none; }
+.acc-off-icon { display: grid; place-items: center; background: #f5c4511a; color: var(--gold); box-shadow: 0 0 0 1px #f5c45140; }
+.acc-off-icon svg { width: 20px; height: 20px; }
+.account.error .acc-off-icon { background: var(--red-dim); color: var(--red); box-shadow: 0 0 0 1px #ff465555; }
+.account.search .acc-off-icon { background: #ffffff0a; color: var(--muted); box-shadow: 0 0 0 1px #ffffff1a; }
+.acc-state { font-weight: 700; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.acc-hint { color: var(--muted); font-size: 11.5px; line-height: 1.35; margin-top: 3px; }
+.acc-btn { white-space: nowrap; width: 100%; justify-content: center; padding: 8px 10px; font-size: 11px; }
+.btn svg { width: 14px; height: 14px; flex-shrink: 0; }
+.spinner { display: inline-block; width: 14px; height: 14px; flex-shrink: 0; border: 2px solid #ffffff40; border-top-color: currentColor; border-radius: 50%; animation: spin .8s linear infinite; }
+.acc-off-icon .spinner { width: 18px; height: 18px; }
 .acc-top { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .acc-avatar { position: relative; width: 42px; height: 42px; flex-shrink: 0; border-radius: 4px; background: var(--panel-2); box-shadow: 0 0 0 1px #ffffff26, 0 4px 12px #0008; }
 .acc-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 4px; }
 .acc-lvl { position: absolute; left: 50%; bottom: -8px; transform: translateX(-50%); font-size: 9px; font-weight: 700; letter-spacing: .04em; line-height: 1; padding: 2px 4px; border-radius: 3px; background: var(--bg-deep); border: 1px solid #ffffff33; white-space: nowrap; }
 .acc-avatar .dot { position: absolute; right: -3px; top: -3px; width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--bg-deep); background: var(--muted); }
-.acc-avatar.idle .dot { right: 50%; top: 50%; transform: translate(50%, -50%); }
 .dot.on { background: var(--win); box-shadow: 0 0 8px var(--win); }
-.dot.off { background: var(--gold); animation: pulse 1.4s infinite; }
 .acc-id { min-width: 0; flex: 1; }
 .acc-id .who { font-weight: 700; font-size: 14px; letter-spacing: .03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 4px #000a; }
 .acc-id .who span { color: var(--muted); font-weight: 400; margin-left: 2px; }
 .acc-title { color: var(--gold); font-size: 11px; letter-spacing: .06em; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.account.off .acc-title { color: var(--muted); white-space: normal; }
 .acc-foot { display: flex; align-items: center; gap: 6px; }
 .acc-rank { flex: 1; display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; font-weight: 600; letter-spacing: .03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .acc-rank img { width: 22px; height: 22px; flex-shrink: 0; filter: drop-shadow(0 1px 3px #000a); }
@@ -181,6 +191,7 @@ input[type=range] { accent-color: var(--red); width: 220px; }
 .connect { max-width: 620px; margin: 40px auto; text-align: center; }
 .connect .logo { width: 110px; height: auto; margin: 0 auto 24px; filter: drop-shadow(0 6px 24px #ff465555); }
 .connect h1 { font-size: 40px; }
+.connect-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 .steps { text-align: left; margin: 30px 0; display: grid; gap: 10px; }
 .step { display: flex; gap: 16px; align-items: center; background: var(--panel); border: 1px solid var(--line); padding: 14px 18px; border-radius: var(--radius); }
 .step b { color: var(--red); font-size: 22px; width: 24px; }

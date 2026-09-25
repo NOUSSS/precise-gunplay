@@ -190,18 +190,80 @@ async function refreshUnread() {
   try { rawUnread = await call('chat-unread'); applyUnread(); } catch { /* chat indisponible */ }
 }
 
+// État hors ligne : ce qui bloque la liaison et l'action proposée pour s'en sortir.
+function offlineState() {
+  const s = state.status;
+  const launching = state.launchingUntil > Date.now();
+  if (s.code === 'NOT_LOGGED_IN') {
+    return { kind: 'login', title: 'Connexion requise', text: 'Connecte-toi à ton compte dans le Riot Client.', action: 'launch', label: 'Ouvrir le client', launching };
+  }
+  if (s.code === 'RIOT_CLIENT_CLOSED' || launching) {
+    return { kind: 'closed', title: launching ? 'Démarrage…' : 'Riot Client fermé', text: launching ? 'Connecte-toi : le compte sera lié tout seul.' : 'Lance le Riot Client pour lier ton compte.', action: 'launch', label: 'Lancer Riot Client', launching };
+  }
+  if (s.code) return { kind: 'error', title: 'Liaison impossible', text: s.message || '', action: 'retry', label: 'Réessayer' };
+  return { kind: 'search', title: 'Recherche…', text: s.message || 'Recherche du Riot Client…' };
+}
+
+const ICON_PLAY = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>';
+const ICON_RETRY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>';
+const ICON_OFFLINE = {
+  closed: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v8"/><path d="M6.3 7.3a8 8 0 1 0 11.4 0"/></svg>',
+  login: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
+  error: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 8v5M12 16.5v.5"/><circle cx="12" cy="12" r="9"/></svg>',
+  search: '<span class="spinner"></span>',
+};
+
+function offlineButton(o, cls = '') {
+  if (!o.action) return '';
+  const busy = o.launching;
+  return `<button class="btn primary ${cls}" data-offline="${o.action}" ${busy ? 'disabled' : ''}>
+    ${busy ? '<span class="spinner"></span>En attente…' : `${o.action === 'launch' ? ICON_PLAY : ICON_RETRY}${esc(o.label)}`}</button>`;
+}
+
+async function launchRiot() {
+  try {
+    await call('launch-riot');
+    // Le Riot Client met quelques secondes à démarrer : on garde le bouton occupé le temps qu'il apparaisse.
+    state.launchingUntil = Date.now() + 30000;
+    setTimeout(() => { if (!state.status.connected) onStatus(state.status); }, 30500);
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+  onStatus(state.status);
+}
+
+async function retryConnect() {
+  const s = await call('connect').catch(() => null);
+  if (s) onStatus(s);
+}
+
+// Les boutons hors ligne vivent dans la carte et sur la page de connexion : un seul gestionnaire pour les deux.
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-offline]');
+  if (!btn || btn.disabled) return;
+  e.stopPropagation();
+  btn.disabled = true;
+  (btn.dataset.offline === 'launch' ? launchRiot() : retryConnect()).finally(() => { if (btn.isConnected) btn.disabled = false; });
+}, true);
+
 // Carte du compte en bas de la barre latérale : bannière de la carte de joueur, niveau et rang.
 function renderAccount() {
   const s = state.status;
   const el = $('#account');
   if (!s.connected) {
-    el.className = 'account off';
+    const o = offlineState();
+    el.className = `account off ${o.kind}`;
     el.style.backgroundImage = '';
     el.title = '';
-    el.innerHTML = `<div class="acc-top">
-        <div class="acc-avatar idle"><span class="dot off"></span></div>
-        <div class="acc-id"><div class="who">Non connecté</div><div class="acc-title">${esc(s.message || '')}</div></div>
-      </div>`;
+    el.innerHTML = `
+      <div class="acc-top">
+        <div class="acc-avatar acc-off-icon">${ICON_OFFLINE[o.kind]}</div>
+        <div class="acc-id">
+          <div class="acc-state">${esc(o.title)}</div>
+          <div class="acc-hint">${esc(o.text)}</div>
+        </div>
+      </div>
+      ${offlineButton(o, 'acc-btn')}`;
     return;
   }
   const p = state.profile?.puuid === s.puuid ? state.profile : null;
@@ -312,15 +374,11 @@ function renderConnect() {
         <div class="step"><b>3</b><div>Precise Gunplay détecte ta session et lie ton compte tout seul.</div></div>
       </div>
       <div class="warn-box" style="text-align:left;margin-bottom:22px">État : ${esc(state.status.message || 'En attente…')}</div>
-      <button class="btn primary big" id="retry">Réessayer maintenant</button>
+      <div class="connect-actions">
+        ${offlineButton({ ...offlineState(), action: 'launch', label: 'Lancer Riot Client' }, 'big')}
+        <button class="btn big" data-offline="retry">${ICON_RETRY}Réessayer</button>
+      </div>
     </div>`;
-  $('#retry').onclick = async () => {
-    $('#retry').disabled = true;
-    const s = await call('connect').catch(() => null);
-    if (s) onStatus(s);
-    const btn = $('#retry');
-    if (btn) btn.disabled = false;
-  };
 }
 
 function onUpdate(u) {
@@ -339,6 +397,7 @@ function onStatus(s) {
   renderAccount();
   if (s.connected !== was) {
     if (s.connected) {
+      state.launchingUntil = 0;
       state.owned = null;
       state.profile = null;
       if (state.page !== 'home') refreshProfile(); // l'accueil charge déjà le profil

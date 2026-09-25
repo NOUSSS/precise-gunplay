@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, shell, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { spawn } = require('child_process');
 const { RiotClient } = require('./src/riot/client');
 const { LOCKFILE } = require('./src/riot/local');
 const { Assets } = require('./src/assets');
@@ -34,6 +35,25 @@ function withLoginItem(value) {
   return { ...value, openAtLogin: app.getLoginItemSettings(loginItemOptions()).openAtLogin };
 }
 
+// Emplacement du Riot Client : indiqué par le Riot Client lui-même, avec l'installation par défaut en secours.
+function riotClientPath() {
+  const candidates = [];
+  try {
+    const installs = JSON.parse(fs.readFileSync(path.join(process.env.ProgramData || 'C:/ProgramData', 'Riot Games', 'RiotClientInstalls.json'), 'utf8'));
+    candidates.push(installs.rc_live, installs.rc_default, ...Object.values(installs.associated_client || {}));
+  } catch { /* fichier absent : on tente l'emplacement par défaut */ }
+  candidates.push('C:/Riot Games/Riot Client/RiotClientServices.exe');
+  return candidates.find((p) => typeof p === 'string' && fs.existsSync(p));
+}
+
+function launchRiot() {
+  const exe = riotClientPath();
+  if (!exe) throw new Error('Riot Client introuvable sur ce PC. Installe VALORANT puis réessaie.');
+  // Si le Riot Client tourne déjà, il se met simplement au premier plan.
+  spawn(exe, [], { detached: true, stdio: 'ignore' }).unref();
+  return true;
+}
+
 function setStatus(next) {
   status = next;
   send('status', status);
@@ -65,7 +85,7 @@ function watchConnection() {
     // Vérifie que le Riot Client répond toujours et que c'est le même compte.
     const previous = client.puuid;
     try {
-      if (!fs.existsSync(LOCKFILE)) throw new Error('Riot Client fermé. En attente…');
+      if (!fs.existsSync(LOCKFILE)) throw Object.assign(new Error('Riot Client fermé. En attente…'), { code: 'RIOT_CLIENT_CLOSED' });
       await client.refreshTokens();
       if (client.puuid !== previous) {
         client.reset();
@@ -73,7 +93,7 @@ function watchConnection() {
       }
     } catch (e) {
       client.reset();
-      setStatus({ connected: false, message: e.message || 'Riot Client fermé. En attente…' });
+      setStatus({ connected: false, message: e.message || 'Riot Client fermé. En attente…', code: e.code });
     }
   }, 5000);
 }
@@ -107,6 +127,7 @@ function registerIpc() {
     }
     return next;
   }, { needsAuth: false });
+  handle('launch-riot', launchRiot, { needsAuth: false });
   handle('open-external', (url) => {
     if (/^https:\/\//.test(url)) shell.openExternal(url);
   }, { needsAuth: false });
