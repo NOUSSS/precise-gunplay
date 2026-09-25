@@ -231,6 +231,18 @@ class Services {
     }
   }
 
+  /** Score de la partie en cours [nous, eux], lu dans notre propre présence (mise à jour à chaque round). */
+  async myMatchScore() {
+    const pr = await this.client.getPresences().catch(() => null);
+    const p = (pr?.presences || []).find((x) => x.puuid === this.client.puuid && x.product === 'valorant');
+    const d = p && decodePresence(p);
+    if (!d) return null;
+    const party = d.partyPresenceData || {};
+    const ally = d.partyOwnerMatchScoreAllyTeam ?? party.partyOwnerMatchScoreAllyTeam;
+    const enemy = d.partyOwnerMatchScoreEnemyTeam ?? party.partyOwnerMatchScoreEnemyTeam;
+    return ally != null && enemy != null ? [ally, enemy] : null;
+  }
+
   async live() {
     const c = this.client;
     const pre = await c.getPregamePlayer().catch(() => null);
@@ -271,6 +283,7 @@ class Services {
           matchId: m.MatchID,
           map: this.assets.map(m.MapID),
           queue: m.MatchmakingData?.QueueID || null,
+          score: await this.myMatchScore(),
           allies: all.filter((p) => teamOf.get(p.puuid) === myTeam),
           enemies: all.filter((p) => teamOf.get(p.puuid) !== myTeam),
         };

@@ -305,33 +305,49 @@ input[type=range] { accent-color: var(--red); width: 220px; }
 .phase { font-size: 12px; letter-spacing: .2em; color: var(--red); text-transform: uppercase; font-weight: 700; }
 .countdown { margin-left: auto; font-size: 32px; font-weight: 700; font-variant-numeric: tabular-nums; }
 
-.team h3 { font-size: 13px; letter-spacing: .2em; text-transform: uppercase; margin: 0 0 10px; }
+.live-score { margin-left: auto; font-size: 40px; font-weight: 700; font-variant-numeric: tabular-nums; display: flex; gap: 12px; align-items: baseline; line-height: 1; }
+.live-score .ally { color: var(--teal); }
+.live-score .enemy { color: var(--red); }
+.live-score .sep { color: var(--muted); font-size: 28px; }
+.countdown + .live-score { margin-left: 24px; }
+
+.team { margin-bottom: 18px; }
+.team h3 { font-size: 13px; letter-spacing: .2em; text-transform: uppercase; margin: 0; display: flex; align-items: baseline; gap: 10px; }
 .team.ally h3 { color: var(--teal); }
 .team.enemy h3 { color: var(--red); }
-.player { display: flex; align-items: center; gap: 12px; background: var(--panel); border: 1px solid var(--line); padding: 8px 12px 8px 8px; border-radius: var(--radius); margin-bottom: 6px; }
+.team-score { font-size: 18px; letter-spacing: 0; color: var(--text); }
+/* Grille commune : chaque colonne a la même largeur pour tous les joueurs des deux équipes. */
+.player { display: grid; grid-template-columns: 44px minmax(140px, 1fr) 110px 64px 64px 170px 56px; align-items: center; gap: 12px; background: var(--panel); border: 1px solid var(--line); padding: 8px 12px 8px 8px; border-radius: var(--radius); margin-bottom: 6px; }
+.team.pregame .player { grid-template-columns: 44px minmax(140px, 1fr) 90px 110px 64px 64px 170px 56px; }
+.player-head { background: transparent !important; border-color: transparent !important; padding-top: 0; padding-bottom: 2px; margin-bottom: 2px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.player-head .ph-title { grid-column: span 2; }
+.player-head .ph-rank { padding-left: 12px; }
+.player-head .num { font-size: 11px; }
+.player .pc { min-width: 0; }
+.player .num { text-align: right; font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.player .num b { font-weight: 600; }
+.player .num.good { color: var(--win); }
+.player .num.bad { color: var(--loss); }
+.player > .pc:last-child { display: flex; justify-content: flex-end; }
 .team.ally .player { border-left: 3px solid var(--teal); }
 .team.enemy .player { border-left: 3px solid var(--red); }
 .player.me { background: color-mix(in srgb, var(--gold) 10%, var(--panel)); }
 .player .pagent { width: 44px; height: 44px; border-radius: 3px; background: var(--panel-2); object-fit: cover; }
 .player .pagent.empty-agent { display: grid; place-items: center; color: var(--muted); font-size: 18px; }
-.player .pname { flex: 1; min-width: 0; }
+.player .pname { min-width: 0; }
 .player .pname div:first-child { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .player .pname div + div { font-size: 12px; color: var(--muted); }
 .player .pstate { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; padding: 2px 6px; border-radius: 3px; background: #ffffff10; }
 .player .pstate.locked { background: var(--teal); color: #062; }
 .rank { display: flex; align-items: center; gap: 6px; font-size: 12px; min-width: 120px; }
-.player .rank { min-width: 104px; gap: 8px; }
-.player .rank > div { display: flex; flex-direction: column; line-height: 1.3; white-space: nowrap; }
+.player .rank { min-width: 0; gap: 8px; padding-left: 12px; }
+.player .rank > div { display: flex; flex-direction: column; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .player .pname div + div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.player { gap: 10px; }
-.recent { min-width: 104px; font-size: 12px; line-height: 1.45; text-align: right; font-variant-numeric: tabular-nums; }
-.recent b { color: var(--text); font-weight: 600; }
 .mini-loader { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--line); border-top-color: var(--muted); border-radius: 50%; animation: spin .8s linear infinite; }
 .live-note { font-size: 12px; margin: -4px 0 12px; }
 .trn-btn { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 3px; padding: 3px 6px; font-size: 10px; font-weight: 700; letter-spacing: .08em; cursor: pointer; flex-shrink: 0; transition: color .15s, border-color .15s; }
 .trn-btn svg { width: 11px; height: 11px; }
 .trn-btn:hover { color: var(--text); border-color: var(--red); }
-.trn-space { width: 50px; flex-shrink: 0; }
 .rank img { width: 28px; height: 28px; }
 .rank .peak { opacity: .55; }
 .rank .peak img { width: 20px; height: 20px; }

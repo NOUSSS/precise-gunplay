@@ -729,14 +729,16 @@ PAGES.agent = async () => {
 };
 
 // ---------- Partie en direct ----------
-function recentHtml(r) {
-  if (r == null) return '<div class="recent muted" title="Chargement de ses derniers matchs…"><span class="mini-loader"></span></div>';
-  if (!r.n) return '<div class="recent muted" title="Aucun match récent">—</div>';
+// Colonnes K/D/A · K/D · HS : toujours trois cellules pour que tout reste aligné d'un joueur à l'autre.
+function recentCells(r) {
+  if (r == null) return '<div class="pc num muted" title="Chargement de ses derniers matchs…"><span class="mini-loader"></span></div><div class="pc num muted">—</div><div class="pc num muted">—</div>';
+  if (!r.n) return '<div class="pc num muted" title="Aucun match récent">—</div><div class="pc num muted">—</div><div class="pc num muted">—</div>';
   const n = (v) => Math.round(v);
-  return `<div class="recent" title="Moyenne sur ses ${r.n} derniers matchs (${r.wins} victoire${r.wins > 1 ? 's' : ''})">
-    <div><b>${n(r.kills)} / ${n(r.deaths)} / ${n(r.assists)}</b></div>
-    <div class="muted">K/D <b>${r.kd.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</b>${r.hs != null ? ` · HS ${Math.round(r.hs)} %` : ''}</div>
-  </div>`;
+  const title = `Moyenne sur ses ${r.n} derniers matchs (${r.wins} victoire${r.wins > 1 ? 's' : ''})`;
+  const kdClass = r.kd >= 1.2 ? 'good' : r.kd < 0.8 ? 'bad' : '';
+  return `<div class="pc num" title="${title}"><b>${n(r.kills)} / ${n(r.deaths)} / ${n(r.assists)}</b></div>
+    <div class="pc num ${kdClass}" title="${title}">${r.kd.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+    <div class="pc num" title="${title}">${r.hs != null ? `${Math.round(r.hs)} %` : '—'}</div>`;
 }
 
 function playerRow(p, { pregame = false } = {}) {
@@ -748,10 +750,22 @@ function playerRow(p, { pregame = false } = {}) {
         <div>${esc(p.name)}${p.tag ? `<span class="muted">#${esc(p.tag)}</span>` : ''}</div>
         <div>${a ? esc(a.name) : 'En sélection…'}${p.level != null ? ` · Niv. ${p.level}` : ''}${p.hidden ? ' · nom masqué' : ''}</div>
       </div>
-      ${pregame && p.state ? `<span class="pstate ${p.state}">${p.state === 'locked' ? 'Verrouillé' : 'Survol'}</span>` : ''}
-      ${recentHtml(p.recent)}
+      ${pregame ? `<div class="pc">${p.state ? `<span class="pstate ${p.state}">${p.state === 'locked' ? 'Verrouillé' : 'Survol'}</span>` : ''}</div>` : ''}
+      ${recentCells(p.recent)}
       ${rankHtml(p.rank)}
-      ${p.isMe ? '<span class="trn-space"></span>' : trackerBtn(p.name, p.tag, p.hidden) || '<span class="trn-space"></span>'}
+      <div class="pc">${p.isMe ? '' : trackerBtn(p.name, p.tag, p.hidden)}</div>
+    </div>`;
+}
+
+function teamHtml(side, title, players, { pregame = false, score = null } = {}) {
+  return `
+    <div class="team ${side} ${pregame ? 'pregame' : ''}">
+      <div class="player player-head">
+        <div class="ph-title"><h3>${title}${score != null ? ` <span class="team-score">${score}</span>` : ''}</h3></div>
+        ${pregame ? '<div></div>' : ''}
+        <div class="num">K / D / A</div><div class="num">K/D</div><div class="num">HS</div><div class="ph-rank">Rang</div><div></div>
+      </div>
+      ${players.map((p) => playerRow(p, { pregame })).join('')}
     </div>`;
 }
 
@@ -794,6 +808,7 @@ PAGES.live = async () => {
             <div class="mapname">${esc(d.map?.name || 'Carte inconnue')}</div>
           </div>
           ${d.state === 'pregame' ? `<div class="countdown" data-ends="${d.endsAt}">${fmtDuration(d.endsAt - Date.now())}</div>` : ''}
+          ${d.score ? `<div class="live-score" title="Round ${d.score[0] + d.score[1] + 1}"><span class="ally">${d.score[0]}</span><span class="sep">–</span><span class="enemy">${d.score[1]}</span></div>` : ''}
         </div>
       </div>
 
@@ -811,11 +826,9 @@ PAGES.live = async () => {
           }).join('')}</div>
         </div>` : ''}
 
-      <div class="live-note muted">K/D/A : moyenne par match sur les 3 derniers matchs de chaque joueur, dans ce mode.</div>
-      <div class="${d.enemies.length ? 'cols-2' : ''}">
-        <div class="team ally"><h3>Ton équipe</h3>${d.allies.map((p) => playerRow(p, { pregame: d.state === 'pregame' })).join('')}</div>
-        ${d.enemies.length ? `<div class="team enemy"><h3>Adversaires</h3>${d.enemies.map((p) => playerRow(p)).join('')}</div>` : ''}
-      </div>`;
+      <div class="live-note muted">K/D/A, K/D et HS : moyenne sur les 3 derniers matchs de chaque joueur dans ce mode (pas la partie en cours).</div>
+      ${teamHtml('ally', 'Ton équipe', d.allies, { pregame: d.state === 'pregame', score: d.score?.[0] })}
+      ${d.enemies.length ? teamHtml('enemy', 'Adversaires', d.enemies, { score: d.score?.[1] }) : ''}`;
   }
 
   content.onclick = async (e) => {
