@@ -476,7 +476,30 @@ PAGES.store = async () => {
 // Une seule grille d'agents : elle édite la liste par défaut (ordre de priorité) ou l'agent d'une carte précise.
 const MAX_DEFAULT_AGENTS = 4;
 const defaultAgents = (al) => [al.agentId, ...(al.fallbacks || [])].filter(Boolean);
-const autolockReady = (al) => !!al.agentId || Object.values(al.perMap || {}).some(Boolean);
+// Fenêtre de confirmation intégrée à l'app : résout true (bouton principal) ou false (Annuler, Échap, clic à côté).
+function ask({ title, body, ok = 'OK', cancel = 'Annuler' }) {
+  return new Promise((resolve) => {
+    const el = document.createElement('div');
+    el.className = 'modal-back';
+    el.innerHTML = `<div class="modal" role="dialog" aria-modal="true">
+      <h3>${esc(title)}</h3><p>${body}</p>
+      <div class="modal-actions"><button class="btn ghost" data-v="0">${esc(cancel)}</button><button class="btn primary" data-v="1">${esc(ok)}</button></div>
+    </div>`;
+    const close = (v) => { document.removeEventListener('keydown', onKey); el.remove(); resolve(v); };
+    const onKey = (e) => { if (e.key === 'Escape') close(false); if (e.key === 'Enter') close(true); };
+    el.onclick = (e) => {
+      if (e.target === el) return close(false);
+      const b = e.target.closest('[data-v]');
+      if (b) close(b.dataset.v === '1');
+    };
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(el);
+    el.querySelector('[data-v="1"]').focus();
+  });
+}
+
+const secs =(ms) => `${(Number(ms) / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 2 })}s`;
+const autolockReady =(al) => !!al.agentId || Object.values(al.perMap || {}).some(Boolean);
 
 PAGES.agent = async () => {
   const alive = guard();
@@ -563,8 +586,14 @@ PAGES.agent = async () => {
         <div class="setting-row">
           <div class="label"><div>Délai avant sélection</div><div>Laisse le temps à tes coéquipiers de choisir avant toi.</div></div>
           <input type="range" id="al-delay" min="0" max="8000" step="250" value="${al.delayMs}">
-          <b id="al-delay-val" style="width:52px;text-align:right">${(al.delayMs / 1000).toFixed(2).replace(/\.?0+$/, '') || 0}s</b>
+          <b id="al-delay-val" style="width:52px;text-align:right">${secs(al.delayMs)}</b>
         </div>
+        ${al.mode === 'lock' ? `
+        <div class="setting-row">
+          <div class="label"><div>Délai avant verrouillage</div><div>Temps entre le survol et le verrouillage. Un verrouillage instantané est plus facilement détecté comme automatique.</div></div>
+          <input type="range" id="al-lock-delay" min="0" max="2000" step="50" value="${al.lockDelayMs}">
+          <b id="al-lock-delay-val" style="width:52px;text-align:right">${secs(al.lockDelayMs)}</b>
+        </div>` : ''}
       </div>
 
       <h2>Cartes <span class="muted" style="letter-spacing:.05em;text-transform:none;font-size:13px">— choisis ce que tu configures</span></h2>
@@ -590,15 +619,30 @@ PAGES.agent = async () => {
       }
       save({ enabled: e.target.checked });
     };
-    $('#al-delay').oninput = (e) => ($('#al-delay-val').textContent = `${Number(e.target.value) / 1000}s`);
+    $('#al-delay').oninput = (e) => ($('#al-delay-val').textContent = secs(e.target.value));
     $('#al-delay').onchange = (e) => save({ delayMs: Number(e.target.value) });
+    if ($('#al-lock-delay')) {
+      $('#al-lock-delay').oninput = (e) => ($('#al-lock-delay-val').textContent = secs(e.target.value));
+      $('#al-lock-delay').onchange = (e) => save({ lockDelayMs: Number(e.target.value) });
+    }
   }
 
   content.onclick = (e) => {
     const al = state.settings.autolock;
     const t = e.target.closest('button');
     if (!t || t.disabled) return;
-    if (t.dataset.mode) return save({ mode: t.dataset.mode });
+    if (t.dataset.mode) {
+      if (t.dataset.mode === 'lock' && al.mode !== 'lock') {
+        return ask({
+          title: 'Verrouillage automatique',
+          body: `Ton agent sera validé sans que tu aies à cliquer. Un verrouillage instantané se repère facilement :
+            garde un <b>délai avant sélection</b> et un <b>délai avant verrouillage</b> pour rester discret.
+            Tu peux les régler juste en dessous.`,
+          ok: 'Activer',
+        }).then((yes) => yes && save({ mode: 'lock' }));
+      }
+      return save({ mode: t.dataset.mode });
+    }
     if (t.dataset.role !== undefined) { roleFilter = t.dataset.role; return draw(); }
     if (t.dataset.scope !== undefined) { scope = t.dataset.scope; return draw(); }
     if (t.dataset.clear) {
