@@ -1,6 +1,8 @@
 # Precise Gunplay
 
-Compagnon VALORANT pour Windows (Electron) : boutique, sélection d'agent automatique, partie en direct, historique, groupe et amis.
+<a href=".github/media/presentation.mp4"><img src=".github/media/presentation.webp" alt="Présentation de Precise Gunplay" width="100%"></a>
+
+<p align="center"><a href=".github/media/presentation.mp4">▶ Voir la vidéo avec le son</a></p>
 
 ## Télécharger
 
@@ -10,27 +12,6 @@ Va sur la page [**Releases**](https://github.com/NOUSSS/precise-gunplay/releases
 
 > L'app n'est pas signée numériquement : au premier lancement, Windows SmartScreen peut afficher « Windows a protégé votre ordinateur ».
 > Clique sur **Informations complémentaires** puis **Exécuter quand même**.
-
-## Fonctionnalités
-
-| Page | Ce qu'elle fait |
-|---|---|
-| **Accueil** | Profil (pseudo, niveau, carte, titre), rang actuel + meilleur rang, portefeuille VP / Radianite / Kingdom Credits |
-| **Boutique** | Les 4 offres du jour avec compte à rebours, packs en vedette, marché nocturne, boutique d'accessoires |
-| **Agent auto** | Sélection automatique de l'agent quand une partie est trouvée : mode survol ou verrouillage, délai, agents de secours, agent différent par carte |
-| **Partie en direct** | Sélection d'agent et partie en cours : agent, niveau, rang, meilleur rang et **K/D/A moyen, K/D et HS % sur les 3 derniers matchs** de chaque joueur. Choix/verrouillage manuel et bouton d'esquive |
-| **Statistiques** | Façon tracker, **par acte** et par mode : K/D, KDA, ACS, ADR, headshot %, KAST, first bloods, 3K/4K/ACE, rang de l'acte, évolution du RR, ACS par match, stats par agent, carte et arme. Les matchs sont synchronisés en arrière-plan et gardés sur le PC : la page s'ouvre instantanément |
-| **Historique** | 15 derniers matchs (filtrables par mode) avec score, K/D/A, ACS, stats globales et tableau des scores dépliable |
-| **Groupe** | Membres du groupe, changement de mode, lancer/annuler la recherche, ouvrir/fermer le groupe |
-| **Amis** | Amis en ligne : dans les menus, en sélection ou en partie (mode, carte, score) |
-| **Profils Tracker** | Bouton « TRN » sur les joueurs (partie en direct, historique, groupe, amis) qui ouvre leur profil tracker.gg — jamais pour un joueur en mode anonyme |
-| **Collection** | Tous tes skins, triés par rareté, avec recherche |
-
-## Liaison du compte
-
-Aucun identifiant n'est demandé : l'app lit le `lockfile` du Riot Client (`%LOCALAPPDATA%\Riot Games\Riot Client\Config\lockfile`)
-et récupère les jetons de la session déjà connectée. Il suffit donc d'avoir le Riot Client / VALORANT ouvert et connecté.
-La région est détectée automatiquement (forçable dans les Paramètres).
 
 ## Lancer / compiler
 
