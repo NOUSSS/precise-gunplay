@@ -3,7 +3,7 @@
 //   puis installation silencieuse et relance automatique au clic sur « Redémarrer ».
 // - Version portable : impossible de se remplacer elle-même → on signale juste la nouvelle version.
 const { EventEmitter } = require('events');
-const { app, shell } = require('electron');
+const { app, shell, BrowserWindow } = require('electron');
 const { autoUpdater } = require('electron-updater');
 
 const REPO = 'NOUSSS/precise-gunplay';
@@ -68,8 +68,13 @@ class Updater extends EventEmitter {
 
   install() {
     // Installation silencieuse (pas d'assistant NSIS) puis relance automatique de l'app.
-    if (this.state.status === 'ready') setImmediate(() => autoUpdater.quitAndInstall(true, true));
-    else shell.openExternal(RELEASES_URL);
+    // Les fenêtres sont masquées tout de suite : le clic a un effet immédiat pendant que l'app se ferme.
+    if (this.state.status === 'ready') {
+      setImmediate(() => {
+        autoUpdater.quitAndInstall(true, true);
+        for (const w of BrowserWindow.getAllWindows()) w.hide();
+      });
+    } else shell.openExternal(RELEASES_URL);
   }
 }
 
