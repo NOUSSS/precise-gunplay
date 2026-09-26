@@ -186,6 +186,10 @@ input[type=range] { accent-color: var(--red); width: 220px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .error-box { border: 1px solid var(--red); background: var(--red-dim); padding: 14px 18px; border-radius: var(--radius); }
 .warn-box { border-left: 3px solid var(--gold); background: #f5c45112; padding: 12px 16px; border-radius: var(--radius); color: #e9dcb8; font-size: 13px; line-height: 1.5; }
+.locked-notice { margin-bottom: 16px; }
+.locked-zone { position: relative; opacity: .4; filter: grayscale(1); }
+/* Couvre la zone : les clics arrivent sur la zone (message) et jamais sur les contrôles. */
+.locked-zone::after { content: ''; position: absolute; inset: 0; cursor: not-allowed; z-index: 1; }
 
 /* ---------- Connexion ---------- */
 .connect { max-width: 620px; margin: 40px auto; text-align: center; }

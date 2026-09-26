@@ -1,5 +1,6 @@
 // Sélection automatique d'agent : surveille la phase de sélection et choisit / verrouille l'agent configuré.
 const { EventEmitter } = require('events');
+const { CLIENT_ACTIONS_DISABLED } = require('./restrictions');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -24,7 +25,7 @@ class AutoLock extends EventEmitter {
 
   async tick() {
     const cfg = this.settings.get().autolock;
-    if (this.busy || !cfg.enabled || !this.client.connected || !this.assets.data) return;
+    if (CLIENT_ACTIONS_DISABLED || this.busy || !cfg.enabled || !this.client.connected || !this.assets.data) return;
     this.busy = true;
     let matchId = null;
     try {
