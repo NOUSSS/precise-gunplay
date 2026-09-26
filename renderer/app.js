@@ -59,6 +59,24 @@ function toast(message, type = 'info') {
   setTimeout(() => el.remove(), 5000);
 }
 
+// ---- Fonctions qui agissent sur le compte (sélection d'agent, groupe, messagerie) ----
+// Désactivées côté app (voir src/restrictions.js) : on les affiche grisées, un clic explique pourquoi.
+const actionsLocked = () => state.restrictions?.clientActions === false;
+const lockedMessage = () => state.restrictions?.message || 'Fonction désactivée.';
+const lockedNotice = () => `<div class="warn-box locked-notice">${esc(lockedMessage())}</div>`;
+// Enveloppe une zone : grisée et non cliquable, avec le message au clic.
+const lockZone = (html) => (actionsLocked() ? `<div class="locked-zone" title="${esc(lockedMessage())}">${html}</div>` : html);
+const lockAttr = () => (actionsLocked() ? 'disabled' : '');
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.locked-zone')) return;
+  e.preventDefault();
+  e.stopPropagation();
+  // Un seul message à la fois, même si on clique plusieurs fois.
+  $$('#toasts .toast').filter((t) => t.textContent === lockedMessage()).forEach((t) => t.remove());
+  toast(lockedMessage(), 'error');
+}, true);
+
 const loader = () => '<div class="loader"></div>';
 const errorBox = (msg) => `<div class="error-box">${esc(msg)}</div>`;
 
@@ -149,7 +167,7 @@ const NAV = [
 ];
 
 function renderNav() {
-  const autolockOn = state.settings?.autolock?.enabled;
+  const autolockOn = state.settings?.autolock?.enabled && !actionsLocked();
   $('#nav').innerHTML = NAV.map((n) =>
     n === 'sep'
       ? '<div class="nav-sep"></div>'
@@ -457,7 +475,7 @@ PAGES.home = async () => {
     <h2>Accès rapide</h2>
     <div class="tiles">
       <div class="tile" data-go="store">${icon('store')}<h3>Boutique du jour</h3><p>Tes 4 skins du jour, les packs, le marché nocturne et les accessoires.</p></div>
-      <div class="tile" data-go="agent">${icon('agent')}<h3>Agent auto · ${al.enabled ? '<span style="color:var(--win)">activé</span>' : '<span class="muted">désactivé</span>'}</h3>
+      <div class="tile" data-go="agent">${icon('agent')}<h3>Agent auto · ${al.enabled && !actionsLocked() ? '<span style="color:var(--win)">activé</span>' : '<span class="muted">désactivé</span>'}</h3>
         <p>${alAgent ? `Agent principal : <b>${esc(alAgent.name)}</b> (${al.mode === 'lock' ? 'verrouillage' : 'survol'})`
           : alMaps ? `Agent choisi sur ${alMaps} carte${alMaps > 1 ? 's' : ''} (${al.mode === 'lock' ? 'verrouillage' : 'survol'})`
           : 'Choisis l\'agent à sélectionner automatiquement.'}</p>
@@ -465,7 +483,7 @@ PAGES.home = async () => {
       <div class="tile" data-go="live">${icon('live')}<h3>Partie en direct</h3><p>Rangs, niveaux et agents de tous les joueurs de ta partie.</p></div>
       <div class="tile" data-go="stats">${icon('stats')}<h3>Statistiques</h3><p>K/D, ACS, ADR, headshot %, évolution du RR, stats par agent, carte et arme.</p></div>
       <div class="tile" data-go="history">${icon('history')}<h3>Historique</h3><p>Tes derniers matchs avec KDA, ACS et tableau des scores.</p></div>
-      <div class="tile" data-go="party">${icon('party')}<h3>Groupe</h3><p>Change de mode, lance la recherche et ouvre ton groupe.</p></div>
+      <div class="tile" data-go="party">${icon('party')}<h3>Groupe</h3><p>${actionsLocked() ? 'Les membres de ton groupe et leurs rangs.' : 'Change de mode, lance la recherche et ouvre ton groupe.'}</p></div>
       <div class="tile" data-go="friends">${icon('friends')}<h3>Amis</h3><p>Qui est en ligne, en partie, sur quelle carte et avec quel score.</p></div>
     </div>`;
   content.onclick = (e) => {
@@ -625,14 +643,15 @@ PAGES.agent = async () => {
     content.innerHTML = `
       <div class="page-head">
         <h1><small>Sélection d'agent</small>Agent auto</h1>
-        <label class="switch" title="Activer / désactiver"><input type="checkbox" id="al-enabled" ${al.enabled ? 'checked' : ''}><span></span></label>
+        ${lockZone(`<label class="switch" title="Activer / désactiver"><input type="checkbox" id="al-enabled" ${al.enabled && !actionsLocked() ? 'checked' : ''} ${lockAttr()}><span></span></label>`)}
       </div>
 
-      <div class="warn-box">
+      ${actionsLocked() ? lockedNotice() : `<div class="warn-box">
         Quand une partie est trouvée, Precise Gunplay choisit automatiquement ton agent pendant la phase de sélection.
         L'app utilise les mêmes API que le client officiel, mais l'automatisation n'est pas approuvée par Riot :
         le mode <b>Verrouiller</b> est le plus risqué vis-à-vis des conditions d'utilisation. Utilise-le à tes risques ; le mode <b>Survoler</b> te laisse confirmer toi-même.
-      </div>
+      </div>`}
+${actionsLocked() ? '<div class="locked-zone">' : ''}
 
       <div class="panel" style="margin-top:16px">
         <div class="setting-row">
@@ -669,7 +688,9 @@ PAGES.agent = async () => {
         <button data-role="" class="${!roleFilter ? 'on' : ''}">Tous</button>
         ${roles.map((r) => `<button data-role="${esc(r)}" class="${roleFilter === r ? 'on' : ''}">${esc(r)}</button>`).join('')}
       </div>
-      <div class="agents">${grid}</div>`;
+      <div class="agents">${grid}</div>
+${actionsLocked() ? '</div>' : ''}`;
+    if (actionsLocked()) return;
 
     $('#al-enabled').onchange = (e) => {
       if (e.target.checked && !autolockReady(state.settings.autolock)) {
@@ -812,19 +833,19 @@ PAGES.live = async () => {
         </div>
       </div>
 
-      ${d.state === 'pregame' && !myLocked ? `
+      ${d.state === 'pregame' && !myLocked ? lockZone(`
         <div class="panel" style="margin-bottom:16px">
           <div class="row" style="margin-bottom:12px">
             <b style="letter-spacing:.1em;text-transform:uppercase">Choisir mon agent</b>
             <div class="spacer"></div>
-            <button class="btn primary" id="lock-btn" ${pick ? '' : 'disabled'}>Verrouiller ${pick ? esc(agentOf(pick)?.name) : ''}</button>
-            <button class="btn danger" id="dodge-btn" title="Quitter la sélection (pénalité possible)">Esquiver</button>
+            <button class="btn primary" id="lock-btn" ${pick && !actionsLocked() ? '' : 'disabled'}>Verrouiller ${pick ? esc(agentOf(pick)?.name) : ''}</button>
+            <button class="btn danger" id="dodge-btn" title="Quitter la sélection (pénalité possible)" ${lockAttr()}>Esquiver</button>
           </div>
           <div class="agents">${state.assets.agents.map((a) => {
-            const ok = owned.has(a.uuid.toLowerCase()) && !takenByOthers.has(a.uuid.toLowerCase());
+            const ok = !actionsLocked() && owned.has(a.uuid.toLowerCase()) && !takenByOthers.has(a.uuid.toLowerCase());
             return `<button class="agent ${pick === a.uuid ? 'on' : ''}" data-pick="${a.uuid}" ${ok ? '' : 'disabled'}><img src="${a.icon}" alt=""><span class="aname">${esc(a.name)}</span></button>`;
           }).join('')}</div>
-        </div>` : ''}
+        </div>`) : ''}
 
       <div class="live-note muted">K/D/A, K/D et HS : moyenne sur les 3 derniers matchs de chaque joueur dans ce mode (pas la partie en cours).</div>
       ${teamHtml('ally', 'Ton équipe', d.allies, { pregame: d.state === 'pregame', score: d.score?.[0] })}
@@ -1458,21 +1479,22 @@ PAGES.party = async () => {
       <div class="page-head">
         <h1><small>Social</small>Groupe <span class="muted" style="font-size:18px">${p.members.length}/5</span></h1>
       </div>
-      <div class="panel" style="margin-bottom:18px">
+      ${actionsLocked() ? lockedNotice() : ''}
+      ${lockZone(`<div class="panel" style="margin-bottom:18px">
         <div class="row" style="flex-wrap:wrap">
           <div>
             <div class="stat-label">Mode</div>
-            <select id="pq" ${!p.isOwner || searching ? 'disabled' : ''}>${queues.map((q) => `<option value="${esc(q)}" ${q === p.queue ? 'selected' : ''}>${esc(queueName(q))}</option>`).join('')}</select>
+            <select id="pq" ${!p.isOwner || searching || actionsLocked() ? 'disabled' : ''}>${queues.map((q) => `<option value="${esc(q)}" ${q === p.queue ? 'selected' : ''}>${esc(queueName(q))}</option>`).join('')}</select>
           </div>
           <div style="margin-left:20px">
             <div class="stat-label">Groupe</div>
-            <div class="row" style="margin-top:6px"><label class="switch"><input type="checkbox" id="popen" ${p.open ? 'checked' : ''} ${p.isOwner ? '' : 'disabled'}><span></span></label><span>${p.open ? 'Ouvert' : 'Fermé'}</span></div>
+            <div class="row" style="margin-top:6px"><label class="switch"><input type="checkbox" id="popen" ${p.open ? 'checked' : ''} ${p.isOwner && !actionsLocked() ? '' : 'disabled'}><span></span></label><span>${p.open ? 'Ouvert' : 'Fermé'}</span></div>
           </div>
           <div class="spacer"></div>
           ${searching && p.queueEntryTime ? `<div class="muted">Recherche en cours…</div>` : ''}
-          <button class="btn ${searching ? 'danger' : 'primary'} big" id="pmm" ${p.isOwner ? '' : 'disabled title="Seul le chef de groupe peut lancer la recherche"'}>${searching ? 'Annuler la recherche' : 'Lancer la recherche'}</button>
+          <button class="btn ${searching ? 'danger' : 'primary'} big" id="pmm" ${actionsLocked() ? 'disabled' : p.isOwner ? '' : 'disabled title="Seul le chef de groupe peut lancer la recherche"'}>${searching ? 'Annuler la recherche' : 'Lancer la recherche'}</button>
         </div>
-      </div>
+      </div>`)}
       <div class="members">
         ${p.members.map((m) => `
           <div class="member">
@@ -1492,10 +1514,12 @@ PAGES.party = async () => {
     refresh();
   };
   content.onchange = (e) => {
+    if (actionsLocked()) return;
     if (e.target.id === 'pq') act(() => call('party-queue', last.id, e.target.value));
     if (e.target.id === 'popen') act(() => call('party-access', last.id, e.target.checked));
   };
   content.onclick = (e) => {
+    if (actionsLocked()) return;
     if (e.target.closest('#pmm')) act(() => call('party-matchmaking', last.id, last.state !== 'MATCHMAKING'));
   };
 
@@ -1575,7 +1599,7 @@ PAGES.friends = async () => {
       <div class="chat-empty">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 5h16v11H8l-4 4z"/></svg>
         <h3>Messagerie</h3>
-        <p class="muted">Clique sur un ami pour discuter avec lui.<br>Les messages passent par ton Riot Client, comme dans le jeu.</p>
+        <p class="muted">${actionsLocked() ? 'Clique sur un ami pour lire vos derniers messages.<br>L\'envoi de messages est désactivé.' : 'Clique sur un ami pour discuter avec lui.<br>Les messages passent par ton Riot Client, comme dans le jeu.'}</p>
       </div>`;
   }
 
@@ -1587,17 +1611,17 @@ PAGES.friends = async () => {
     $('#chat').innerHTML = `
       <div class="chat-head" id="chat-head"></div>
       <div class="chat-log" id="chat-log">${loader()}</div>
-      <form class="chat-form" id="chat-form">
-        <input id="chat-input" type="text" maxlength="500" autocomplete="off" placeholder="Écris un message…">
-        <button class="btn primary" type="submit">Envoyer</button>
-      </form>`;
+      ${lockZone(`<form class="chat-form" id="chat-form">
+        <input id="chat-input" type="text" maxlength="500" autocomplete="off" placeholder="${actionsLocked() ? 'Envoi de messages désactivé' : 'Écris un message…'}" ${lockAttr()}>
+        <button class="btn primary" type="submit" ${lockAttr()}>Envoyer</button>
+      </form>`)}`;
     drawChatHead();
     const input = $('#chat-input');
-    input.focus();
+    if (!actionsLocked()) input.focus();
     $('#chat-form').onsubmit = async (e) => {
       e.preventDefault();
       const text = input.value.trim();
-      if (!text || input.disabled) return;
+      if (!text || input.disabled || actionsLocked()) return;
       input.disabled = true;
       try {
         await call('chat-send', pid, text);
@@ -1606,8 +1630,8 @@ PAGES.friends = async () => {
       } catch (err) {
         toast(err.message, 'error');
       } finally {
-        input.disabled = false;
-        input.focus();
+        input.disabled = actionsLocked();
+        if (!input.disabled) input.focus();
       }
     };
     await loadMessages(true);
@@ -1631,9 +1655,9 @@ PAGES.friends = async () => {
           const sep = d !== day ? `<div class="chat-day">${esc((day = d))}</div>` : '';
           return `${sep}<div class="msg ${m.mine ? 'mine' : ''}"><div class="bubble">${esc(m.body)}</div><span class="mtime">${hhmm(m.time)}</span></div>`;
         }).join('')
-      : `<div class="chat-none muted">Aucun message récent avec ${esc(friendOf(pid)?.name || 'cet ami')}.<br>Dis-lui bonjour !</div>`;
+      : `<div class="chat-none muted">Aucun message récent avec ${esc(friendOf(pid)?.name || 'cet ami')}.${actionsLocked() ? '' : '<br>Dis-lui bonjour !'}</div>`;
     if (forceBottom || atBottom) log.scrollTop = log.scrollHeight;
-    if (msgs.length && rawUnread[pid]) call('chat-read', pid, msgs[msgs.length - 1].id).then(refreshUnread, () => {});
+    if (msgs.length && rawUnread[pid] && !actionsLocked()) call('chat-read', pid, msgs[msgs.length - 1].id).then(refreshUnread, () => {});
     markChatSeen(pid, msgs.map((m) => m.id));
   }
 
@@ -1744,7 +1768,7 @@ PAGES.settings = async () => {
   renderNav();
   renderAccount();
   try {
-    [state.settings, state.assets] = await Promise.all([call('settings-get'), call('assets')]);
+    [state.settings, state.assets, state.restrictions] = await Promise.all([call('settings-get'), call('assets'), call('restrictions')]);
   } catch (e) {
     content.innerHTML = errorBox(`Impossible de charger les données du jeu (connexion Internet ?) : ${e.message}`);
     return;

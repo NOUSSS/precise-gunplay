@@ -35,5 +35,6 @@ npm run dist       # génère l'installeur et la version portable dans dist/
 ## Avertissement
 
 Projet non officiel, ni approuvé ni affilié à Riot Games. Il utilise les API non documentées du client.
-L'automatisation de la sélection d'agent (surtout le mode « Verrouiller ») n'est pas autorisée par Riot : utilise-la à tes risques.
+Les fonctions qui agissent sur le compte via le Riot Client (agent auto, sélection d'agent, esquive, gestion du groupe, envoi de messages)
+sont désactivées dans l'app : Riot peut les sanctionner. Elles restent visibles mais grisées (voir `src/restrictions.js`).
 Les images et noms viennent de [valorant-api.com](https://valorant-api.com).

@@ -8,6 +8,7 @@ const { Assets } = require('./src/assets');
 const { Settings } = require('./src/settings');
 const { Services } = require('./src/services');
 const { AutoLock } = require('./src/autolock');
+const { CLIENT_ACTIONS_DISABLED, CLIENT_ACTIONS_MESSAGE, assertClientActionsAllowed } = require('./src/restrictions');
 const { Updater } = require('./src/updater');
 const { Stats } = require('./src/stats');
 
@@ -115,6 +116,7 @@ function registerIpc() {
   handle('connect', async () => { await tryConnect(); return status; }, { needsAuth: false });
   handle('assets', async () => { await assets.load(); return assets.summary(); }, { needsAuth: false });
   handle('assets-refresh', async () => { await assets.load(true); return assets.summary(); }, { needsAuth: false });
+  handle('restrictions', () => ({ clientActions: !CLIENT_ACTIONS_DISABLED, message: CLIENT_ACTIONS_MESSAGE }), { needsAuth: false });
   handle('settings-get', () => withLoginItem(settings.get()), { needsAuth: false });
   handle('settings-set', (patch) => {
     const before = settings.get().regionOverride;
@@ -146,18 +148,18 @@ function registerIpc() {
   handle('friends', () => services.friends());
   handle('chat-unread', () => services.chatUnread());
   handle('chat-messages', (cid) => services.chatMessages(cid));
-  handle('chat-read', (cid, id) => services.chatRead(cid, id));
-  handle('chat-send', (cid, text) => services.chatSend(cid, text));
+  handle('chat-read', (cid, id) => { assertClientActionsAllowed(); return services.chatRead(cid, id); });
+  handle('chat-send', (cid, text) => { assertClientActionsAllowed(); return services.chatSend(cid, text); });
   handle('stats-data', () => stats.data());
   handle('stats-sync', () => { stats.sync(); return stats.state; });
 
-  handle('pregame-select', (matchId, agentId) => client.selectAgent(matchId, agentId));
-  handle('pregame-lock', (matchId, agentId) => client.lockAgent(matchId, agentId));
-  handle('pregame-dodge', (matchId) => client.quitPregame(matchId));
+  handle('pregame-select', (matchId, agentId) => { assertClientActionsAllowed(); return client.selectAgent(matchId, agentId); });
+  handle('pregame-lock', (matchId, agentId) => { assertClientActionsAllowed(); return client.lockAgent(matchId, agentId); });
+  handle('pregame-dodge', (matchId) => { assertClientActionsAllowed(); return client.quitPregame(matchId); });
 
-  handle('party-queue', (partyId, queueId) => client.setPartyQueue(partyId, queueId));
-  handle('party-matchmaking', (partyId, start) => (start ? client.joinMatchmaking(partyId) : client.leaveMatchmaking(partyId)));
-  handle('party-access', (partyId, open) => client.setPartyAccessibility(partyId, open));
+  handle('party-queue', (partyId, queueId) => { assertClientActionsAllowed(); return client.setPartyQueue(partyId, queueId); });
+  handle('party-matchmaking', (partyId, start) => { assertClientActionsAllowed(); return start ? client.joinMatchmaking(partyId) : client.leaveMatchmaking(partyId); });
+  handle('party-access', (partyId, open) => { assertClientActionsAllowed(); return client.setPartyAccessibility(partyId, open); });
 }
 
 function createWindow() {
