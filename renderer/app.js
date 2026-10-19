@@ -310,18 +310,6 @@ async function refreshProfile() {
 }
 $('#account').addEventListener('click', () => state.status.connected && navigate('home'));
 
-// Portrait du bandeau : l'agent principal de l'Agent auto, Jett par défaut.
-const DEFAULT_HEADER_AGENT = 'add6443a-41bd-e414-f6ad-e58d267f4e95';
-function renderHeaderArt() {
-  const agents = state.assets?.agents || [];
-  const a = agents.find((x) => x.uuid === state.settings?.autolock?.agentId && x.portrait)
-    || agents.find((x) => x.uuid === DEFAULT_HEADER_AGENT);
-  const el = $('#titlebar-art');
-  if (el.dataset.agent === a?.uuid) return;
-  el.dataset.agent = a?.uuid || '';
-  el.style.backgroundImage = a?.portrait ? `url('${a.portrait}')` : '';
-}
-
 function navigate(page) {
   state.onUnread = null;
   state.timers.forEach(clearInterval);
@@ -647,7 +635,6 @@ PAGES.agent = async () => {
     const al = state.settings.autolock;
     if (al.enabled && !autolockReady(al)) state.settings = await call('settings-set', { autolock: { enabled: false } });
     renderNav();
-    renderHeaderArt();
     draw();
   };
   const saveDefaults = (list) => save({ agentId: list[0] || null, fallbacks: list.slice(1) });
@@ -2158,7 +2145,6 @@ PAGES.settings = async () => {
     content.innerHTML = errorBox(`Impossible de charger les données du jeu (connexion Internet ?) : ${e.message}`);
     return;
   }
-  renderHeaderArt();
   setInterval(refreshUnread, 8000);
   setInterval(refreshProfile, 5 * 60 * 1000);
   window.api.on('status', onStatus);
