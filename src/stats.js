@@ -4,7 +4,10 @@ const fs = require('fs');
 const path = require('path');
 const { EventEmitter } = require('events');
 
-const RECORD_VERSION = 1;
+// v2 : dégâts reçus (DDΔ), durée, place dans la partie, manches parfaites et clutchs. Les résumés v1 restent
+// affichés ; ceux encore présents dans l'historique Riot sont retéléchargés pour être complétés.
+const RECORD_VERSION = 2;
+const MIN_RECORD_VERSION = 1;
 const MAX_MATCHES = 2000;
 const TRADE_WINDOW_MS = 5000;
 const PAGE = 20; // l'historique Riot renvoie au plus 20 éléments par requête
@@ -55,17 +58,22 @@ class Stats extends EventEmitter {
     const myTeam = (d.teams || []).find((t) => t.teamId === me.teamId);
     const other = (d.teams || []).find((t) => t.teamId !== me.teamId);
 
-    let damage = 0, head = 0, body = 0, leg = 0;
+    let damage = 0, received = 0, head = 0, body = 0, leg = 0;
     for (const r of rounds) {
-      const ps = r.playerStats?.find((p) => p.subject === puuid);
-      for (const hit of ps?.damage || []) {
-        if (hit.receiver === puuid) continue;
-        damage += hit.damage || 0;
-        head += hit.headshots || 0;
-        body += hit.bodyshots || 0;
-        leg += hit.legshots || 0;
+      for (const ps of r.playerStats || []) {
+        for (const hit of ps.damage || []) {
+          if (ps.subject === puuid && hit.receiver !== puuid) {
+            damage += hit.damage || 0;
+            head += hit.headshots || 0;
+            body += hit.bodyshots || 0;
+            leg += hit.legshots || 0;
+          } else if (ps.subject !== puuid && hit.receiver === puuid) {
+            received += hit.damage || 0;
+          }
+        }
       }
     }
+    const winnerOf = new Map(rounds.map((r, i) => [r.roundNum ?? i, r.winningTeam]));
 
     // Toutes les éliminations, regroupées par manche.
     const killsByRound = new Map();
@@ -77,9 +85,12 @@ class Stats extends EventEmitter {
       killsByRound.get(k.round).push(k);
     }
 
-    let fb = 0, fd = 0, kast = 0, k3 = 0, k4 = 0, k5 = 0;
+    let fb = 0, fd = 0, kast = 0, k3 = 0, k4 = 0, k5 = 0, flawless = 0;
+    const clutches = []; // une entrée par clutch gagné : nombre d'adversaires en vie quand tu es resté seul
     const weapons = {};
-    for (const [, list] of killsByRound) {
+    const roster = d.players.filter((p) => !p.isObserver);
+    const teamMode = (d.teams || []).length === 2; // pas de manches parfaites ni de clutchs en combat à mort
+    for (const [round, list] of killsByRound) {
       list.sort((a, b) => (a.roundTime ?? a.timeSinceRoundStartMillis ?? 0) - (b.roundTime ?? b.timeSinceRoundStartMillis ?? 0));
       const t = (k) => k.roundTime ?? k.timeSinceRoundStartMillis ?? 0;
       if (list[0]?.killer === puuid) fb++;
@@ -105,7 +116,30 @@ class Stats extends EventEmitter {
         );
       }
       if (mine.length || assisted || !death || traded) kast++;
+
+      // Manche parfaite : gagnée sans perdre un seul coéquipier.
+      const won = teamMode && winnerOf.get(round) === me.teamId;
+      if (won && !list.some((k) => teamOf.get(k.victim) === me.teamId)) flawless++;
+
+      // Clutch : dernier en vie de ton équipe face à au moins un adversaire, manche gagnée et toi encore debout.
+      if (won && !death) {
+        const alive = new Set(roster.map((p) => p.subject));
+        for (const k of list) {
+          alive.delete(k.victim);
+          const allies = roster.filter((p) => p.teamId === me.teamId && alive.has(p.subject));
+          const enemies = roster.filter((p) => p.teamId !== me.teamId && alive.has(p.subject)).length;
+          if (allies.length === 1 && allies[0].subject === puuid && enemies > 0) {
+            clutches.push(enemies);
+            break;
+          }
+        }
+      }
     }
+    // Place dans la partie au score de combat, comme le tableau des scores du jeu.
+    const ranking = [...roster].sort((a, b) => (b.stats?.score || 0) - (a.stats?.score || 0));
+    const place = ranking.findIndex((p) => p.subject === puuid) + 1;
+    const teamBest = ranking.find((p) => p.teamId === me.teamId);
+    const mvp = place === 1 ? 'match' : teamMode && teamBest?.subject === puuid ? 'team' : null;
     // Manches sans aucune élimination (rare) : comptées comme survie.
     const roundsPlayed = me.stats?.roundsPlayed || rounds.length || 1;
     kast += Math.max(0, roundsPlayed - killsByRound.size);
@@ -129,8 +163,10 @@ class Stats extends EventEmitter {
       deaths: me.stats?.deaths || 0,
       assists: me.stats?.assists || 0,
       combat: me.stats?.score || 0,
-      damage, head, body, leg,
-      fb, fd, kast, k3, k4, k5,
+      lengthMs: d.matchInfo?.gameLengthMillis || 0,
+      damage, received, head, body, leg,
+      fb, fd, kast, k3, k4, k5, flawless, clutches,
+      place, players: roster.length, mvp,
       weapons,
       tier: me.competitiveTier || 0,
     };
@@ -251,7 +287,7 @@ class Stats extends EventEmitter {
     const puuid = this.client.puuid;
     const prefix = `${puuid}:`;
     const records = Object.entries(this.cache.matches)
-      .filter(([k, r]) => k.startsWith(prefix) && r.v === RECORD_VERSION)
+      .filter(([k, r]) => k.startsWith(prefix) && r.v >= MIN_RECORD_VERSION)
       .map(([, r]) => r)
       .sort((a, b) => b.startedAt - a.startedAt);
     const [actRanks, rank] = await Promise.all([this.actRanks(puuid), this.services.rank(puuid).catch(() => null)]);
