@@ -4,7 +4,9 @@ const path = require('path');
 
 const BASE = 'https://valorant-api.com/v1';
 const LANG = 'fr-FR';
-const SCHEMA = 2; // à incrémenter quand la forme du cache change
+const SCHEMA = 3; // à incrémenter quand la forme du cache change
+// Compétences dans l'ordre des touches du jeu (C, Q, E, X) ; le passif n'a pas d'icône.
+const ABILITY_SLOTS = ['Grenade', 'Ability1', 'Ability2', 'Ultimate'];
 
 const ITEM_TYPES = {
   skin: 'e7c63390-eda7-46e0-bb7a-a6abdacd2433',
@@ -92,6 +94,10 @@ class Assets {
           icon: a.displayIconSmall || a.displayIcon,
           portrait: a.fullPortrait || a.bustPortrait,
           colors: a.backgroundGradientColors || [],
+          abilities: (a.abilities || [])
+            .filter((x) => x.displayIcon && ABILITY_SLOTS.includes(x.slot))
+            .sort((x, y) => ABILITY_SLOTS.indexOf(x.slot) - ABILITY_SLOTS.indexOf(y.slot))
+            .map((x) => ({ name: x.displayName || '', icon: x.displayIcon })),
         }))
         .sort((a, b) => a.name.localeCompare(b.name, 'fr')),
       skins: skins.map((s) => ({
@@ -117,7 +123,7 @@ class Assets {
       buddies: buddies.map((b) => ({ uuid: b.uuid, name: b.displayName, icon: b.displayIcon, levels: (b.levels || []).map((l) => l.uuid) })),
       titles: titles.map((t) => ({ uuid: t.uuid, name: t.titleText || t.displayName })),
       flex: (flex || []).map((f) => ({ uuid: f.uuid, name: f.displayName, icon: f.displayIcon })),
-      weapons: weapons.map((w) => ({ uuid: w.uuid, name: w.displayName, icon: w.killStreamIcon || w.displayIcon, category: w.category })),
+      weapons: weapons.map((w) => ({ uuid: w.uuid, name: w.displayName, icon: w.killStreamIcon || w.displayIcon, art: w.displayIcon, category: w.category })),
       seasons: seasons.map((s) => ({ uuid: s.uuid, name: s.displayName, type: s.type, start: s.startTime, end: s.endTime, parent: s.parentUuid })),
     };
 

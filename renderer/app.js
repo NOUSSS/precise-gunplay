@@ -478,56 +478,221 @@ async function ownedAgents() {
 const PAGES = {};
 
 // ---------- Accueil ----------
+// Tableau de bord façon tracker, calculé sur tous les matchs enregistrés (modes classiques, voir Statistiques) :
+// agent favori, agents et cartes, rang, derniers matchs et armes favorites.
+const DASH_AGENTS = 5;
+const DASH_MAPS = 4;
+const DASH_MATCHES = 5;
+const DASH_WEAPONS = 3;
+
+// Couleurs d'un agent (valorant-api, RRGGBBAA) en variables CSS --c1…--c3 ; la page garde ses couleurs sans elles.
+const agentVars = (ag) => (ag?.colors || []).slice(0, 3).map((c, i) => `--c${i + 1}:#${String(c).slice(0, 6)}`).join(';');
+
 PAGES.home = async () => {
   const alive = guard();
-  const p = await call('profile');
-  state.profile = p;
-  renderAccount();
-  if (!alive()) return;
-  const t = tierOf(p.rank?.tier);
-  const al = state.settings.autolock;
-  const alAgent = agentOf(al.agentId);
-  const alMaps = Object.values(al.perMap || {}).filter(Boolean).length;
-  content.innerHTML = `
-    <div class="hero" style="${p.card?.wide ? `background-image:url('${p.card.wide}')` : ''}">
-      <div class="hero-body">
-        <div>
-          ${p.title ? `<div class="title">${esc(p.title)}</div>` : ''}
-          <div class="name">${esc(p.name)}<span>#${esc(p.tag)}</span></div>
-          <div class="level">NIVEAU ${esc(p.level ?? '?')}</div>
+  let p = null;
+  let data = null;
+  let sync = null;
+  let refreshTimer = null;
+
+  async function load() {
+    [p, data] = await Promise.all([call('profile'), call('stats-data').catch(() => null)]);
+    state.profile = p;
+    renderAccount();
+  }
+
+  // Première synchronisation : la page se complète à mesure que les matchs arrivent (au plus toutes les 3 s).
+  async function refresh() {
+    refreshTimer = null;
+    try { data = await call('stats-data'); } catch { return; }
+    if (!alive()) return;
+    const scroll = content.scrollTop;
+    draw();
+    content.scrollTop = scroll;
+  }
+  const off = window.api.on('stats-sync', (s) => {
+    if (!alive()) return off();
+    const ended = sync?.running && !s.running;
+    sync = s;
+    if (ended) {
+      clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(refresh, 0);
+    } else if (s.running && s.done && !refreshTimer) {
+      refreshTimer = setTimeout(refresh, 3000);
+    }
+  });
+
+  const mapOf = (id) => state.assets.maps.find((m) => m.uuid === id) || null;
+
+  function head() {
+    const sub = [p.level != null ? `Niveau ${esc(p.level)}` : '', p.title ? esc(p.title) : ''].filter(Boolean).join(' · ');
+    return `
+      <div class="page-head dash-head">
+        <h1><small>${sub || 'Tableau de bord'}</small>${esc(p.name)}<span class="dash-tag">#${esc(p.tag)}</span></h1>
+        <div class="wallet">
+          <div class="coin" title="Valorant Points"><img src="${CURRENCY_ICON.vp}" alt="">${fmtNum(p.wallet.vp)}</div>
+          <div class="coin" title="Radianite"><img src="${CURRENCY_ICON.rp}" alt="">${fmtNum(p.wallet.rp)}</div>
+          <div class="coin" title="Kingdom Credits"><img src="${CURRENCY_ICON.kc}" alt="">${fmtNum(p.wallet.kc)}</div>
         </div>
-        <div class="rank-block">
-          ${t?.icon ? `<img src="${t.icon}" alt="">` : ''}
-          <div>
-            <div class="muted" style="font-size:11px;letter-spacing:.15em">RANG ACTUEL${state.assets.currentAct ? ` · ${esc(state.assets.currentAct.name)}` : ''}</div>
-            <div class="rname">${p.rank?.tier ? esc(t?.name) : 'Non classé'}</div>
-            <div class="muted">${p.rank?.tier ? `${p.rank.rr} RR · ` : ''}Meilleur : ${esc(tierOf(p.rank?.peak)?.name || '—')}</div>
+      </div>`;
+  }
+
+  function topAgent(g) {
+    const ag = agentOf(g.key);
+    const stat = (label, value) => `<div class="ta-stat"><span>${label}</span><b>${value}</b></div>`;
+    return `
+      <section class="top-agent" data-go="stats" style="${agentVars(ag)}">
+        <div class="ta-bg"></div>
+        <div class="ta-ratio"><b>${g.winRate.toLocaleString('fr-FR', { maximumFractionDigits: 1 })}<small>%</small></b><span>de victoires</span></div>
+        ${ag?.portrait ? `<div class="ta-art"><img src="${ag.portrait}" alt=""></div>` : ''}
+        <div class="ta-body">
+          <div class="ta-label">Agent favori${ag?.role ? ` · ${esc(ag.role)}` : ''}</div>
+          <div class="ta-name">${esc(ag?.name || '?')}</div>
+          <div class="ta-abilities">
+            ${(ag?.abilities || []).map((x) => `<img src="${x.icon}" alt="" title="${esc(x.name.replace(/\s+/g, ' '))}">`).join('')}
+            ${g.timed === g.n && g.lengthMs ? `<span>Temps de jeu <b>${hours(g.lengthMs)}</b></span>` : ''}
+          </div>
+          <div class="ta-stats">
+            ${stat('Headshot %', f1(g.hs))}
+            ${stat('Kills / manche', f2(g.kpr))}
+            ${stat('Dégâts / manche', f1(g.adr))}
+            ${stat('K/D', f2(g.kd))}
+            ${stat('ACS', f1(g.acs))}
+            ${stat('Matchs', `${g.n} <em>${g.wins} V · ${g.losses} D</em>`)}
           </div>
         </div>
-      </div>
-    </div>
+      </section>`;
+  }
 
-    <h2>Portefeuille</h2>
-    <div class="wallet">
-      <div class="coin"><img src="${CURRENCY_ICON.vp}" alt="">${fmtNum(p.wallet.vp)} <span class="muted">VP</span></div>
-      <div class="coin"><img src="${CURRENCY_ICON.rp}" alt="">${fmtNum(p.wallet.rp)} <span class="muted">Radianite</span></div>
-      <div class="coin"><img src="${CURRENCY_ICON.kc}" alt="">${fmtNum(p.wallet.kc)} <span class="muted">Kingdom Credits</span></div>
-    </div>
+  // Avant le premier match synchronisé : la bannière du joueur à la place de l'agent favori.
+  function noMatches() {
+    const st = sync || data?.sync;
+    const syncing = st && (st.running || !st.lastSync); // premier lancement : la synchro n'a encore jamais tourné
+    return `
+      <section class="top-agent no-matches">
+        <div class="ta-bg" ${p.card?.wide ? `style="background-image:url('${p.card.wide}')"` : ''}></div>
+        <div class="ta-body">
+          <div class="ta-label">Agent favori</div>
+          <div class="ta-name">${syncing ? 'Synchronisation…' : 'Aucun match'}</div>
+          <p>${syncing
+            ? 'Tes matchs arrivent : agents, cartes et armes favoris s’afficheront ici tout seuls.'
+            : 'Joue une partie : tes agents, cartes et armes favoris s’afficheront ici.'}</p>
+        </div>
+      </section>`;
+  }
 
-    <h2>Accès rapide</h2>
-    <div class="tiles">
-      <div class="tile" data-go="store">${icon('store')}<h3>Boutique du jour</h3><p>Tes 4 skins du jour, les packs, le marché nocturne et les accessoires.</p></div>
-      <div class="tile" data-go="agent">${icon('agent')}<h3>Agent auto · ${al.enabled && !actionsLocked() ? '<span style="color:var(--win)">activé</span>' : '<span class="muted">désactivé</span>'}</h3>
-        <p>${alAgent ? `Agent principal : <b>${esc(alAgent.name)}</b> (${al.mode === 'lock' ? 'verrouillage' : 'survol'})`
-          : alMaps ? `Agent choisi sur ${alMaps} carte${alMaps > 1 ? 's' : ''} (${al.mode === 'lock' ? 'verrouillage' : 'survol'})`
-          : 'Choisis l\'agent à sélectionner automatiquement.'}</p>
-        ${alAgent ? `<img class="tile-agent" src="${alAgent.icon}" alt="">` : ''}</div>
-      <div class="tile" data-go="live">${icon('live')}<h3>Partie en direct</h3><p>Rangs, niveaux et agents de tous les joueurs de ta partie.</p></div>
-      <div class="tile" data-go="stats">${icon('stats')}<h3>Statistiques</h3><p>K/D, ACS, ADR, headshot %, évolution du RR, stats par agent, carte et arme.</p></div>
-      <div class="tile" data-go="history">${icon('history')}<h3>Historique</h3><p>Tes derniers matchs avec KDA, ACS et tableau des scores.</p></div>
-      <div class="tile" data-go="party">${icon('party')}<h3>Groupe</h3><p>${actionsLocked() ? 'Les membres de ton groupe et leurs rangs.' : 'Change de mode, lance la recherche et ouvre ton groupe.'}</p></div>
-      <div class="tile" data-go="friends">${icon('friends')}<h3>Amis</h3><p>Qui est en ligne, en partie, sur quelle carte et avec quel score.</p></div>
-    </div>`;
+  function agentCards(list) {
+    if (!list.length) return '';
+    return `
+      <h2>Agents <span class="timer">les plus joués</span></h2>
+      <div class="ag-cards">
+        ${list.map((g) => {
+          const ag = agentOf(g.key);
+          return `<div class="ag-card" data-go="stats" style="${agentVars(ag)}">
+            ${ag?.portrait ? `<img class="ag-art" src="${ag.portrait}" alt="" loading="lazy">` : ''}
+            ${ag?.roleIcon ? `<img class="ag-role" src="${ag.roleIcon}" alt="" title="${esc(ag.role)}">` : ''}
+            <div class="ag-info"><b>${esc(ag?.name || '?')}</b><span>${g.n} match${g.n > 1 ? 's' : ''} · <i class="${tone(g.winRate, 50)}">${f0(g.winRate)} %</i></span></div>
+          </div>`;
+        }).join('')}
+      </div>`;
+  }
+
+  function mapCards(maps) {
+    // Meilleures cartes : au moins 2 matchs dessus quand c'est possible.
+    const pool = maps.some((m) => m.n >= 2) ? maps.filter((m) => m.n >= 2) : maps;
+    const list = [...pool].sort((x, y) => y.winRate - x.winRate || y.n - x.n).slice(0, DASH_MAPS);
+    if (!list.length) return '';
+    return `
+      <h2>Cartes <span class="timer">meilleur taux de victoire</span></h2>
+      <div class="map-cards">
+        ${list.map((g) => {
+          const mp = mapOf(g.key);
+          return `<div class="map-card" data-go="stats" ${mp?.splash ? `style="--map:url('${mp.splash}')"` : ''}>
+            <span class="map-count">${g.n} match${g.n > 1 ? 's' : ''}</span>
+            <b>${esc(mp?.name || '?')}</b>
+            <span><i class="${tone(g.winRate, 50)}">${f0(g.winRate)} %</i> de victoires</span>
+          </div>`;
+        }).join('')}
+      </div>`;
+  }
+
+  function rankCard() {
+    const r = p.rank || data?.rank;
+    const t = tierOf(r?.tier || 0); // le palier 0 a sa propre icône « non classé »
+    const peak = r?.peak > (r?.tier || 0) ? tierOf(r.peak) : null;
+    return `
+      <div class="rank-card" data-go="stats" ${t?.color && r?.tier ? `style="--tier:${t.color}"` : ''}>
+        <div class="rc-main">
+          ${r?.tier
+            ? `<div class="rc-value"><b>${r.rr}</b><span>/ 100 RR</span></div><div class="rc-name">${esc(t?.name || '')}</div>`
+            : '<div class="rc-value"><b class="rc-none">Non classé</b></div><div class="rc-name">Rang actuel</div>'}
+          ${peak ? `<div class="st-sub">Meilleur : ${esc(peak.name)}</div>` : ''}
+          ${r?.tier ? `<div class="rc-bar"><div style="width:${Math.min(100, r.rr)}%"></div></div>` : ''}
+        </div>
+        <div class="rc-badge">${t?.icon ? `<img src="${t.icon}" alt="">` : ''}</div>
+      </div>`;
+  }
+
+  function lastMatches(recs) {
+    return `
+      <div class="dash-card">
+        <div class="dash-title">Derniers matchs <button class="dash-link" data-go="history">Tout voir</button></div>
+        ${recs.slice(0, DASH_MATCHES).map((r) => {
+          const ag = agentOf(r.agentId), mp = mapOf(r.mapId), t = tierOf(r.tier);
+          return `<div class="lm-row ${r.result}" data-go="history" ${mp?.listIcon ? `style="--map:url('${mp.listIcon}')"` : ''}>
+            ${ag ? `<img class="lm-agent" src="${ag.icon}" alt="" title="${esc(ag.name)}">` : '<span class="lm-agent"></span>'}
+            <div class="lm-info"><b>${esc(mp?.name || '?')}</b><span>${timeAgo(r.startedAt)}${r.queue === 'competitive' ? '' : ` · ${esc(queueName(r.queue))}`}</span></div>
+            <div class="lm-score">${r.score ? `${r.score[0]} : ${r.score[1]}` : '—'}</div>
+            <div class="lm-tier">${t?.icon && r.tier ? `<img src="${t.icon}" alt="" title="${esc(t.name)}">` : ''}</div>
+          </div>`;
+        }).join('')}
+      </div>`;
+  }
+
+  function topWeapons(recs) {
+    const kills = {};
+    for (const r of recs) for (const [k, v] of Object.entries(r.weapons || {})) kills[k] = (kills[k] || 0) + v;
+    const total = Object.values(kills).reduce((s, v) => s + v, 0);
+    const weapon = (k) => state.assets.weapons?.find((w) => w.uuid.toLowerCase() === k) || null;
+    const list = Object.entries(kills).filter(([k]) => weapon(k)).sort((x, y) => y[1] - x[1]).slice(0, DASH_WEAPONS);
+    if (!list.length) return '';
+    return `
+      <div class="dash-card">
+        <div class="dash-title">Armes favorites <button class="dash-link" data-go="stats">Détails</button></div>
+        ${list.map(([k, v]) => {
+          const w = weapon(k);
+          const cat = WEAPON_CATEGORY[String(w.category || '').split('::').pop()] || '';
+          const art = p.skins?.[k] || w.art || w.icon; // ton skin équipé, sinon le modèle de base
+          return `<div class="wp-card" data-go="stats">
+            <div class="wp-info"><b>${esc(w.name)}</b>${cat ? `<span>${esc(cat)}</span>` : ''}<em>${f0(v)} éliminations · ${pct((v / total) * 100)}</em></div>
+            ${art ? `<img src="${art}" alt="">` : ''}
+          </div>`;
+        }).join('')}
+      </div>`;
+  }
+
+  function draw() {
+    const recs = (data?.records || []).filter((r) => !EXCLUDED_FROM_ALL.has(r.queue));
+    const agents = groupBy(recs, 'agentId');
+    content.innerHTML = `${head()}
+      <div class="dash">
+        <div class="dash-main">
+          ${agents.length ? topAgent(agents[0]) : noMatches()}
+          ${agentCards(agents.slice(1, 1 + DASH_AGENTS))}
+          ${mapCards(groupBy(recs, 'mapId'))}
+        </div>
+        <aside class="dash-side">
+          ${rankCard()}
+          ${recs.length ? lastMatches(recs) : ''}
+          ${topWeapons(recs)}
+        </aside>
+      </div>`;
+  }
+
+  await load();
+  if (!alive()) return;
+  sync ||= data?.sync || null;
+  draw();
   content.onclick = (e) => {
     const t = e.target.closest('[data-go]');
     if (t) navigate(t.dataset.go);
