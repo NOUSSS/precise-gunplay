@@ -49,37 +49,24 @@ button, input, select { font: inherit; color: inherit; }
 ::-webkit-scrollbar-thumb:hover { background: #3a4268; }
 
 /* ---------- Barre de titre ---------- */
+/* Même hauteur et même fond que la zone des boutons de fenêtre (titleBarOverlay dans main.js) */
 .titlebar {
-  height: 84px;
-  background: linear-gradient(180deg, #0e111d 0%, #090b14 100%);
+  height: 40px;
+  background: #0a0d17;
+  border-bottom: 1px solid #ffffff0a;
   display: flex;
   align-items: center;
-  padding: 0 150px 0 22px;
+  gap: 9px;
+  padding: 0 150px 0 16px;
   -webkit-app-region: drag;
   position: relative;
   z-index: 20;
 }
-.hdr-left { position: absolute; left: 0; top: 0; pointer-events: none; }
-/* Partie droite : déborde de 22 px sous le bandeau (languette sous l'agent) */
-.hdr-right {
-  position: absolute; right: 0; top: 0; width: 860px; height: 106px; pointer-events: none;
-  clip-path: polygon(0 0, 100% 0, 100% 84px, 787px 84px, 765px 106px, 350px 106px, 322px 84px, 0 84px);
-}
-.hdr-right-bg, .hdr-right-fg { position: absolute; inset: 0; }
-/* Portrait recadré sur le visage ; les portraits valorant-api sont centrés sur l'agent */
-.titlebar-agent {
-  position: absolute; top: 0; left: 320px; width: 380px; height: 106px;
-  background: center -128px / auto 960px no-repeat;
-  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 24%, #000 76%, transparent 100%);
-  filter: drop-shadow(0 0 12px #070910);
-  animation: agent-in .9s var(--ease) both;
-}
-@keyframes agent-in { from { opacity: 0; transform: translateX(24px); } }
-.brand-full { position: relative; height: 50px; width: auto; animation: fade-in .6s ease-out both; }
-/* Fenêtre étroite : le décor gauche s'efface pour ne pas chevaucher les éclats */
-@media (max-width: 1240px) { .hdr-left { -webkit-mask-image: linear-gradient(90deg, #000 45%, transparent 70%); } }
+.brand-mark { height: 18px; width: auto; animation: fade-in .6s ease-out both; }
+.brand-name { font-family: var(--font-display); font-size: 13px; font-weight: 600; letter-spacing: .02em; color: var(--muted); }
+.brand-name b { color: var(--text); font-weight: 600; }
 
-.shell { display: flex; height: calc(100% - 84px); }
+.shell { display: flex; height: calc(100% - 40px); }
 
 /* ---------- Barre latérale ---------- */
 .sidebar {
@@ -829,7 +816,7 @@ input[type=range] { accent-color: var(--red); width: 220px; }
 .friends-layout .friend.open { border-color: var(--red); background: color-mix(in srgb, var(--red) 10%, var(--panel)); }
 .friend .unread { min-width: 20px; height: 20px; padding: 0 6px; border-radius: var(--pill); background: var(--grad); color: #fff; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
 .chatbox {
-  position: sticky; top: 0; height: calc(100vh - 84px - 150px); min-height: 380px;
+  position: sticky; top: 0; height: calc(100vh - 40px - 150px); min-height: 380px;
   display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 18px; overflow: hidden;
 }
 .chat-head { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--line); background: var(--panel-2); }
