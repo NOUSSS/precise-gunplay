@@ -478,8 +478,9 @@ async function ownedAgents() {
 const PAGES = {};
 
 // ---------- Accueil ----------
-// Tableau de bord façon tracker, calculé sur tous les matchs enregistrés (modes classiques, voir Statistiques) :
+// Tableau de bord façon tracker sur les matchs de l'acte en cours (modes classiques, voir Statistiques) :
 // agent favori, agents et cartes, rang, derniers matchs et armes favorites.
+const DASH_MIN_ACT_MATCHES = 10; // en dessous, l'acte en cours ne dit pas encore grand-chose : on prend le précédent
 const DASH_AGENTS = 5;
 const DASH_MAPS = 4;
 const DASH_MATCHES = 5;
@@ -524,6 +525,20 @@ PAGES.home = async () => {
 
   const mapOf = (id) => state.assets.maps.find((m) => m.uuid === id) || null;
 
+  // Période affichée : l'acte en cours, ou le précédent tant que l'acte en cours a trop peu de matchs.
+  function actScope(recs) {
+    const acts = state.assets.acts || [];
+    const actOf = (r) => r.seasonId || acts.find((a) => r.startedAt >= a.start && r.startedAt < a.end)?.uuid || null;
+    const i = Math.max(0, acts.findIndex((a) => a.uuid === state.assets.currentAct?.uuid));
+    const inAct = (a) => (a ? recs.filter((r) => actOf(r) === a.uuid) : []);
+    const now = inAct(acts[i]);
+    const prev = inAct(acts[i + 1]);
+    if (now.length < DASH_MIN_ACT_MATCHES && prev.length > now.length) return { recs: prev, label: 'acte précédent', act: acts[i + 1] };
+    if (now.length) return { recs: now, label: 'acte en cours', act: acts[i] };
+    return { recs, label: 'tous tes matchs', act: null }; // rien sur les deux derniers actes
+  }
+  const scopeTag = (scope) => `<span title="${esc(scope.act?.name || '')}">${esc(scope.label)}</span>`;
+
   function head() {
     const sub = [p.level != null ? `Niveau ${esc(p.level)}` : '', p.title ? esc(p.title) : ''].filter(Boolean).join(' · ');
     return `
@@ -537,7 +552,7 @@ PAGES.home = async () => {
       </div>`;
   }
 
-  function topAgent(g) {
+  function topAgent(g, scope) {
     const ag = agentOf(g.key);
     const stat = (label, value) => `<div class="ta-stat"><span>${label}</span><b>${value}</b></div>`;
     return `
@@ -546,7 +561,7 @@ PAGES.home = async () => {
         <div class="ta-ratio"><b>${g.winRate.toLocaleString('fr-FR', { maximumFractionDigits: 1 })}<small>%</small></b><span>de victoires</span></div>
         ${ag?.portrait ? `<div class="ta-art"><img src="${ag.portrait}" alt=""></div>` : ''}
         <div class="ta-body">
-          <div class="ta-label">Agent favori${ag?.role ? ` · ${esc(ag.role)}` : ''}</div>
+          <div class="ta-label">Agent favori · ${scopeTag(scope)}</div>
           <div class="ta-name">${esc(ag?.name || '?')}</div>
           <div class="ta-abilities">
             ${(ag?.abilities || []).map((x) => `<img src="${x.icon}" alt="" title="${esc(x.name.replace(/\s+/g, ' '))}">`).join('')}
@@ -581,10 +596,10 @@ PAGES.home = async () => {
       </section>`;
   }
 
-  function agentCards(list) {
+  function agentCards(list, scope) {
     if (!list.length) return '';
     return `
-      <h2>Agents <span class="timer">les plus joués</span></h2>
+      <h2>Agents <span class="timer">les plus joués · ${scopeTag(scope)}</span></h2>
       <div class="ag-cards">
         ${list.map((g) => {
           const ag = agentOf(g.key);
@@ -597,13 +612,13 @@ PAGES.home = async () => {
       </div>`;
   }
 
-  function mapCards(maps) {
+  function mapCards(maps, scope) {
     // Meilleures cartes : au moins 2 matchs dessus quand c'est possible.
     const pool = maps.some((m) => m.n >= 2) ? maps.filter((m) => m.n >= 2) : maps;
     const list = [...pool].sort((x, y) => y.winRate - x.winRate || y.n - x.n).slice(0, DASH_MAPS);
     if (!list.length) return '';
     return `
-      <h2>Cartes <span class="timer">meilleur taux de victoire</span></h2>
+      <h2>Cartes <span class="timer">meilleur taux de victoire · ${scopeTag(scope)}</span></h2>
       <div class="map-cards">
         ${list.map((g) => {
           const mp = mapOf(g.key);
@@ -673,18 +688,19 @@ PAGES.home = async () => {
 
   function draw() {
     const recs = (data?.records || []).filter((r) => !EXCLUDED_FROM_ALL.has(r.queue));
-    const agents = groupBy(recs, 'agentId');
+    const scope = actScope(recs);
+    const agents = groupBy(scope.recs, 'agentId');
     content.innerHTML = `${head()}
       <div class="dash">
         <div class="dash-main">
-          ${agents.length ? topAgent(agents[0]) : noMatches()}
-          ${agentCards(agents.slice(1, 1 + DASH_AGENTS))}
-          ${mapCards(groupBy(recs, 'mapId'))}
+          ${agents.length ? topAgent(agents[0], scope) : noMatches()}
+          ${agentCards(agents.slice(1, 1 + DASH_AGENTS), scope)}
+          ${mapCards(groupBy(scope.recs, 'mapId'), scope)}
         </div>
         <aside class="dash-side">
           ${rankCard()}
           ${recs.length ? lastMatches(recs) : ''}
-          ${topWeapons(recs)}
+          ${topWeapons(scope.recs)}
         </aside>
       </div>`;
   }
