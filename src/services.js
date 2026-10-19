@@ -96,6 +96,12 @@ class Services {
     const card = id.PlayerCardID ? this.assets.cardById.get(id.PlayerCardID.toLowerCase()) : null;
     const title = id.PlayerTitleID ? this.assets.titleById.get(id.PlayerTitleID.toLowerCase()) : null;
     const me = names?.get(c.puuid) || {};
+    // Skin équipé sur chaque arme (armes favorites de l'accueil).
+    const skins = {};
+    for (const g of loadout?.Guns || []) {
+      const s = g.SkinID && this.assets.skinById.get(String(g.SkinID).toLowerCase());
+      if (s?.icon) skins[String(g.ID).toLowerCase()] = s.icon;
+    }
     return {
       puuid: c.puuid,
       name: me.name || 'Joueur',
@@ -106,6 +112,7 @@ class Services {
       title: title?.name || null,
       rank,
       wallet: this.wallet(wallet),
+      skins,
     };
   }
 
