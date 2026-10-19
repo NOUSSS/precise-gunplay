@@ -1900,47 +1900,109 @@ PAGES.party = async () => {
 };
 
 // ---------- Amis ----------
+const PRODUCTS = { league_of_legends: 'League of Legends', bacon: 'Legends of Runeterra', lion: '2XKO', riot_client: 'Riot Client' };
+const FOLD_KEY = 'pg-friends-offline-folded';
+const ICON_CHEVRON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
+const ICON_CLOSE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+
+const isLive = (f) => f.valorant?.loop === 'INGAME' || f.valorant?.loop === 'PREGAME';
+const seenAgo = (ts) => ((Date.now() - ts) / 86400000 > 60 ? `il y a ${Math.round((Date.now() - ts) / 2592000000)} mois` : timeAgo(ts));
+const bannerStyle = (img) => (img ? ` style="--banner:url('${esc(img)}')"` : '');
+
+// Avatar : petite image de la carte de joueur (connue seulement quand l'ami est sur VALORANT), sinon son initiale.
+function friendAvatar(f, cls = '') {
+  const lvl = f.valorant?.level;
+  return `<div class="favatar ${cls}">${
+    f.card?.small ? `<img src="${esc(f.card.small)}" alt="">` : `<span class="finit">${esc([...(f.name || '?')][0].toUpperCase())}</span>`
+  }<span class="fdot ${f.online ? esc(f.status) : ''}"></span>${lvl ? `<span class="flvl">${esc(lvl)}</span>` : ''}</div>`;
+}
+
+function scoreChip(v) {
+  if (!v?.score) return '';
+  const [a, e] = v.score;
+  return `<span class="fscore ${a > e ? 'ahead' : a < e ? 'behind' : ''}" title="Score de son équipe">${esc(a)}<i>-</i>${esc(e)}</span>`;
+}
+
+// short : sans « En partie » / « Sélection d'agent », déjà dits par la section et la pastille de la ligne.
+function friendStatus(f, short = false) {
+  if (!f.online) return f.lastOnline ? `Hors ligne · vu ${seenAgo(f.lastOnline)}` : 'Hors ligne';
+  const v = f.valorant;
+  if (!v) return f.status === 'mobile' ? 'En ligne sur mobile' : `En ligne${f.product ? ` · ${esc(PRODUCTS[f.product] || f.product)}` : ''}`;
+  const map = v.map ? ` · ${esc(v.map.name)}` : '';
+  if (v.loop === 'INGAME') return `${short ? '' : 'En partie · '}${esc(queueName(v.queue))}${map}`;
+  if (v.loop === 'PREGAME') return `${short ? '' : "Sélection d'agent · "}${esc(queueName(v.queue))}${map}`;
+  if (v.partyState === 'MATCHMAKING') return `Recherche une partie · ${esc(queueName(v.queue))}`;
+  return `Dans les menus${v.partySize > 1 ? ` · groupe ${v.partySize}/${v.partyMax}` : ''}${v.idle ? ' · inactif' : ''}`;
+}
+
 PAGES.friends = async () => {
   const alive = guard();
   let query = '';
   let list = [];
   let openPid = null; // conversation ouverte
   let lastSig = '';
+  let liveSig = null; // évite de redessiner l'aperçu (et ses animations) s'il n'a pas changé
+  let offlineFolded = false;
+  try { offlineFolded = localStorage.getItem(FOLD_KEY) === '1'; } catch { /* stockage indisponible */ }
 
   async function refresh() {
     try { list = await call('friends'); } catch (e) { if (alive()) content.innerHTML = errorBox(e.message); return; }
-    if (alive()) { drawList(); drawChatHead(); }
+    if (!alive()) return;
+    drawList();
+    if (openPid) drawChatHead();
+    else drawChatEmpty();
   }
 
-  function statusLine(f) {
-    if (!f.online) return 'Hors ligne';
-    const v = f.valorant;
-    if (!v) return f.product ? `En ligne · ${esc(f.product)}` : 'En ligne';
-    if (v.loop === 'INGAME') return `En partie · ${esc(queueName(v.queue))}${v.map ? ` · ${esc(v.map)}` : ''}${v.score ? ` · ${v.score[0]} - ${v.score[1]}` : ''}`;
-    if (v.loop === 'PREGAME') return `Sélection d'agent · ${esc(queueName(v.queue))}${v.map ? ` · ${esc(v.map)}` : ''}`;
-    return `Dans les menus${v.partySize > 1 ? ` · groupe de ${v.partySize}` : ''}${v.idle ? ' · inactif' : ''}`;
+  function drawCounts() {
+    const live = list.filter(isLive).length;
+    const online = list.filter((f) => f.online).length;
+    $('#fcount').innerHTML = `
+      <span class="fstat"><i class="live"></i><b>${live}</b> en partie</span>
+      <span class="fstat"><i class="on"></i><b>${online}</b> en ligne</span>
+      <span class="fstat"><b>${list.length}</b> ami${list.length > 1 ? 's' : ''}</span>`;
   }
+
+  function friendRow(f) {
+    const v = f.valorant;
+    const t = v?.tier ? tierOf(v.tier) : null;
+    const unread = state.unread[f.pid] || 0;
+    const tag = v?.loop === 'INGAME'
+      ? scoreChip(v) || '<span class="pill ingame">En partie</span>'
+      : v?.loop === 'PREGAME' ? '<span class="pill pregame">Sélection</span>'
+      : v?.partyState === 'MATCHMAKING' ? '<span class="pill queue">En file</span>' : '';
+    // Fond : la carte jouée pendant une partie, sinon la bannière de sa carte de joueur.
+    const banner = isLive(f) && v.map?.icon ? v.map.icon : f.card?.wide;
+    return `
+      <div class="friend ${f.online ? '' : 'offline'} ${isLive(f) ? 'live' : ''} ${f.pid === openPid ? 'open' : ''}" data-pid="${esc(f.pid)}" title="Discuter avec ${esc(f.name)}"${bannerStyle(banner)}>
+        ${friendAvatar(f)}
+        <div class="fname">
+          <div>${esc(f.name)}<span class="muted">#${esc(f.tag)}</span>${f.note ? ` <span class="muted">(${esc(f.note)})</span>` : ''}${v?.withMe ? '<span class="fwith">Ton groupe</span>' : ''}</div>
+          <div>${friendStatus(f, true)}</div>
+        </div>
+        ${unread ? `<span class="unread" title="${unread} message(s) non lu(s)">${unread}</span>` : ''}
+        ${tag}
+        ${t?.icon ? `<img class="frank" src="${t.icon}" alt="" title="${esc(t.name)}">` : ''}
+        ${trackerBtn(f.name, f.tag)}
+      </div>`;
+  }
+
+  const SECTIONS = [['live', 'En partie'], ['online', 'En ligne'], ['offline', 'Hors ligne']];
+  const groupOf = (f) => (!f.online ? 'offline' : isLive(f) ? 'live' : 'online');
 
   function drawList() {
     const q = query.toLowerCase();
     const shown = list.filter((f) => !q || `${f.name}#${f.tag} ${f.note}`.toLowerCase().includes(q));
-    const online = list.filter((f) => f.online).length;
-    $('#fcount').textContent = `${online} en ligne · ${list.length} amis`;
-    $('#flist').innerHTML = shown.map((f) => {
-      const v = f.valorant;
-      const t = v?.tier ? tierOf(v.tier) : null;
-      const unread = state.unread[f.pid] || 0;
-      const pill = v?.loop === 'INGAME' ? '<span class="pill ingame">En partie</span>' : v?.loop === 'PREGAME' ? '<span class="pill pregame">Sélection</span>' : '';
-      return `
-        <div class="friend ${f.online ? '' : 'offline'} ${f.pid === openPid ? 'open' : ''}" data-pid="${esc(f.pid)}" title="Discuter avec ${esc(f.name)}">
-          <span class="fdot ${f.online ? esc(f.status) : ''}"></span>
-          <div class="fname"><div>${esc(f.name)}<span class="muted">#${esc(f.tag)}</span>${f.note ? ` <span class="muted">(${esc(f.note)})</span>` : ''}</div><div>${statusLine(f)}</div></div>
-          ${unread ? `<span class="unread" title="${unread} message(s) non lu(s)">${unread}</span>` : ''}
-          ${pill}
-          ${v?.level ? `<span class="pill">Niv. ${v.level}</span>` : ''}
-          ${t?.icon ? `<img src="${t.icon}" alt="" title="${esc(t.name)}" style="width:28px;height:28px">` : ''}
-          ${trackerBtn(f.name, f.tag)}
-        </div>`;
+    drawCounts();
+    $('#flist').innerHTML = SECTIONS.map(([key, label]) => {
+      const rows = shown.filter((f) => groupOf(f) === key);
+      if (!rows.length) return '';
+      if (key !== 'offline') return `<div class="fsec"><span>${label}</span><b>${rows.length}</b></div>${rows.map(friendRow).join('')}`;
+      // Hors ligne : repliable (souvent la plus longue), toujours dépliée pendant une recherche.
+      const folded = offlineFolded && !q;
+      const unread = rows.reduce((n, f) => n + (state.unread[f.pid] || 0), 0);
+      return `<button class="fsec ${folded ? 'folded' : ''}" data-fold title="${folded ? 'Afficher' : 'Masquer'} les amis hors ligne"><span>${label}</span><b>${rows.length}</b>${
+        folded && unread ? `<span class="unread" title="${unread} message(s) non lu(s)">${unread}</span>` : ''
+      }${ICON_CHEVRON}</button>${folded ? '' : rows.map(friendRow).join('')}`;
     }).join('') || '<div class="empty">Aucun ami trouvé.</div>';
   }
 
@@ -1956,23 +2018,64 @@ PAGES.friends = async () => {
   }
   const hhmm = (ts) => new Date(ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 
+  // En-tête façon profil : bannière (ou carte jouée), avatar, titre, rang.
   function drawChatHead() {
     const f = friendOf(openPid);
     const head = $('#chat-head');
     if (!head || !f) return;
+    const v = f.valorant;
+    const t = v?.tier ? tierOf(v.tier) : null;
+    const banner = isLive(f) && v.map?.splash ? v.map.splash : f.card?.wide;
+    head.style.setProperty('--banner', banner ? `url('${banner}')` : 'none');
     head.innerHTML = `
-      <span class="fdot ${f.online ? esc(f.status) : ''}"></span>
-      <div class="fname"><div>${esc(f.name)}<span class="muted">#${esc(f.tag)}</span></div><div>${statusLine(f)}</div></div>
-      ${trackerBtn(f.name, f.tag)}`;
+      ${friendAvatar(f, 'big')}
+      <div class="fname">
+        <div>${esc(f.name)}<span class="muted">#${esc(f.tag)}</span>${v?.withMe ? '<span class="fwith">Ton groupe</span>' : ''}</div>
+        ${f.title ? `<div class="ftitle">${esc(f.title)}</div>` : ''}
+        <div>${friendStatus(f)}</div>
+      </div>
+      ${v?.loop === 'INGAME' ? scoreChip(v) : ''}
+      ${t?.icon ? `<img class="frank" src="${t.icon}" alt="" title="${esc(t.name)}">` : ''}
+      ${trackerBtn(f.name, f.tag)}
+      <button class="chat-close" data-close title="Fermer la conversation">${ICON_CLOSE}</button>`;
   }
 
-  function drawChatEmpty() {
-    $('#chat').innerHTML = `
-      <div class="chat-empty">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 5h16v11H8l-4 4z"/></svg>
-        <h3>Messagerie</h3>
-        <p class="muted">${actionsLocked() ? 'Clique sur un ami pour lire vos derniers messages.<br>L\'envoi de messages est désactivé.' : 'Clique sur un ami pour discuter avec lui.<br>Les messages passent par ton Riot Client, comme dans le jeu.'}</p>
+  function liveCard(f) {
+    const v = f.valorant;
+    const sub = [v.map ? queueName(v.queue) : '', v.partySize > 1 ? `groupe de ${v.partySize}` : ''].filter(Boolean).join(' · ');
+    return `
+      <div class="flive-card" data-pid="${esc(f.pid)}" title="Discuter avec ${esc(f.name)}"${bannerStyle(v.map?.splash || f.card?.wide)}>
+        <div class="flc-top"><span class="pill ${v.loop === 'INGAME' ? 'ingame' : 'pregame'}">${v.loop === 'INGAME' ? 'En partie' : 'Sélection'}</span>${scoreChip(v)}</div>
+        <div class="flc-map">${esc(v.map?.name || queueName(v.queue))}${sub ? `<span>${esc(sub)}</span>` : ''}</div>
+        <div class="flc-who">${friendAvatar(f, 'small')}<div>${esc(f.name)}<span class="muted">#${esc(f.tag)}</span></div></div>
       </div>`;
+  }
+
+  // Sans conversation ouverte : les amis en partie, puis l'invitation à discuter.
+  function drawChatEmpty() {
+    const live = list.filter(isLive);
+    const sig = JSON.stringify(live.map((f) => [f.pid, f.valorant.loop, f.valorant.map?.name, f.valorant.score, f.valorant.partySize, f.card?.small, f.status]));
+    if (sig === liveSig && $('#chat .chat-overview')) return;
+    liveSig = sig;
+    $('#chat').innerHTML = `
+      <div class="chat-overview">
+        ${live.length ? `
+          <div class="flive-head"><span class="live-dot"></span>En partie maintenant<b>${live.length}</b></div>
+          <div class="flive">${live.map(liveCard).join('')}</div>` : ''}
+        <div class="chat-empty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 5h16v11H8l-4 4z"/></svg>
+          <h3>Messagerie</h3>
+          <p class="muted">${actionsLocked() ? 'Clique sur un ami pour lire vos derniers messages.<br>L\'envoi de messages est désactivé.' : 'Clique sur un ami pour discuter avec lui.<br>Les messages passent par ton Riot Client, comme dans le jeu.'}</p>
+        </div>
+      </div>`;
+  }
+
+  function closeChat() {
+    openPid = null;
+    lastSig = '';
+    liveSig = null;
+    drawList();
+    drawChatEmpty();
   }
 
   async function openChat(pid) {
@@ -2034,7 +2137,7 @@ PAGES.friends = async () => {
   }
 
   content.innerHTML = `
-    <div class="page-head"><h1><small>Social</small>Amis</h1><span class="muted" id="fcount"></span></div>
+    <div class="page-head"><h1><small>Social</small>Amis</h1><div class="fstats" id="fcount"></div></div>
     <div class="friends-layout">
       <div class="friends-col">
         <input type="search" id="fsearch" placeholder="Rechercher un ami…" style="width:100%;margin-bottom:12px">
@@ -2046,8 +2149,18 @@ PAGES.friends = async () => {
   $('#fsearch').oninput = (e) => { query = e.target.value; drawList(); };
   $('#flist').addEventListener('click', (e) => {
     if (e.target.closest('[data-tracker]')) return;
+    if (e.target.closest('[data-fold]')) {
+      offlineFolded = !offlineFolded;
+      try { localStorage.setItem(FOLD_KEY, offlineFolded ? '1' : '0'); } catch { /* facultatif */ }
+      return drawList();
+    }
     const row = e.target.closest('[data-pid]');
     if (row) openChat(row.dataset.pid);
+  });
+  $('#chat').addEventListener('click', (e) => {
+    if (e.target.closest('[data-close]')) return closeChat();
+    const card = e.target.closest('.flive-card[data-pid]');
+    if (card) openChat(card.dataset.pid);
   });
   state.onUnread = () => { if (alive()) drawList(); };
   await refresh();
