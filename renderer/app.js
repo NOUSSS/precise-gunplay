@@ -175,6 +175,7 @@ function renderNav() {
           n[0] === 'agent' && autolockOn ? '<span class="nav-badge">ON</span>' : ''
         }${n[0] === 'friends' && unreadTotal() ? `<span class="nav-badge">${unreadTotal()}</span>` : ''}</button>`
   ).join('');
+  syncNavPill();
 }
 
 $('#nav').addEventListener('click', (e) => {
@@ -330,13 +331,66 @@ function navigate(page) {
   content.onclick = content.onchange = null;
   renderNav();
   content.scrollTop = 0;
+  chipPos.clear();
   const needsAuth = page !== 'settings';
   if (needsAuth && !state.status.connected) return renderConnect();
+  state.entering = true;
   content.innerHTML = loader();
   PAGES[page]().catch((e) => {
     content.innerHTML = errorBox(e.message);
   });
 }
+
+// Pose la pastille de fond (pseudo-élément du conteneur, variables CSS --pill-*) ; `instant` évite la glissade.
+function placePill(box, pos, instant) {
+  if (instant) box.style.setProperty('--pill-t', 'none');
+  for (const [k, v] of Object.entries(pos)) box.style.setProperty(`--pill-${k}`, `${v}px`);
+  box.style.setProperty('--pill-o', '1');
+  if (instant) { void box.offsetWidth; box.style.removeProperty('--pill-t'); }
+}
+
+// Menu : #nav reste en place quand ses onglets sont reconstruits, sa pastille glisse donc de l'ancien au nouveau.
+function syncNavPill() {
+  const nav = $('#nav');
+  const on = nav.querySelector('.nav-item.active');
+  if (!on) return nav.style.setProperty('--pill-o', '0');
+  placePill(nav, { y: on.offsetTop, h: on.offsetHeight }, !nav.style.getPropertyValue('--pill-h'));
+}
+
+// Groupes de choix (filtres, modes) : souvent recréés au clic, ils repartent de la dernière position connue.
+const chipPos = new Map();
+function syncChips() {
+  $$('.chip-group', content).forEach((g, i) => {
+    const on = g.querySelector('button.on');
+    if (!on) return g.style.setProperty('--pill-o', '0');
+    const key = `${state.page}:${g.id || i}`;
+    const pos = { x: on.offsetLeft, w: on.offsetWidth };
+    const prev = chipPos.get(key);
+    chipPos.set(key, pos);
+    const fresh = !g.style.getPropertyValue('--pill-w');
+    if (fresh && prev) placePill(g, prev, true);
+    placePill(g, pos, fresh && !prev);
+  });
+}
+
+// Animations de contenu : `enter` au premier vrai rendu d'une page (le loader passé), `refresh` après un changement
+// de filtre ; jamais aux rafraîchissements automatiques.
+let revealTimer = 0;
+function reveal(cls) {
+  content.classList.remove('enter', 'refresh');
+  void content.offsetWidth;
+  content.classList.add(cls);
+  clearTimeout(revealTimer);
+  revealTimer = setTimeout(() => content.classList.remove(cls), 1000);
+}
+new MutationObserver(() => {
+  syncChips();
+  const pending = state.entering ? 'enter' : state.refreshing ? 'refresh' : null;
+  // L'entrée attend que la page ait quitté son loader ; un rafraîchissement attend aussi ceux d'une sous-partie (#hlist).
+  if (!pending || content.querySelector(pending === 'enter' ? ':scope > .loader' : '.loader')) return;
+  state.entering = state.refreshing = false;
+  reveal(pending);
+}).observe(content, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
 
 // Évite d'afficher une page obsolète si l'utilisateur a navigué entre-temps.
 function guard() {
@@ -383,7 +437,7 @@ function updateLabel(u) {
 function renderConnect() {
   content.innerHTML = `
     <div class="connect">
-      <img class="logo" src="logo-mark.png" alt="">
+      <img class="logo" src="logo-mark.png" alt="" style="animation-delay:-${Math.round(performance.now() % 4000)}ms">
       <h1><small>Lier ton compte</small>Precise Gunplay</h1>
       <p class="muted">L'application se lie automatiquement à ton compte via le Riot Client ouvert sur ce PC.<br>Aucun mot de passe n'est demandé ni stocké.</p>
       <div class="steps">
@@ -882,31 +936,42 @@ PAGES.live = async () => {
 };
 
 // ---------- Historique ----------
+const SB_VIEW_KEY = 'pg-scoreboard-view';
+let sbView = 'teams';
+try { sbView = localStorage.getItem(SB_VIEW_KEY) === 'all' ? 'all' : 'teams'; } catch { /* stockage indisponible */ }
+
 PAGES.history = async () => {
   const alive = guard();
   let filter = '';
   const FILTERS = [['', 'Tous'], ['competitive', 'Compétition'], ['unrated', 'Non classé'], ['swiftplay', 'Vélocité'], ['deathmatch', 'Combat à mort'], ['premier', 'Premier']];
 
+  // En-tête et filtres ne sont posés qu'une fois : un changement de filtre ne recharge que #hlist
+  // (pas de saut d'affichage, et la pastille des filtres glisse sans être recréée).
+  let loadId = 0;
   async function load() {
-    content.innerHTML = head() + loader();
-    let list;
+    const id = ++loadId;
+    const box = $('#hlist');
+    if (box) box.innerHTML = loader(); else content.innerHTML = loader();
+    let body;
     try {
-      list = await call('history', filter || undefined);
+      const list = await call('history', filter || undefined);
+      const wins = list.filter((m) => m.result === 'win').length;
+      const k = list.reduce((s, m) => s + m.kills, 0), dth = list.reduce((s, m) => s + m.deaths, 0);
+      body = list.length ? `
+        <div class="wallet" style="margin-bottom:16px">
+          <div class="coin">${list.length} <span class="muted">matchs</span></div>
+          <div class="coin" style="color:var(--win)">${Math.round((wins / list.length) * 100)}% <span class="muted">victoires</span></div>
+          <div class="coin">${(k / Math.max(1, dth)).toFixed(2)} <span class="muted">K/D</span></div>
+          <div class="coin">${Math.round(list.reduce((s, m) => s + m.acs, 0) / list.length)} <span class="muted">ACS moyen</span></div>
+        </div>
+        ${list.map(matchHtml).join('')}` : '<div class="empty"><h3>Aucun match</h3><div>Joue une partie dans ce mode pour la voir ici.</div></div>';
     } catch (e) {
-      if (alive()) content.innerHTML = head() + errorBox(e.message);
-      return;
+      body = errorBox(e.message);
     }
-    if (!alive()) return;
-    const wins = list.filter((m) => m.result === 'win').length;
-    const k = list.reduce((s, m) => s + m.kills, 0), dth = list.reduce((s, m) => s + m.deaths, 0);
-    content.innerHTML = head() + (list.length ? `
-      <div class="wallet" style="margin-bottom:16px">
-        <div class="coin">${list.length} <span class="muted">matchs</span></div>
-        <div class="coin" style="color:var(--win)">${Math.round((wins / list.length) * 100)}% <span class="muted">victoires</span></div>
-        <div class="coin">${(k / Math.max(1, dth)).toFixed(2)} <span class="muted">K/D</span></div>
-        <div class="coin">${Math.round(list.reduce((s, m) => s + m.acs, 0) / list.length)} <span class="muted">ACS moyen</span></div>
-      </div>
-      ${list.map(matchHtml).join('')}` : '<div class="empty"><h3>Aucun match</h3><div>Joue une partie dans ce mode pour la voir ici.</div></div>');
+    if (!alive() || id !== loadId) return;
+    const current = $('#hlist');
+    if (current) current.innerHTML = body;
+    else content.innerHTML = head() + `<div id="hlist" class="${sbView === 'all' ? 'sb-all' : ''}">${body}</div>`;
   }
 
   const head = () => `
@@ -919,18 +984,16 @@ PAGES.history = async () => {
     return `<span class="badge place" title="Place dans la partie (ACS)">${m.placement}<sup>${m.placement === 1 ? 'er' : 'e'}</sup></span>`;
   }
 
-  function teamTable(t) {
-    const title = t.side === 'all' ? 'Classement' : t.side === 'ally' ? 'Ton équipe' : 'Adversaires';
-    const outcome = t.side === 'all' ? '' : t.won ? 'Victoire' : 'Défaite';
+  // `mixed` : classement unique des deux équipes (comme le tableau des scores du jeu), place et équipe sur chaque ligne.
+  function sbTable(players, mixed = false) {
     return `
-      <div class="sb-team ${t.side}">
-        <div class="sb-head"><b>${title}</b>${t.rounds != null ? `<span class="sb-score">${t.rounds}</span>` : ''}${outcome ? `<span class="muted">${outcome}</span>` : ''}</div>
-        <table class="sb">
-          <tr><th>Joueur</th><th>Rang</th><th>ACS</th><th>K</th><th>D</th><th>A</th><th>+/−</th><th>K/D</th><th>ADR</th><th>HS</th><th>FB</th><th></th></tr>
-          ${t.players.map((p) => {
+        <table class="sb ${mixed ? 'mixed' : ''}">
+          <tr>${mixed ? '<th class="sb-pos">#</th>' : ''}<th>Joueur</th><th>Rang</th><th>ACS</th><th>K</th><th>D</th><th>A</th><th>+/−</th><th>K/D</th><th>ADR</th><th>HS</th><th>FB</th><th></th></tr>
+          ${players.map((p, i) => {
             const pa = agentOf(p.agentId), pt = tierOf(p.tier);
             const diff = p.kills - p.deaths;
-            return `<tr class="${p.isMe ? 'me' : ''}">
+            return `<tr class="${p.isMe ? 'me' : ''} ${mixed ? `t-${p.team}` : ''}">
+              ${mixed ? `<td class="sb-pos">${i + 1}</td>` : ''}
               <td>
                 <div class="sb-player">
                   ${pa ? `<img class="sb-agent" src="${pa.icon}" alt="" title="${esc(pa.name)}">` : '<span class="sb-agent"></span>'}
@@ -948,7 +1011,38 @@ PAGES.history = async () => {
               <td>${p.isMe ? '' : trackerBtn(p.name, p.tag)}</td>
             </tr>`;
           }).join('')}
-        </table>
+        </table>`;
+  }
+
+  function teamTable(t) {
+    const title = t.side === 'all' ? 'Classement' : t.side === 'ally' ? 'Ton équipe' : 'Adversaires';
+    const outcome = t.side === 'all' ? '' : t.won ? 'Victoire' : 'Défaite';
+    return `
+      <div class="sb-team ${t.side}">
+        <div class="sb-head"><b>${title}</b>${t.rounds != null ? `<span class="sb-score">${t.rounds}</span>` : ''}${outcome ? `<span class="muted">${outcome}</span>` : ''}</div>
+        ${sbTable(t.players)}
+      </div>`;
+  }
+
+  // Deux équipes : bascule entre la vue par équipe et le classement commun (choix mémorisé, appliqué à tous les matchs).
+  function scoreboardHtml(m) {
+    if (m.teams.length < 2) return m.teams.map(teamTable).join('');
+    const all = m.teams.flatMap((t) => t.players).sort((x, y) => y.acs - x.acs);
+    const [ally, enemy] = [m.teams.find((t) => t.side === 'ally'), m.teams.find((t) => t.side === 'enemy')];
+    return `
+      <div class="sb-bar">
+        <div class="chip-group sb-switch">
+          <button data-sbview="teams" class="${sbView === 'teams' ? 'on' : ''}">Par équipe</button>
+          <button data-sbview="all" class="${sbView === 'all' ? 'on' : ''}">Tous les joueurs</button>
+        </div>
+      </div>
+      <div class="sb-view-teams">${m.teams.map(teamTable).join('')}</div>
+      <div class="sb-view-all">
+        <div class="sb-team mixed">
+          <div class="sb-head"><b>Classement de la partie</b>${ally && enemy ? `<span class="sb-score"><span class="ally">${ally.rounds}</span> – <span class="enemy">${enemy.rounds}</span></span>` : ''}<span class="muted">par ACS</span>
+            <span class="sb-legend"><i class="ally"></i>Ton équipe<i class="enemy"></i>Adversaires</span></div>
+          ${sbTable(all, true)}
+        </div>
       </div>`;
   }
 
@@ -972,13 +1066,27 @@ PAGES.history = async () => {
           <div>${t?.icon && m.tier ? `<img src="${t.icon}" alt="" title="${esc(t.name)}" style="width:36px;height:36px">` : ''}</div>
           <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
         </div>
-        <div class="scoreboard">${m.teams.map(teamTable).join('')}</div>
+        <div class="scoreboard"><div class="sb-inner"><div class="sb-pad">${scoreboardHtml(m)}</div></div></div>
       </div>`;
   }
 
   content.onclick = (e) => {
     const f = e.target.closest('[data-filter]');
-    if (f) { filter = f.dataset.filter; return load(); }
+    if (f) {
+      if (f.dataset.filter === filter) return;
+      filter = f.dataset.filter;
+      $$('#hfilter button').forEach((b) => b.classList.toggle('on', b === f));
+      state.refreshing = true;
+      return load();
+    }
+    const v = e.target.closest('[data-sbview]');
+    if (v) {
+      sbView = v.dataset.sbview;
+      try { localStorage.setItem(SB_VIEW_KEY, sbView); } catch { /* facultatif */ }
+      $('#hlist')?.classList.toggle('sb-all', sbView === 'all');
+      $$('[data-sbview]').forEach((b) => b.classList.toggle('on', b.dataset.sbview === sbView));
+      return;
+    }
     const row = e.target.closest('[data-toggle]');
     if (row) row.parentElement.classList.toggle('open');
   };
@@ -986,7 +1094,7 @@ PAGES.history = async () => {
 };
 
 // ---------- Statistiques ----------
-const CHART = { pos: '#17a88e', neg: '#ff4655', draw: '#6b7a87', line: '#17a88e', grid: '#22303c', surface: '#16222d' };
+const CHART = { pos: '#12d6a0', neg: '#ff2e4d', draw: '#6b7590', line: '#12d6a0', grid: '#222941', surface: '#121626' };
 
 // Infobulle unique pour tous les graphiques (contenu inséré via textContent).
 function chartTip() {
@@ -1441,7 +1549,7 @@ PAGES.stats = async () => {
 
   content.onclick = (e) => {
     const q = e.target.closest('[data-q]');
-    if (q) { f.queue = q.dataset.q; draw(); }
+    if (q) { f.queue = q.dataset.q; state.refreshing = true; draw(); }
   };
 
   // Vérifie s'il y a de nouveaux matchs (1 à 2 requêtes si tout est déjà en mémoire), avant le premier affichage
