@@ -1261,18 +1261,24 @@ function acsChart(el, recs) {
 }
 
 function aggregate(recs) {
-  const keys = ['kills', 'deaths', 'assists', 'combat', 'rounds', 'damage', 'head', 'body', 'leg', 'fb', 'fd', 'kast', 'k3', 'k4', 'k5'];
-  const s = { n: recs.length, wins: 0, losses: 0, draws: 0 };
+  const keys = ['kills', 'deaths', 'assists', 'combat', 'rounds', 'damage', 'head', 'body', 'leg', 'fb', 'fd', 'kast', 'k3', 'k4', 'k5', 'flawless'];
+  const s = { n: recs.length, wins: 0, losses: 0, draws: 0, clutches: 0, roundsWon: 0, roundsTotal: 0, dd: 0, ddRounds: 0, detailed: 0, lengthMs: 0, timed: 0 };
   for (const k of keys) s[k] = 0;
   for (const r of recs) {
     if (r.result === 'win') s.wins++;
     else if (r.result === 'loss') s.losses++;
     else s.draws++;
     for (const k of keys) s[k] += r[k] || 0;
+    s.clutches += r.clutches?.length || 0;
+    if (r.score) { s.roundsWon += r.score[0]; s.roundsTotal += r.score[0] + r.score[1]; }
+    // Résumés v1 (anciens matchs) : ni dégâts reçus ni durée, ils sont laissés de côté pour ces deux stats.
+    if (r.received != null) { s.dd += r.damage - r.received; s.ddRounds += r.rounds; s.detailed++; }
+    if (r.lengthMs) { s.lengthMs += r.lengthMs; s.timed++; }
   }
   const shots = s.head + s.body + s.leg;
   return {
     ...s,
+    shots,
     winRate: s.n ? (s.wins / s.n) * 100 : 0,
     kd: s.kills / Math.max(1, s.deaths),
     kda: (s.kills + s.assists) / Math.max(1, s.deaths),
@@ -1283,22 +1289,101 @@ function aggregate(recs) {
     legPct: shots ? (s.leg / shots) * 100 : 0,
     kastPct: s.rounds ? (s.kast / s.rounds) * 100 : 0,
     kpm: s.n ? s.kills / s.n : 0,
+    kpr: s.kills / Math.max(1, s.rounds),
+    ddDelta: s.ddRounds ? s.dd / s.ddRounds : null,
+    roundWin: s.roundsTotal ? (s.roundsWon / s.roundsTotal) * 100 : null,
+    entry: s.fb + s.fd ? (s.fb / (s.fb + s.fd)) * 100 : null,
   };
 }
 
 function groupBy(recs, key) {
   const g = new Map();
   for (const r of recs) {
-    if (!r[key]) continue;
-    if (!g.has(r[key])) g.set(r[key], []);
-    g.get(r[key]).push(r);
+    const k = typeof key === 'function' ? key(r) : r[key];
+    if (!k) continue;
+    if (!g.has(k)) g.set(k, []);
+    g.get(k).push(r);
   }
-  return [...g.entries()].map(([k, list]) => ({ key: k, ...aggregate(list) })).sort((a, b) => b.n - a.n || b.acs - a.acs);
+  return [...g.entries()].map(([k, list]) => ({ key: k, list, ...aggregate(list) })).sort((a, b) => b.n - a.n || b.acs - a.acs);
 }
 
 const f2 = (n) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const f1 = (n) => n.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const f0 = (n) => Math.round(n).toLocaleString('fr-FR');
 const pct = (n) => `${n.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`;
+const DD_TITLE = 'Écart de dégâts : dégâts infligés moins dégâts reçus, par manche';
+const signed = (n) => (n == null ? '—' : `${n > 0 ? '+' : ''}${f0(n)}`);
+const hours = (ms) => `${(ms / 3600000).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} h`;
+// Couleur d'une valeur autour d'un seuil (vert au-dessus, rouge en dessous).
+const tone = (v, mid) => (v == null || v === mid ? '' : v > mid ? 'pos' : 'neg');
+
+const WEAPON_CATEGORY = {
+  Rifle: "Fusil d'assaut", SMG: 'Mitraillette', Shotgun: 'Fusil à pompe', Sniper: 'Fusil de précision',
+  Heavy: 'Mitrailleuse', Sidearm: 'Arme de poing', Melee: 'Corps à corps',
+};
+
+/** Silhouette : chaque zone est d'autant plus vive qu'elle reçoit de balles. */
+function hitFigure(a) {
+  const max = Math.max(a.hs, a.bodyPct, a.legPct, 1);
+  const op = (v) => (0.16 + 0.84 * (v / max)).toFixed(2);
+  return `<svg class="hit-figure" viewBox="0 0 60 120" aria-hidden="true">
+    <circle cx="30" cy="11" r="9.5" fill-opacity="${op(a.hs)}"/>
+    <g fill-opacity="${op(a.bodyPct)}"><rect x="17" y="24" width="26" height="41" rx="8"/><rect x="6" y="26" width="9" height="36" rx="4.5"/><rect x="45" y="26" width="9" height="36" rx="4.5"/></g>
+    <g fill-opacity="${op(a.legPct)}"><rect x="18" y="67" width="11.5" height="50" rx="5.5"/><rect x="30.5" y="67" width="11.5" height="50" rx="5.5"/></g>
+  </svg>`;
+}
+
+/** Petite courbe (HS % par match), sans texte : l'échelle est posée à côté en HTML. */
+function sparkline(vals) {
+  if (vals.length < 2) return '';
+  const top = Math.max(10, Math.ceil(Math.max(...vals) / 10) * 10);
+  const x = (i) => (i / (vals.length - 1)) * 200;
+  const y = (v) => 56 - (v / top) * 52;
+  const line = vals.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join('');
+  return `<div class="spark">
+    <div class="spark-axis"><span>${top}</span><span>${top / 2}</span><span>0</span></div>
+    <svg viewBox="0 0 200 60" preserveAspectRatio="none" aria-hidden="true">
+      <path class="spark-grid" d="M0,4H200M0,30H200M0,56H200"/>
+      <path class="spark-area" d="${line}L200,56L0,56Z"/>
+      <path class="spark-line" d="${line}"/>
+    </svg>
+  </div>`;
+}
+
+/** Anneau victoires / défaites. */
+function winRing(a) {
+  const C = 2 * Math.PI * 26;
+  const played = a.wins + a.losses + a.draws || 1;
+  const w = (a.wins / played) * C, l = (a.losses / played) * C;
+  return `<div class="wl-ring">
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <circle cx="32" cy="32" r="26" class="ring-bg"/>
+      <circle cx="32" cy="32" r="26" class="ring-loss" stroke-dasharray="${l} ${C}" stroke-dashoffset="${-w}"/>
+      <circle cx="32" cy="32" r="26" class="ring-win" stroke-dasharray="${w} ${C}"/>
+    </svg>
+    <div><b class="pos">${a.wins} V</b><b class="neg">${a.losses} D</b></div>
+  </div>`;
+}
+
+// Badges d'un match : multi-kills et clutchs (les plus forts d'abord).
+function matchBadges(r) {
+  const out = [];
+  const times = (n) => (n > 1 ? ` <i>x${n}</i>` : '');
+  if (r.k5) out.push(`<span class="mbadge ace">Ace${times(r.k5)}</span>`);
+  const clutch = new Map();
+  for (const n of r.clutches || []) clutch.set(n, (clutch.get(n) || 0) + 1);
+  for (const [n, c] of [...clutch].sort((x, y) => y[0] - x[0])) out.push(`<span class="mbadge clutch">1v${n}${times(c)}</span>`);
+  if (r.k4) out.push(`<span class="mbadge">4K${times(r.k4)}</span>`);
+  if (r.k3) out.push(`<span class="mbadge">3K${times(r.k3)}</span>`);
+  return out.join('');
+}
+
+function placeBadge(r) {
+  if (!r.place) return '';
+  if (r.mvp === 'match') return '<span class="badge mvp">MVP</span>';
+  if (r.mvp === 'team') return '<span class="badge team-mvp">MVP équipe</span>';
+  return `<span class="badge place" title="Place dans la partie (score de combat)">${r.place}<sup>${r.place === 1 ? 'er' : 'e'}</sup></span>`;
+}
 
 // Modes exclus de « Tous les modes » (comme sur les trackers) : parties perso et modes « fun ».
 const EXCLUDED_FROM_ALL = new Set(['', 'custom', 'deathmatch', 'hurm', 'ggteam', 'snowball', 'newmap', 'skirmish2v2', 'abilitydraftarena']);
@@ -1309,6 +1394,10 @@ PAGES.stats = async () => {
   state.statsFilter ||= { queue: 'competitive', act: state.assets.currentAct?.uuid || 'all' };
   const f = state.statsFilter;
   const QUEUE_F = [['competitive', 'Compétition'], ['unrated', 'Non classé'], ['swiftplay', 'Vélocité'], ['deathmatch', 'Combat à mort'], ['all', 'Tous les modes']];
+  const MATCH_PAGE = 20;
+  const mf = { agent: '', map: '' }; // filtres de la liste des matchs
+  let shown = MATCH_PAGE;
+  let allAgents = false;
   let data = null;
   let sync = null;
   let refreshedAt = 0;
@@ -1318,6 +1407,7 @@ PAGES.stats = async () => {
   const inQueue = (r) => (f.queue === 'all' ? !EXCLUDED_FROM_ALL.has(r.queue) : r.queue === f.queue);
   const inAct = (r) => f.act === 'all' || actOf(r) === f.act;
   const actName = (id) => (id === 'all' ? 'toutes les saisons' : acts.find((a) => a.uuid === id)?.name || 'cet acte');
+  const mapOf = (id) => state.assets.maps.find((m) => m.uuid === id) || null;
 
   function syncLine() {
     const s = sync || data?.sync;
@@ -1365,13 +1455,266 @@ PAGES.stats = async () => {
     else if (data && $('.empty')) draw(); // met à jour le message « synchronisation en cours »
   });
 
+  // ---------- Colonne de gauche ----------
+  function rankSide(actRank) {
+    const current = state.assets.currentAct?.uuid;
+    const past = f.act !== 'all' && f.act !== current;
+    // Meilleur rang de tous les actes connus, avec l'acte où il a été atteint.
+    let best = null;
+    for (const [id, r] of Object.entries(data.actRanks || {})) if (r.peak && (!best || r.peak > best.peak)) best = { peak: r.peak, act: id };
+    if (!best && data.rank?.peak) best = { peak: data.rank.peak, act: null };
+    if (!actRank?.tier && !best) return '';
+    const rt = tierOf(actRank?.tier), at = tierOf(actRank?.peak), bt = tierOf(best?.peak);
+    const bestAct = acts.find((x) => x.uuid === best?.act);
+    return `
+      <div class="panel side-card rank-side">
+        <div class="side-title">${past ? "Rang de fin d'acte" : 'Rang actuel'}</div>
+        <div class="rank-line">
+          ${rt?.icon && actRank?.tier ? `<img src="${rt.icon}" alt="">` : '<span class="rank-none"></span>'}
+          <div><div class="rank-name">${actRank?.tier ? esc(rt?.name) : 'Non classé'}</div>
+          <div class="st-sub">${actRank?.tier ? `${actRank.rr} RR` : ''}${actRank?.peak && actRank.peak !== actRank.tier ? `${actRank?.tier ? ' · ' : ''}max de l'acte : ${esc(at?.name || '')}` : ''}</div></div>
+        </div>
+        ${bt ? `
+          <div class="side-title" style="margin-top:14px">Meilleur rang</div>
+          <div class="rank-line">
+            ${bt.icon ? `<img src="${bt.icon}" alt="">` : ''}
+            <div><div class="rank-name">${esc(bt.name)}</div>${bestAct ? `<div class="st-sub">${esc(bestAct.name)}</div>` : ''}</div>
+          </div>` : ''}
+      </div>`;
+  }
+
+  function accuracySide(a, recs) {
+    const hsTrend = [...recs].reverse().filter((r) => r.head + r.body + r.leg > 0).slice(-20)
+      .map((r) => (r.head / (r.head + r.body + r.leg)) * 100);
+    return `
+      <div class="panel side-card">
+        <div class="side-title">Précision <span>${a.n} matchs</span></div>
+        <div class="acc-body">
+          ${hitFigure(a)}
+          <div class="acc-rows">
+            ${[['Tête', a.hs, a.head], ['Corps', a.bodyPct, a.body], ['Jambes', a.legPct, a.leg]].map(([l, v, hits], i) => `
+              <div class="acc-row ${i === 0 ? 'head' : ''}"><span>${l}</span><b>${pct(v)}</b><em>${f0(hits)} touches</em></div>`).join('')}
+          </div>
+        </div>
+        ${hsTrend.length >= 2 ? `<div class="side-sub">Headshot % par match <span>${hsTrend.length} derniers</span></div>${sparkline(hsTrend)}` : ''}
+      </div>`;
+  }
+
+  function rolesSide(recs) {
+    const roles = groupBy(recs, (r) => agentOf(r.agentId)?.role || null);
+    if (!roles.length) return '';
+    return `
+      <div class="panel side-card">
+        <div class="side-title">Rôles</div>
+        ${roles.map((g) => {
+          const icon = state.assets.agents.find((x) => x.role === g.key)?.roleIcon;
+          return `<div class="side-row">
+            ${icon ? `<img class="role-icon" src="${icon}" alt="">` : '<span class="role-icon"></span>'}
+            <div class="side-main"><b>${esc(g.key)}</b><div class="st-sub">${g.wins} V · ${g.losses} D</div></div>
+            <div class="side-num"><b class="${tone(g.winRate, 50)}">${pct(g.winRate)}</b><div class="st-sub">victoires</div></div>
+            <div class="side-num"><b>${f2(g.kda)}</b><div class="st-sub">KDA</div></div>
+          </div>`;
+        }).join('')}
+      </div>`;
+  }
+
+  function weaponsSide(recs) {
+    const kills = {};
+    for (const r of recs) for (const [k, v] of Object.entries(r.weapons || {})) kills[k] = (kills[k] || 0) + v;
+    const total = Object.values(kills).reduce((s, v) => s + v, 0);
+    const info = (k) => (k === 'ability' ? { name: 'Capacités' } : state.assets.weapons?.find((w) => w.uuid.toLowerCase() === k) || null);
+    const list = Object.entries(kills).filter(([k]) => info(k)).sort((x, y) => y[1] - x[1]).slice(0, 6);
+    if (!list.length) return '';
+    return `
+      <div class="panel side-card">
+        <div class="side-title">Armes favorites <span>éliminations</span></div>
+        ${list.map(([k, v]) => {
+          const w = info(k);
+          const cat = WEAPON_CATEGORY[String(w.category || '').split('::').pop()] || '';
+          return `<div class="weapon-row">
+            <div class="weapon-art">${w.icon ? `<img src="${w.icon}" alt="">` : ''}</div>
+            <div class="side-main"><b>${esc(w.name)}</b>${cat ? `<div class="st-sub">${esc(cat)}</div>` : ''}</div>
+            <div class="side-num"><b>${f0(v)}</b><div class="st-sub">${pct((v / total) * 100)}</div></div>
+            <div class="weapon-bar"><div style="width:${(v / list[0][1]) * 100}%"></div></div>
+          </div>`;
+        }).join('')}
+      </div>`;
+  }
+
+  function mapsSide(maps) {
+    if (!maps.length) return '';
+    return `
+      <div class="panel side-card">
+        <div class="side-title">Cartes <span>victoires</span></div>
+        ${[...maps].sort((x, y) => y.winRate - x.winRate || y.n - x.n).map((g) => {
+          const mp = mapOf(g.key);
+          return `<div class="map-row" ${mp?.listIcon ? `style="--map:url('${mp.listIcon}')"` : ''}>
+            <b>${esc(mp?.name || '?')}</b>
+            <div class="side-num"><b class="${tone(g.winRate, 50)}">${pct(g.winRate)}</b><div class="st-sub">${g.wins} V · ${g.losses} D</div></div>
+          </div>`;
+        }).join('')}
+      </div>`;
+  }
+
+  // ---------- Vue d'ensemble ----------
+  function overview(a, recs, actRank) {
+    const resultLabel = { win: 'Victoire', loss: 'Défaite', draw: 'Égalité' };
+    const queueLabel = QUEUE_F.find(([v]) => v === f.queue)?.[1] || '';
+    const rt = tierOf(actRank?.tier);
+    const key = (label, value, sub, cls = '') => `<div class="ov-key"><div class="st-label">${label}</div><div class="ov-key-val ${cls}">${value}</div>${sub ? `<div class="st-sub">${sub}</div>` : ''}</div>`;
+    const cell = (label, value, cls = '') => `<div class="ov-cell"><div class="st-label">${label}</div><b class="${cls}">${value}</b></div>`;
+    const showRank = (f.queue === 'competitive' || f.queue === 'all') && actRank?.tier;
+    return `
+      <div class="panel st-overview">
+        <div class="ov-head">
+          <div>
+            <div class="ov-title">${esc(actName(f.act))} · ${esc(queueLabel)}</div>
+            <div class="st-sub">${a.timed === a.n && a.lengthMs ? `${hours(a.lengthMs)} de jeu · ` : ''}${a.n} matchs · ${f0(a.rounds)} manches</div>
+          </div>
+          <div class="form">${recs.slice(0, 10).map((r) => `<span class="form-dot ${r.result}" title="${resultLabel[r.result]}">${r.result === 'win' ? 'V' : r.result === 'loss' ? 'D' : 'N'}</span>`).join('')}</div>
+        </div>
+        <div class="ov-top">
+          ${showRank ? `<div class="ov-rank">${rt?.icon ? `<img src="${rt.icon}" alt="">` : ''}<div><div class="st-label">Rang</div><div class="ov-rank-name">${esc(rt?.name || '')}</div></div></div>` : ''}
+          <div class="ov-hero"><div class="st-label">K/D</div><div class="hero-value">${f2(a.kd)}</div></div>
+          ${winRing(a)}
+        </div>
+        <div class="ov-keys">
+          ${key('Dégâts / manche', f1(a.adr), 'ADR')}
+          ${key('K/D', f2(a.kd), `${f0(a.kills)} K · ${f0(a.deaths)} D`, tone(a.kd, 1))}
+          ${key('Headshot', pct(a.hs), `${f0(a.head)} touches à la tête`)}
+          ${key('Victoires', pct(a.winRate), `${a.wins} V · ${a.losses} D${a.draws ? ` · ${a.draws} N` : ''}`, tone(a.winRate, 50))}
+        </div>
+        <div class="ov-grid">
+          ${cell('Victoires', f0(a.wins))}
+          ${cell('KAST', pct(a.kastPct))}
+          ${cell(`<span title="${DD_TITLE}">DDΔ / manche</span>`, signed(a.ddDelta), tone(a.ddDelta, 0))}
+          ${cell('Kills', f0(a.kills))}
+          ${cell('Morts', f0(a.deaths))}
+          ${cell('Assists', f0(a.assists))}
+          ${cell('ACS', f1(a.acs))}
+          ${cell('KAD', f2(a.kda))}
+          ${cell('Kills / manche', f2(a.kpr))}
+          ${cell('First bloods', f0(a.fb))}
+          ${cell('Manches parfaites', a.detailed ? f0(a.flawless) : '—')}
+          ${cell('Aces', f0(a.k5))}
+        </div>
+      </div>
+      <div class="ov-strip">
+        <div><div class="st-label">Manches gagnées</div><b class="${tone(a.roundWin, 50)}">${a.roundWin == null ? '—' : pct(a.roundWin)}</b><div class="st-sub">${f0(a.roundsWon)} / ${f0(a.roundsTotal)}</div></div>
+        <div><div class="st-label">Duels d'ouverture</div><b class="${tone(a.entry, 50)}">${a.entry == null ? '—' : pct(a.entry)}</b><div class="st-sub">${f0(a.fb)} FB · ${f0(a.fd)} FD</div></div>
+        <div><div class="st-label">Clutchs</div><b>${a.detailed ? f0(a.clutches) : '—'}</b><div class="st-sub">manches sauvées seul</div></div>
+        <div><div class="st-label">Multi-kills</div><b>${f0(a.k3 + a.k4 + a.k5)}</b><div class="st-sub">${f0(a.k3)} 3K · ${f0(a.k4)} 4K · ${f0(a.k5)} ACE</div></div>
+      </div>`;
+  }
+
+  function agentsTable(agents) {
+    const AGENTS_SHOWN = 6;
+    return `
+      <h2>Agents <span class="timer">${agents.length} joués</span></h2>
+      <div class="table-wrap"><table class="stats-table agents-table">
+        <tr><th>Agent</th><th>Matchs</th><th>Victoires</th><th>K/D</th><th>ADR</th><th>ACS</th><th title="${DD_TITLE}">DDΔ</th><th>Meilleure carte</th></tr>
+        ${(allAgents ? agents : agents.slice(0, AGENTS_SHOWN)).map((g) => {
+          const ag = agentOf(g.key);
+          // Meilleure carte : au moins 2 matchs dessus quand c'est possible, et jamais une carte sans victoire.
+          const byMap = groupBy(g.list, 'mapId');
+          const pool = byMap.some((m) => m.n >= 2) ? byMap.filter((m) => m.n >= 2) : byMap;
+          const best = pool.sort((x, y) => y.winRate - x.winRate || y.n - x.n)[0];
+          const bm = best?.wins && mapOf(best.key);
+          return `<tr>
+            <td><div class="row">${ag ? `<img src="${ag.icon}" alt="">` : ''}<div><b>${esc(ag?.name || '?')}</b><div class="st-sub">${g.timed === g.n && g.lengthMs ? hours(g.lengthMs) : esc(ag?.role || '')}</div></div></div></td>
+            <td>${g.n}</td>
+            <td class="${tone(g.winRate, 50)}">${pct(g.winRate)}</td>
+            <td class="${tone(g.kd, 1)}">${f2(g.kd)}</td>
+            <td>${f1(g.adr)}</td><td>${f1(g.acs)}</td>
+            <td class="${tone(g.ddDelta, 0)}">${signed(g.ddDelta)}</td>
+            <td>${bm ? `<b>${esc(bm.name)}</b> <span class="${tone(best.winRate, 50)}">${pct(best.winRate)}</span>` : '—'}</td>
+          </tr>`;
+        }).join('')}
+      </table></div>
+      ${agents.length > AGENTS_SHOWN ? `<div class="sm-more"><button class="btn ghost" data-all-agents>${allAgents ? 'Réduire' : `Voir les ${agents.length} agents`}</button></div>` : ''}`;
+  }
+
+  // ---------- Liste des matchs, façon tracker ----------
+  function matchList(recs, agents, maps) {
+    const list = recs.filter((r) => (!mf.agent || r.agentId === mf.agent) && (!mf.map || r.mapId === mf.map));
+    const a = aggregate(list);
+    const top = groupBy(list, 'agentId').slice(0, 3);
+    const strip = list.slice(0, 8);
+    const page = list.slice(0, shown);
+
+    const days = [];
+    for (const r of page) {
+      const day = new Date(r.startedAt).toDateString();
+      if (days.at(-1)?.day !== day) days.push({ day, at: r.startedAt, recs: [] });
+      days.at(-1).recs.push(r);
+    }
+
+    const row = (r) => {
+      const ag = agentOf(r.agentId), mp = mapOf(r.mapId), t = tierOf(r.tier);
+      const shots = r.head + r.body + r.leg;
+      const dd = r.received != null ? (r.damage - r.received) / Math.max(1, r.rounds) : null;
+      return `<div class="sm-row ${r.result}">
+        <div class="sm-bar"></div>
+        ${ag ? `<img class="sm-agent" src="${ag.icon}" alt="" title="${esc(ag.name)}">` : '<span class="sm-agent"></span>'}
+        <div class="sm-info"><div class="sm-map">${esc(mp?.name || '?')}</div><div class="st-sub">${timeAgo(r.startedAt)}${f.queue === 'all' ? ` · ${esc(queueName(r.queue))}` : ''}</div></div>
+        <div class="sm-place">${placeBadge(r)}</div>
+        <div class="sm-tier">${t?.icon && r.tier ? `<img src="${t.icon}" alt="" title="${esc(t.name)}">` : ''}</div>
+        <div class="sm-score"><div class="st-label">Score</div><b>${r.score ? `${r.score[0]} : ${r.score[1]}` : '—'}</b></div>
+        <div class="sm-badges">${matchBadges(r)}</div>
+        <div class="sm-stat"><div class="st-label">K/D</div><b class="${tone(r.kills / Math.max(1, r.deaths), 1)}">${f1(r.kills / Math.max(1, r.deaths))}</b></div>
+        <div class="sm-stat kda"><div class="st-label">K / D / A</div><b>${r.kills} / ${r.deaths} / ${r.assists}</b></div>
+        <div class="sm-stat col-dd" title="${DD_TITLE}"><div class="st-label">DDΔ</div><b class="${tone(dd, 0)}">${signed(dd)}</b></div>
+        <div class="sm-stat col-hs"><div class="st-label">HS %</div><b>${shots ? f0((r.head / shots) * 100) : '—'}</b></div>
+        <div class="sm-stat"><div class="st-label">ACS</div><b>${f0(r.combat / Math.max(1, r.rounds))}</b></div>
+      </div>`;
+    };
+
+    const dayHead = (d) => {
+      const s = aggregate(d.recs);
+      return `<div class="sm-day">
+        <b>${new Date(d.at).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })}</b>
+        <span class="sm-count">${s.n}</span>
+        <span><b class="pos">${s.wins} V</b> · <b class="neg">${s.losses} D</b></span>
+        <span class="spacer"></span>
+        <span>K/D <b class="${tone(s.kd, 1)}">${f2(s.kd)}</b></span>
+        <span>KDA <b>${f2(s.kda)}</b></span>
+        <span class="col-dd">DDΔ <b class="${tone(s.ddDelta, 0)}">${signed(s.ddDelta)}</b></span>
+        <span class="col-hs">HS <b>${pct(s.hs)}</b></span>
+        <span>ACS <b>${f0(s.acs)}</b></span>
+      </div>`;
+    };
+
+    return `
+      <h2>Derniers matchs <span class="timer">${list.length} dans cette sélection</span></h2>
+      <div class="row sm-filters">
+        <select id="sm-agent" class="pill-select"><option value="">Tous les agents</option>${agents.map((g) => `<option value="${g.key}" ${mf.agent === g.key ? 'selected' : ''}>${esc(agentOf(g.key)?.name || '?')} · ${g.n}</option>`).join('')}</select>
+        <select id="sm-map" class="pill-select"><option value="">Toutes les cartes</option>${maps.map((g) => `<option value="${g.key}" ${mf.map === g.key ? 'selected' : ''}>${esc(mapOf(g.key)?.name || '?')} · ${g.n}</option>`).join('')}</select>
+      </div>
+      ${list.length ? `
+        <div class="panel sm-summary">
+          <div class="sm-total">
+            <div><b class="pos">${a.wins} V</b> - <b class="neg">${a.losses} D</b> <span class="muted">(${f0(a.winRate)} %)</span></div>
+            <div class="st-sub">${f2(a.kd)} K/D · ${f0(a.adr)} ADR</div>
+          </div>
+          ${top.map((g) => {
+            const ag = agentOf(g.key);
+            return `<div class="sm-top-agent">${ag ? `<img src="${ag.icon}" alt="">` : ''}<div><b>${g.wins} V - ${g.losses} D</b> <span class="muted">(${f0(g.winRate)} %)</span><div class="st-sub">K/D ${f2(g.kd)}</div></div></div>`;
+          }).join('')}
+        </div>
+        <div class="sm-strip">
+          ${strip.map((r) => `<div class="sm-chip ${r.result}"><div class="st-sub">${timeAgo(r.startedAt)}</div><b>${r.score ? `${r.score[0]} : ${r.score[1]}` : '—'}</b><div class="st-sub">K/D ${f1(r.kills / Math.max(1, r.deaths))}</div></div>`).join('')}
+        </div>
+        <div class="sm-list">${days.map((d) => dayHead(d) + d.recs.map(row).join('')).join('')}</div>
+        ${list.length > shown ? `<div class="sm-more"><button class="btn ghost" data-more>Afficher ${Math.min(MATCH_PAGE, list.length - shown)} matchs de plus</button></div>` : ''}`
+      : '<div class="panel sm-none">Aucun match ne correspond à ces filtres.</div>'}`;
+  }
+
   function draw() {
     const all = data.records;
     const inActAnyQueue = all.filter(inAct);
     const recs = inActAnyQueue.filter(inQueue);
     const current = state.assets.currentAct?.uuid;
     const actRank = f.act === 'all' || f.act === current ? data.rank : data.actRanks[f.act];
-    const rankLabel = f.act !== 'all' && f.act !== current ? 'Rang de fin d\'acte' : 'Rang actuel';
     const rr = data.rr.filter((u) => u.tier > 0 && (f.act === 'all' || u.seasonId === f.act));
 
     // Actes proposés : l'acte en cours + ceux où tu as des matchs en mémoire.
@@ -1385,32 +1728,21 @@ PAGES.stats = async () => {
         <h1><small>Tes performances</small>Statistiques</h1>
         <div class="sync-box"><span id="sync-line">${syncLine()}</span><button class="btn ghost" id="st-refresh">Actualiser</button></div>
       </div>
-      <div class="row" style="margin-bottom:20px;flex-wrap:wrap">
-        <select id="st-act" class="act-select">
+      <div class="row st-filters">
+        <select id="st-act" class="act-select pill-select">
           ${actOptions.map((a) => `<option value="${a.uuid}" ${f.act === a.uuid ? 'selected' : ''}>${esc(a.name)}${a.uuid === current ? ' (en cours)' : ''} · ${counts.get(a.uuid) || 0} matchs</option>`).join('')}
           <option value="all" ${f.act === 'all' ? 'selected' : ''}>Toutes les saisons · ${[...counts.values()].reduce((s, v) => s + v, 0)} matchs</option>
         </select>
         <div class="chip-group">${QUEUE_F.map(([v, l]) => `<button data-q="${v}" class="${f.queue === v ? 'on' : ''}">${l}</button>`).join('')}</div>
       </div>`;
 
-    const rt = tierOf(actRank?.tier), pt = tierOf(actRank?.peak);
-    const rankCard = actRank && (actRank.tier || actRank.games)
-      ? `<div class="panel rank-stat">
-          ${rt?.icon && actRank.tier ? `<img src="${rt.icon}" alt="">` : ''}
-          <div>
-            <div class="st-label">${rankLabel}</div>
-            <div class="st-value">${actRank.tier ? esc(rt?.name) : 'Non classé'}</div>
-            <div class="st-sub">${actRank.tier ? `${actRank.rr} RR · ` : ''}Meilleur : ${esc(pt?.name || '—')}</div>
-          </div>
-        </div>`
-      : '';
-
     if (!recs.length) {
       const st = sync || data.sync;
       const syncing = st?.running || !st?.lastSync; // première connexion : la synchro n'a encore jamais tourné
       const tooOld = f.act !== 'all' && oldest && (acts.find((a) => a.uuid === f.act)?.end || 0) < oldest;
+      const rankCard = rankSide(actRank);
       content.innerHTML = `${head}
-        ${rankCard ? `<div class="stats-top single">${rankCard}</div>` : ''}
+        ${rankCard ? `<div class="st-solo">${rankCard}</div>` : ''}
         <div class="empty">
           <h3>${syncing ? 'Synchronisation en cours…' : 'Aucun match'}</h3>
           <div>${syncing
@@ -1423,110 +1755,44 @@ PAGES.stats = async () => {
       return;
     }
 
+    // Les filtres de la liste ne gardent que des valeurs encore présentes dans la sélection.
     const a = aggregate(recs);
     const agents = groupBy(recs, 'agentId');
     const maps = groupBy(recs, 'mapId');
-    const weapons = {};
-    for (const r of recs) for (const [k, v] of Object.entries(r.weapons || {})) weapons[k] = (weapons[k] || 0) + v;
-    const wList = Object.entries(weapons).sort((x, y) => y[1] - x[1]).slice(0, 8);
-    const wTotal = Object.values(weapons).reduce((s, v) => s + v, 0) || 1;
-    const weaponInfo = (k) =>
-      k === 'ability' ? { name: 'Capacités' } : k === 'other' ? { name: 'Autre' } : state.assets.weapons?.find((w) => w.uuid.toLowerCase() === k) || { name: 'Arme' };
-    const resultLabel = { win: 'Victoire', loss: 'Défaite', draw: 'Égalité' };
-    const tile = (label, value, sub) =>
-      `<div class="stat-tile"><div class="st-label">${label}</div><div class="st-value">${value}</div>${sub ? `<div class="st-sub">${sub}</div>` : ''}</div>`;
+    if (mf.agent && !agents.some((g) => g.key === mf.agent)) mf.agent = '';
+    if (mf.map && !maps.some((g) => g.key === mf.map)) mf.map = '';
 
     content.innerHTML = `${head}
-      <div class="stats-top ${rankCard ? '' : 'single'}">
-        <div class="panel hero-stat">
-          <div class="st-label">K/D · ${a.n} matchs · ${esc(actName(f.act))}</div>
-          <div class="hero-value">${f2(a.kd)}</div>
-          <div class="st-sub">${f0(a.kills)} éliminations · ${f0(a.deaths)} morts · ${f0(a.rounds)} manches</div>
-          <div class="form">${recs.slice(0, 10).map((r) => `<span class="form-dot ${r.result}" title="${resultLabel[r.result]}">${r.result === 'win' ? 'V' : r.result === 'loss' ? 'D' : 'N'}</span>`).join('')}<span class="muted" style="font-size:11px;margin-left:6px">${Math.min(10, recs.length)} derniers</span></div>
-        </div>
-        ${rankCard}
-      </div>
+      <div class="st-layout">
+        <aside class="st-side">
+          ${rankSide(actRank)}
+          ${accuracySide(a, recs)}
+          ${rolesSide(recs)}
+          ${weaponsSide(recs)}
+          ${mapsSide(maps)}
+        </aside>
+        <div class="st-main">
+          ${overview(a, recs, actRank)}
 
-      <div class="stat-tiles">
-        ${tile('Victoires', pct(a.winRate), `${a.wins} V · ${a.losses} D${a.draws ? ` · ${a.draws} N` : ''}`)}
-        ${tile('KDA', f2(a.kda), `${f0(a.assists)} assistances`)}
-        ${tile('ACS', f0(a.acs), 'score de combat / manche')}
-        ${tile('ADR', f0(a.adr), 'dégâts / manche')}
-        ${tile('Headshot', pct(a.hs), 'des balles touchées')}
-        ${tile('KAST', pct(a.kastPct), 'manches avec impact')}
-        ${tile('Kills / match', f2(a.kpm), `${f0(a.kills)} au total`)}
-        ${tile('First bloods', f0(a.fb), `${f0(a.fd)} first deaths`)}
-      </div>
+          ${rr.length >= 2 && (f.queue === 'competitive' || f.queue === 'all') ? `
+            <h2>Évolution du RR <span class="timer">${rr.length} matchs classés</span></h2>
+            <div class="panel"><div id="rr-chart" class="chart-box"></div></div>` : ''}
 
-      ${rr.length >= 2 && (f.queue === 'competitive' || f.queue === 'all') ? `
-        <h2>Évolution du RR <span class="timer">${rr.length} matchs classés</span></h2>
-        <div class="panel"><div id="rr-chart" class="chart-box"></div></div>` : ''}
-
-      <h2>ACS par match <span class="timer">${recs.length > 80 ? '80 derniers · ' : ''}du plus ancien au plus récent</span></h2>
-      <div class="panel">
-        <div class="legend">
-          <span><i style="background:${CHART.pos}"></i>Victoire</span>
-          <span><i style="background:${CHART.neg}"></i>Défaite</span>
-          ${a.draws ? `<span><i style="background:${CHART.draw}"></i>Égalité</span>` : ''}
-        </div>
-        <div id="acs-chart" class="chart-box"></div>
-      </div>
-
-      <div class="cols-2" style="margin-top:14px">
-        <div>
-          <h2>Précision</h2>
+          <h2>ACS par match <span class="timer">${recs.length > 80 ? '80 derniers · ' : ''}du plus ancien au plus récent</span></h2>
           <div class="panel">
-            ${[['Tête', a.hs], ['Corps', a.bodyPct], ['Jambes', a.legPct]].map(([l, v]) => `
-              <div class="meter-row"><span>${l}</span><div class="meter"><div style="width:${v}%"></div></div><b>${pct(v)}</b></div>`).join('')}
+            <div class="legend">
+              <span><i style="background:${CHART.pos}"></i>Victoire</span>
+              <span><i style="background:${CHART.neg}"></i>Défaite</span>
+              ${a.draws ? `<span><i style="background:${CHART.draw}"></i>Égalité</span>` : ''}
+            </div>
+            <div id="acs-chart" class="chart-box"></div>
           </div>
-        </div>
-        <div>
-          <h2>Moments forts</h2>
-          <div class="stat-tiles small">
-            ${tile('3K', f0(a.k3))}${tile('4K', f0(a.k4))}${tile('ACE', f0(a.k5))}
-            ${tile('First bloods', f0(a.fb))}${tile('First deaths', f0(a.fd))}${tile('Duels d\'ouverture', a.fb + a.fd ? pct((a.fb / (a.fb + a.fd)) * 100) : '—', 'gagnés')}
-          </div>
-        </div>
-      </div>
 
-      <h2>Agents</h2>
-      <table class="stats-table">
-        <tr><th>Agent</th><th>Matchs</th><th>Victoires</th><th>K/D</th><th>ACS</th><th>ADR</th><th>HS</th></tr>
-        ${agents.map((g) => {
-          const ag = agentOf(g.key);
-          return `<tr>
-            <td><div class="row">${ag ? `<img src="${ag.icon}" alt="">` : ''}<b>${esc(ag?.name || '?')}</b></div></td>
-            <td>${g.n}</td><td>${pct(g.winRate)}</td><td>${f2(g.kd)}</td><td>${f0(g.acs)}</td><td>${f0(g.adr)}</td><td>${pct(g.hs)}</td></tr>`;
-        }).join('')}
-      </table>
-
-      <div class="cols-2">
-        <div>
-          <h2>Cartes</h2>
-          <table class="stats-table">
-            <tr><th>Carte</th><th>Matchs</th><th>Victoires</th><th>K/D</th><th>ACS</th></tr>
-            ${maps.map((g) => {
-              const mp = state.assets.maps.find((x) => x.uuid === g.key);
-              return `<tr>
-                <td><div class="row">${mp?.listIcon ? `<img class="map-thumb" src="${mp.listIcon}" alt="">` : ''}<b>${esc(mp?.name || '?')}</b></div></td>
-                <td>${g.n}</td><td>${pct(g.winRate)}</td><td>${f2(g.kd)}</td><td>${f0(g.acs)}</td></tr>`;
-            }).join('')}
-          </table>
+          ${agentsTable(agents)}
+          ${matchList(recs, agents, maps)}
+          ${f.act === 'all' && oldest ? `<p class="muted" style="font-size:12px;margin-top:18px">Matchs en mémoire depuis le ${new Date(oldest).toLocaleDateString('fr-FR')}. Riot ne fournit que tes derniers matchs ; Precise Gunplay garde ensuite tout ton historique.</p>` : ''}
         </div>
-        <div>
-          <h2>Armes</h2>
-          <table class="stats-table">
-            <tr><th>Arme</th><th>Kills</th><th>Part</th></tr>
-            ${wList.map(([k, v]) => {
-              const w = weaponInfo(k);
-              return `<tr>
-                <td><div class="row">${w.icon ? `<img class="weapon-icon" src="${w.icon}" alt="">` : '<span class="weapon-icon"></span>'}<b>${esc(w.name)}</b></div></td>
-                <td>${v}</td><td>${pct((v / wTotal) * 100)}</td></tr>`;
-            }).join('')}
-          </table>
-        </div>
-      </div>
-      ${f.act === 'all' && oldest ? `<p class="muted" style="font-size:12px;margin-top:18px">Matchs en mémoire depuis le ${new Date(oldest).toLocaleDateString('fr-FR')}. Riot ne fournit que tes derniers matchs ; Precise Gunplay garde ensuite tout ton historique.</p>` : ''}`;
+      </div>`;
 
     const drawCharts = () => {
       const rrEl = $('#rr-chart'), acsEl = $('#acs-chart');
@@ -1540,16 +1806,27 @@ PAGES.stats = async () => {
   }
 
   function bind() {
-    $('#st-act').onchange = (e) => { f.act = e.target.value; draw(); };
+    $('#st-act').onchange = (e) => { f.act = e.target.value; shown = MATCH_PAGE; state.refreshing = true; draw(); };
     $('#st-refresh').onclick = async () => {
       sync = await call('stats-sync').catch(() => sync);
       $('#sync-line').innerHTML = syncLine();
     };
+    const agentSel = $('#sm-agent'), mapSel = $('#sm-map');
+    if (agentSel) agentSel.onchange = (e) => { mf.agent = e.target.value; shown = MATCH_PAGE; redrawKeepingScroll(); };
+    if (mapSel) mapSel.onchange = (e) => { mf.map = e.target.value; shown = MATCH_PAGE; redrawKeepingScroll(); };
+  }
+
+  function redrawKeepingScroll() {
+    const scroll = content.scrollTop;
+    draw();
+    content.scrollTop = scroll;
   }
 
   content.onclick = (e) => {
     const q = e.target.closest('[data-q]');
-    if (q) { f.queue = q.dataset.q; state.refreshing = true; draw(); }
+    if (q) { f.queue = q.dataset.q; shown = MATCH_PAGE; state.refreshing = true; draw(); }
+    if (e.target.closest('[data-more]')) { shown += MATCH_PAGE; redrawKeepingScroll(); }
+    if (e.target.closest('[data-all-agents]')) { allAgents = !allAgents; redrawKeepingScroll(); }
   };
 
   // Vérifie s'il y a de nouveaux matchs (1 à 2 requêtes si tout est déjà en mémoire), avant le premier affichage
