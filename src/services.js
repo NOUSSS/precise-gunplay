@@ -526,8 +526,15 @@ class Services {
   async friends() {
     const [fr, pr] = await Promise.all([this.client.getFriends(), this.client.getPresences().catch(() => null)]);
     const presences = new Map();
+    let myParty = null; // pour repérer les amis qui sont dans ton groupe
     for (const p of pr?.presences || []) {
-      if (p.puuid === this.client.puuid) continue;
+      if (p.puuid === this.client.puuid) {
+        if (p.product === 'valorant') {
+          const d = decodePresence(p);
+          myParty = d?.partyId || d?.partyPresenceData?.partyId || null;
+        }
+        continue;
+      }
       const prev = presences.get(p.puuid);
       if (!prev || p.product === 'valorant') presences.set(p.puuid, p);
     }
@@ -538,6 +545,13 @@ class Services {
       const party = d?.partyPresenceData || {};
       const player = d?.playerPresenceData || {};
       const loop = d?.sessionLoopState || match.sessionLoopState || null;
+      const cardId = d?.playerCardId || player.playerCardId;
+      const titleId = d?.playerTitleId || player.playerTitleId;
+      const card = cardId ? this.assets.cardById.get(String(cardId).toLowerCase()) : null;
+      const title = titleId ? this.assets.titleById.get(String(titleId).toLowerCase()) : null;
+      const map = d ? this.assets.map(d.matchMap || match.matchMap || d.partyOwnerMatchMap || party.partyOwnerMatchMap) : null;
+      const partyId = d?.partyId || party.partyId || null;
+      const seen = Number(f.last_online_ts) || null; // en ms, parfois en secondes
       return {
         puuid: f.puuid,
         pid: f.pid,
@@ -547,12 +561,18 @@ class Services {
         online: !!p && p.state !== 'offline',
         status: p?.state || 'offline', // chat | away | dnd | mobile
         product: p?.product || null,
+        lastOnline: seen && seen < 1e12 ? seen * 1000 : seen,
+        card: card ? { small: card.small, wide: card.wide } : null,
+        title: title?.name || null,
         valorant: d
           ? {
               loop, // MENUS | PREGAME | INGAME
               queue: d.queueId || match.queueId || '',
-              map: this.assets.map(d.matchMap || match.matchMap)?.name || null,
+              map: map ? { name: map.name, icon: map.listIcon, splash: map.splash } : null,
               partySize: d.partySize || party.partySize || 1,
+              partyMax: d.maxPartySize || party.maxPartySize || 5,
+              partyState: d.partyState || party.partyState || '', // MATCHMAKING = en file
+              withMe: !!(myParty && partyId === myParty),
               level: d.accountLevel || player.accountLevel || null,
               tier: d.competitiveTier ?? player.competitiveTier ?? 0,
               score:
