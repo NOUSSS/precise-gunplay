@@ -1048,7 +1048,7 @@ PAGES.live = async () => {
         <div>
           <div>
             <div class="phase">${d.state === 'pregame' ? 'Sélection d\'agent' : 'En jeu'} · ${esc(queueName(d.queue))}</div>
-            <div class="mapname">${esc(d.map?.name || 'Carte inconnue')}</div>
+            <div class="mapname">${esc(d.map?.name || 'Carte inconnue')}${d.side ? `<span class="pill side ${d.side}">${d.side === 'attack' ? 'Attaque' : 'Défense'}</span>` : ''}</div>
           </div>
           ${d.state === 'pregame' ? `<div class="countdown" data-ends="${d.endsAt}">${fmtDuration(d.endsAt - Date.now())}</div>` : ''}
           ${d.score ? `<div class="live-score" title="Round ${d.score[0] + d.score[1] + 1}"><span class="ally">${d.score[0]}</span><span class="sep">–</span><span class="enemy">${d.score[1]}</span></div>` : ''}
