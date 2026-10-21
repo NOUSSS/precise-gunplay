@@ -540,6 +540,9 @@ input[type=range] { accent-color: var(--red); width: 220px; }
 .match-head::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, #0a0d16f0, #0a0d1640); }
 .match-head > div { position: relative; z-index: 1; padding: 20px 24px; width: 100%; display: flex; align-items: flex-end; gap: 20px; }
 .match-head .mapname { font-family: var(--font-display); font-size: 38px; font-weight: 700; letter-spacing: -.01em; line-height: 1.05; }
+.pill.side { vertical-align: middle; margin-left: 14px; font-family: var(--font); letter-spacing: .12em; text-transform: uppercase; }
+.pill.side.attack { background: var(--red-dim); color: #ff5a70; }
+.pill.side.defense { background: #14e5c41f; color: var(--teal); }
 .phase { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; letter-spacing: .14em; color: #ff5a70; text-transform: uppercase; font-weight: 700; }
 .phase::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--red); animation: pulse 1.6s ease-in-out infinite; }
 .countdown { margin-left: auto; font-family: var(--font-display); font-size: 34px; font-weight: 700; font-variant-numeric: tabular-nums; }

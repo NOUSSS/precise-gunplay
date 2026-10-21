@@ -12,6 +12,11 @@ const FREE_AGENTS = [
 
 const CURRENCY_IDS = Object.fromEntries(Object.entries(CURRENCIES).map(([id, k]) => [k, id]));
 
+// Rounds par mi-temps des modes avec attaque / défense, par dossier du mode de jeu
+// (« /Game/GameModes/Bomb/BombGameMode.BombGameMode_C ») : vaut aussi pour les parties personnalisées.
+const HALF_ROUNDS = { Bomb: 12, QuickBomb: 3, Swiftplay_EndOfRoundCredits: 4, OneForAll: 4 };
+const halfRounds = (modeId) => HALF_ROUNDS[/\/GameModes\/(?:_Development\/)?([^/]+)\//.exec(modeId || '')?.[1]] || null;
+
 function price(cost) {
   if (!cost) return null;
   const [cur, amount] = Object.entries(cost)[0] || [];
@@ -38,6 +43,7 @@ class Services {
     this.recentQueue = [];
     this.recentRunning = 0;
     this.stats = null; // branché par main.js (calcul des résumés de match)
+    this.liveScore = null; // dernier score lu pour la partie en cours { matchId, score }
   }
 
   // ---------- Rangs ----------
@@ -238,6 +244,18 @@ class Services {
     }
   }
 
+  /**
+   * Côté joué (attaque / défense) pour le score [nous, eux] donné. Red attaque en première mi-temps.
+   * null hors modes à côtés, match terminé, et en prolongation / round décisif (ordre des côtés non vérifié).
+   */
+  sideAt(teamId, modeId, score = [0, 0]) {
+    const half = halfRounds(modeId);
+    if (!half || (teamId !== 'Red' && teamId !== 'Blue')) return null;
+    const round = score[0] + score[1];
+    if (Math.max(...score) > half || round >= 2 * half) return null;
+    return (teamId === 'Red') === (round < half) ? 'attack' : 'defense';
+  }
+
   /** Score de la partie en cours [nous, eux], lu dans notre propre présence (mise à jour à chaque round). */
   async myMatchScore() {
     const pr = await this.client.getPresences().catch(() => null);
@@ -268,6 +286,7 @@ class Services {
           map: this.assets.map(m.MapID),
           queue: m.QueueID,
           endsAt: Date.now() + (m.PhaseTimeRemainingNS || 0) / 1e6,
+          side: this.sideAt(m.AllyTeam?.TeamID, m.Mode),
           allies,
           enemies: [],
         };
@@ -285,12 +304,19 @@ class Services {
           m.MatchmakingData?.QueueID
         );
         const teamOf = new Map((m.Players || []).map((p) => [p.Subject, p.TeamID]));
+        const prev = this.liveScore;
+        let score = await this.myMatchScore();
+        // Présence encore figée sur le score du match précédent : on l'ignore jusqu'à sa mise à jour.
+        if (score && prev && prev.matchId !== m.MatchID && score[0] === prev.score[0] && score[1] === prev.score[1] && score[0] + score[1] > 0) score = null;
+        if (!score && prev?.matchId === m.MatchID) score = prev.score; // présence illisible : dernier score connu
+        if (score) this.liveScore = { matchId: m.MatchID, score };
         return {
           state: 'ingame',
           matchId: m.MatchID,
           map: this.assets.map(m.MapID),
           queue: m.MatchmakingData?.QueueID || null,
-          score: await this.myMatchScore(),
+          score,
+          side: this.sideAt(myTeam, m.ModeID, score || [0, 0]), // sans score : début de match
           allies: all.filter((p) => teamOf.get(p.puuid) === myTeam),
           enemies: all.filter((p) => teamOf.get(p.puuid) !== myTeam),
         };
