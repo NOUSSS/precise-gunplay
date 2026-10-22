@@ -17,6 +17,28 @@ const CURRENCY_IDS = Object.fromEntries(Object.entries(CURRENCIES).map(([id, k])
 const HALF_ROUNDS = { Bomb: 12, QuickBomb: 3, Swiftplay_EndOfRoundCredits: 4, OneForAll: 4 };
 const halfRounds = (modeId) => HALF_ROUNDS[/\/GameModes\/(?:_Development\/)?([^/]+)\//.exec(modeId || '')?.[1]] || null;
 
+// Groupes de 2 joueurs ou plus : `party` = n° du groupe dans son équipe (Groupe 1, 2…),
+// `partyIdx` = n° unique dans la partie, qui donne sa couleur. Ton groupe d'abord (toujours la même
+// couleur d'un match à l'autre), puis les autres dans l'ordre d'affichage.
+function labelParties(players, partyOf, teamOf) {
+  const sizes = new Map();
+  for (const p of players) if (partyOf(p)) sizes.set(partyOf(p), (sizes.get(partyOf(p)) || 0) + 1);
+  const labels = new Map();
+  const perTeam = new Map();
+  for (const p of [...players].sort((x, y) => y.isMe - x.isMe)) {
+    const id = partyOf(p);
+    p.party = null;
+    if (!id || sizes.get(id) < 2) continue;
+    if (!labels.has(id)) {
+      const n = (perTeam.get(teamOf(p)) || 0) + 1;
+      perTeam.set(teamOf(p), n);
+      labels.set(id, { n, idx: labels.size });
+    }
+    p.party = labels.get(id).n;
+    p.partyIdx = labels.get(id).idx;
+  }
+}
+
 function price(cost) {
   if (!cost) return null;
   const [cur, amount] = Object.entries(cost)[0] || [];
@@ -256,9 +278,25 @@ class Services {
     return (teamId === 'Red') === (round < half) ? 'attack' : 'defense';
   }
 
+  /**
+   * Groupe de chaque joueur de la partie (puuid → id de groupe), lu dans les présences : le client
+   * reçoit celles de tous les joueurs de la partie. Ton groupe vient aussi de l'API des groupes.
+   */
+  matchParties(pr, myParty = new Set()) {
+    const parties = new Map();
+    for (const p of pr?.presences || []) {
+      if (p.product !== 'valorant') continue;
+      const d = decodePresence(p);
+      const id = d?.partyId || d?.partyPresenceData?.partyId;
+      if (id) parties.set(p.puuid, id);
+    }
+    const mine = parties.get(this.client.puuid) || 'mine';
+    for (const id of myParty) parties.set(id, mine);
+    return parties;
+  }
+
   /** Score de la partie en cours [nous, eux], lu dans notre propre présence (mise à jour à chaque round). */
-  async myMatchScore() {
-    const pr = await this.client.getPresences().catch(() => null);
+  myMatchScore(pr) {
     const p = (pr?.presences || []).find((x) => x.puuid === this.client.puuid && x.product === 'valorant');
     const d = p && decodePresence(p);
     if (!d) return null;
@@ -274,12 +312,14 @@ class Services {
     if (pre?.MatchID) {
       const m = await c.getPregameMatch(pre.MatchID);
       if (m) {
-        const party = await this.partyMemberSet();
+        const [party, pr] = await Promise.all([this.partyMemberSet(), c.getPresences().catch(() => null)]);
         const allies = await this.decorate(
           (m.AllyTeam?.Players || []).map((p) => ({ puuid: p.Subject, agent: p.CharacterID, state: p.CharacterSelectionState, identity: p.PlayerIdentity })),
           party,
           m.QueueID
         );
+        const parties = this.matchParties(pr, party);
+        labelParties(allies, (p) => parties.get(p.puuid), () => 'ally');
         return {
           state: 'pregame',
           matchId: m.ID,
@@ -296,7 +336,7 @@ class Services {
     if (core?.MatchID) {
       const m = await c.getCoregameMatch(core.MatchID);
       if (m) {
-        const party = await this.partyMemberSet();
+        const [party, pr] = await Promise.all([this.partyMemberSet(), c.getPresences().catch(() => null)]);
         const myTeam = (m.Players || []).find((p) => p.Subject === c.puuid)?.TeamID;
         const all = await this.decorate(
           (m.Players || []).map((p) => ({ puuid: p.Subject, agent: p.CharacterID, identity: p.PlayerIdentity, team: p.TeamID })),
@@ -305,11 +345,15 @@ class Services {
         );
         const teamOf = new Map((m.Players || []).map((p) => [p.Subject, p.TeamID]));
         const prev = this.liveScore;
-        let score = await this.myMatchScore();
+        let score = this.myMatchScore(pr);
         // Présence encore figée sur le score du match précédent : on l'ignore jusqu'à sa mise à jour.
         if (score && prev && prev.matchId !== m.MatchID && score[0] === prev.score[0] && score[1] === prev.score[1] && score[0] + score[1] > 0) score = null;
         if (!score && prev?.matchId === m.MatchID) score = prev.score; // présence illisible : dernier score connu
         if (score) this.liveScore = { matchId: m.MatchID, score };
+        const allies = all.filter((p) => teamOf.get(p.puuid) === myTeam);
+        const enemies = all.filter((p) => teamOf.get(p.puuid) !== myTeam);
+        const parties = this.matchParties(pr, party);
+        labelParties([...allies, ...enemies], (p) => parties.get(p.puuid), (p) => teamOf.get(p.puuid));
         return {
           state: 'ingame',
           matchId: m.MatchID,
@@ -317,8 +361,8 @@ class Services {
           queue: m.MatchmakingData?.QueueID || null,
           score,
           side: this.sideAt(myTeam, m.ModeID, score || [0, 0]), // sans score : début de match
-          allies: all.filter((p) => teamOf.get(p.puuid) === myTeam),
-          enemies: all.filter((p) => teamOf.get(p.puuid) !== myTeam),
+          allies,
+          enemies,
         };
       }
     }
@@ -417,9 +461,6 @@ class Services {
     else if (myTeam && other && !other.won && myTeam.roundsWon === other.roundsWon) result = 'draw';
 
     // Résumé détaillé de chaque joueur (même calcul que l'onglet Stats).
-    const partySizes = new Map();
-    for (const p of d.players) partySizes.set(p.partyId, (partySizes.get(p.partyId) || 0) + 1);
-    const partyLabels = new Map();
     const players = d.players
       .filter((p) => !p.isObserver)
       .map((p) => {
@@ -428,7 +469,6 @@ class Services {
         const shots = (r.head || 0) + (r.body || 0) + (r.leg || 0);
         const n = names.get(p.subject) || {};
         const agent = this.assets.agentById.get(String(p.characterId || '').toLowerCase());
-        const party = p.partyId && partySizes.get(p.partyId) > 1 ? p.partyId : null;
         return {
           puuid: p.subject,
           name: n.name || p.gameName || agent?.name || 'Joueur',
@@ -438,7 +478,7 @@ class Services {
           team: p.teamId === me.teamId ? 'ally' : 'enemy',
           level: p.accountLevel ?? null,
           tier: p.competitiveTier || 0,
-          party,
+          party: p.partyId || null,
           kills: p.stats?.kills || 0,
           deaths: p.stats?.deaths || 0,
           assists: p.stats?.assists || 0,
@@ -452,17 +492,7 @@ class Services {
       })
       .sort((x, y) => y.acs - x.acs);
 
-    // Groupes numérotés par équipe (Groupe 1, Groupe 2…) dans l'ordre d'affichage.
-    const perTeam = new Map();
-    for (const p of players) {
-      if (!p.party) continue;
-      if (!partyLabels.has(p.party)) {
-        const n = (perTeam.get(p.teamId) || 0) + 1;
-        perTeam.set(p.teamId, n);
-        partyLabels.set(p.party, n);
-      }
-      p.party = partyLabels.get(p.party);
-    }
+    labelParties(players, (p) => p.party, (p) => p.teamId);
 
     // MVP de la partie (meilleur ACS) et MVP de l'autre équipe.
     if (players.length) {

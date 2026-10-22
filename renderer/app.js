@@ -108,6 +108,15 @@ function rankHtml(rank, { peak = true } = {}) {
   }</div>`;
 }
 
+// Couleur d'un groupe (duo, trio…) dans une partie : barre à gauche de ses joueurs, comme sur Tracker.
+// Ni turquoise ni rouge ni or, déjà pris par les équipes et par toi.
+const PARTY_COLORS = ['#a78bfa', '#4c9dff', '#ff8c42', '#f472b6', '#b7e34a'];
+function partyAttrs(p) {
+  if (!p.party) return { cls: '', style: '' };
+  return { cls: 'in-party', style: `style="--pc:${PARTY_COLORS[(p.partyIdx || 0) % PARTY_COLORS.length]}"` };
+}
+const partyTag = (p) => (p.party ? ` · <span class="party-tag" title="Joue en groupe avec les autres « Groupe ${p.party} »">Groupe ${p.party}</span>` : '');
+
 // Lien vers le profil Tracker d'un joueur (jamais pour un joueur en mode anonyme).
 function trackerBtn(name, tag, hidden = false) {
   if (hidden || !name || !tag) return '';
@@ -986,12 +995,13 @@ function recentCells(r) {
 
 function playerRow(p, { pregame = false } = {}) {
   const a = agentOf(p.agentId);
+  const pa = partyAttrs(p);
   return `
-    <div class="player ${p.isMe ? 'me' : ''}">
+    <div class="player ${p.isMe ? 'me' : ''} ${pa.cls}" ${pa.style}>
       ${a ? `<img class="pagent" src="${a.icon}" alt="">` : '<div class="pagent empty-agent">?</div>'}
       <div class="pname">
         <div>${esc(p.name)}${p.tag ? `<span class="muted">#${esc(p.tag)}</span>` : ''}</div>
-        <div>${a ? esc(a.name) : 'En sélection…'}${p.level != null ? ` · Niv. ${p.level}` : ''}${p.hidden ? ' · nom masqué' : ''}</div>
+        <div>${a ? esc(a.name) : 'En sélection…'}${p.level != null ? ` · Niv. ${p.level}` : ''}${p.hidden ? ' · nom masqué' : ''}${partyTag(p)}</div>
       </div>
       ${pregame ? `<div class="pc">${p.state ? `<span class="pstate ${p.state}">${p.state === 'locked' ? 'Verrouillé' : 'Survol'}</span>` : ''}</div>` : ''}
       ${recentCells(p.recent)}
@@ -1160,14 +1170,15 @@ PAGES.history = async () => {
           ${players.map((p, i) => {
             const pa = agentOf(p.agentId), pt = tierOf(p.tier);
             const diff = p.kills - p.deaths;
-            return `<tr class="${p.isMe ? 'me' : ''} ${mixed ? `t-${p.team}` : ''}">
+            const party = partyAttrs(p);
+            return `<tr class="${p.isMe ? 'me' : ''} ${mixed ? `t-${p.team}` : ''} ${party.cls}" ${party.style}>
               ${mixed ? `<td class="sb-pos">${i + 1}</td>` : ''}
-              <td>
+              <td class="sb-pl">
                 <div class="sb-player">
                   ${pa ? `<img class="sb-agent" src="${pa.icon}" alt="" title="${esc(pa.name)}">` : '<span class="sb-agent"></span>'}
                   <div class="sb-name">
                     <div><b>${esc(p.name)}</b><span class="muted">${p.tag ? `#${esc(p.tag)}` : ''}</span>${p.mvp === 'match' ? '<span class="badge mvp">MVP</span>' : p.mvp === 'team' ? '<span class="badge team-mvp">MVP équipe</span>' : ''}</div>
-                    <div class="muted">${esc(pa?.name || '')}${p.level != null ? ` · Niv. ${p.level}` : ''}${p.party ? ` · <span class="party-tag" title="Jouait en groupe avec les autres « Groupe ${p.party} »">Groupe ${p.party}</span>` : ''}</div>
+                    <div class="muted">${esc(pa?.name || '')}${p.level != null ? ` · Niv. ${p.level}` : ''}${partyTag(p)}</div>
                   </div>
                 </div>
               </td>

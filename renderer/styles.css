@@ -574,6 +574,8 @@ input[type=range] { accent-color: var(--red); width: 220px; }
 .player > .pc:last-child { display: flex; justify-content: flex-end; }
 .team.ally .player { box-shadow: inset 3px 0 0 var(--teal); }
 .team.enemy .player { box-shadow: inset 3px 0 0 var(--red); }
+/* Joueur en groupe : la barre de gauche prend la couleur du groupe à la place de celle de l'équipe */
+.team .player.in-party { box-shadow: inset 4px 0 0 var(--pc); }
 .player.me { background: color-mix(in srgb, var(--gold) 11%, var(--panel)); border-color: #ffc93d40; }
 .player .pagent { width: 44px; height: 44px; border-radius: 11px; background: var(--panel-2); object-fit: cover; }
 .player .pagent.empty-agent { display: grid; place-items: center; color: var(--muted); font-size: 18px; }
@@ -684,7 +686,9 @@ input[type=range] { accent-color: var(--red); width: 220px; }
 .sb-name { min-width: 0; line-height: 1.3; }
 .sb-name > div:last-child { font-size: 11px; }
 .sb-rank { width: 28px; height: 28px; }
-.party-tag { color: var(--gold); }
+.party-tag { color: var(--pc, var(--gold)); font-weight: 600; }
+/* Barre du groupe en tête de la cellule joueur (après la place en classement commun) */
+.sb tr.in-party td.sb-pl { box-shadow: inset 4px 0 0 var(--pc); }
 
 /* ---------- Groupe / amis ---------- */
 .members { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
