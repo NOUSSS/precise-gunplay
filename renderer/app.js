@@ -181,7 +181,7 @@ function renderNav() {
     n === 'sep'
       ? '<div class="nav-sep"></div>'
       : `<button class="nav-item ${state.page === n[0] ? 'active' : ''}" data-page="${n[0]}">${icon(n[0])}${n[1]}${
-          n[0] === 'agent' && autolockOn ? '<span class="nav-badge">ON</span>' : ''
+          n[0] === 'agent' && autolockOn ? '<span class="nav-dot" title="Activé"></span>' : ''
         }${n[0] === 'friends' && unreadTotal() ? `<span class="nav-badge">${unreadTotal()}</span>` : ''}</button>`
   ).join('');
   syncNavPill();
@@ -223,10 +223,10 @@ function offlineState() {
   const s = state.status;
   const launching = state.launchingUntil > Date.now();
   if (s.code === 'NOT_LOGGED_IN') {
-    return { kind: 'login', title: 'Connexion requise', text: 'Connecte-toi à ton compte dans le Riot Client.', action: 'launch', label: 'Ouvrir le client', launching };
+    return { kind: 'login', title: 'Connexion requise', text: 'Connectez-vous à votre compte dans le Riot Client.', action: 'launch', label: 'Ouvrir le client', launching };
   }
   if (s.code === 'RIOT_CLIENT_CLOSED' || launching) {
-    return { kind: 'closed', title: launching ? 'Démarrage…' : 'Riot Client fermé', text: launching ? 'Connecte-toi : le compte sera lié tout seul.' : 'Lance le Riot Client pour lier ton compte.', action: 'launch', label: 'Lancer Riot Client', launching };
+    return { kind: 'closed', title: launching ? 'Démarrage…' : 'Riot Client fermé', text: launching ? 'Connectez-vous : le compte sera lié automatiquement.' : 'Lancez le Riot Client pour lier votre compte.', action: 'launch', label: 'Lancer Riot Client', launching };
   }
   if (s.code) return { kind: 'error', title: 'Liaison impossible', text: s.message || '', action: 'retry', label: 'Réessayer' };
   return { kind: 'search', title: 'Recherche…', text: s.message || 'Recherche du Riot Client…' };
@@ -404,7 +404,7 @@ function renderUpdate() {
     el.innerHTML = `<div class="update-card"><b>Mise à jour v${esc(u.latest)}</b>Téléchargement… ${u.progress || 0}%<div class="update-bar"><div style="width:${u.progress || 0}%"></div></div></div>`;
   } else {
     el.innerHTML = `<div class="update-card"><b>Mise à jour v${esc(u.latest)} ${u.status === 'ready' ? 'prête' : 'disponible'}</b>
-      ${u.status === 'ready' ? "Redémarre l'app pour passer à la nouvelle version." : 'Télécharge la nouvelle version sur GitHub.'}
+      ${u.status === 'ready' ? "Redémarrez l'app pour passer à la nouvelle version." : 'Téléchargez la nouvelle version sur GitHub.'}
       <button class="btn primary" id="update-btn">${u.status === 'ready' ? 'Redémarrer' : 'Télécharger'}</button></div>`;
     $('#update-btn').onclick = (e) => {
       if (u.status === 'ready') {
@@ -422,9 +422,9 @@ function updateLabel(u) {
     dev: 'Mode développement : mises à jour désactivées.',
     idle: 'Pas encore vérifié.',
     checking: 'Recherche de mises à jour…',
-    none: 'Tu as la dernière version.',
+    none: 'Vous avez la dernière version.',
     downloading: `Téléchargement de la v${u.latest}… ${u.progress || 0}%`,
-    ready: `v${u.latest} prête : redémarre l'app pour l'installer.`,
+    ready: `v${u.latest} prête : redémarrez l'app pour l'installer.`,
     available: `v${u.latest} disponible sur GitHub (version portable : mise à jour manuelle).`,
     error: `Erreur : ${u.error || 'inconnue'}`,
   }[u.status] || '';
@@ -434,13 +434,13 @@ function updateLabel(u) {
 function renderConnect() {
   content.innerHTML = `
     <div class="connect">
-      <img class="logo" src="logo-mark.png" alt="" style="animation-delay:-${Math.round(performance.now() % 4000)}ms">
-      <h1><small>Lier ton compte</small>Precise Gunplay</h1>
-      <p class="muted">L'application se lie automatiquement à ton compte via le Riot Client ouvert sur ce PC.<br>Aucun mot de passe n'est demandé ni stocké.</p>
+      <img class="logo" src="logo-mark.png" alt="">
+      <h1>Precise Gunplay</h1>
+      <p class="muted">L'application se lie à votre compte via le Riot Client ouvert sur ce PC. Aucun mot de passe n'est demandé ni stocké.</p>
       <div class="steps">
-        <div class="step"><b>1</b><div>Lance le <strong>Riot Client</strong> ou directement <strong>VALORANT</strong>.</div></div>
-        <div class="step"><b>2</b><div>Connecte-toi à ton compte Riot (coche « Rester connecté » pour plus de confort).</div></div>
-        <div class="step"><b>3</b><div>Precise Gunplay détecte ta session et lie ton compte tout seul.</div></div>
+        <div class="step"><b>1</b><div>Lancez le <strong>Riot Client</strong> ou <strong>VALORANT</strong>.</div></div>
+        <div class="step"><b>2</b><div>Connectez-vous à votre compte Riot. Cochez « Rester connecté » pour ne plus avoir à le faire.</div></div>
+        <div class="step"><b>3</b><div>Precise Gunplay détecte la session et lie le compte.</div></div>
       </div>
       <div class="warn-box" style="text-align:left;margin-bottom:22px">État : ${esc(state.status.message || 'En attente…')}</div>
       <div class="connect-actions">
@@ -457,7 +457,7 @@ function onUpdate(u) {
   renderUpdate();
   const label = $('#s-update-label');
   if (label) label.textContent = updateLabel(u);
-  if (u.status === 'ready' && prev !== 'ready') toast(`Mise à jour v${u.latest} téléchargée : redémarre l'app pour l'installer.`);
+  if (u.status === 'ready' && prev !== 'ready') toast(`Mise à jour v${u.latest} téléchargée : redémarrez l'app pour l'installer.`);
 }
 
 function onStatus(s) {
@@ -544,7 +544,7 @@ PAGES.home = async () => {
     const prev = inAct(acts[i + 1]);
     if (now.length < DASH_MIN_ACT_MATCHES && prev.length > now.length) return { recs: prev, label: 'acte précédent', act: acts[i + 1] };
     if (now.length) return { recs: now, label: 'acte en cours', act: acts[i] };
-    return { recs, label: 'tous tes matchs', act: null }; // rien sur les deux derniers actes
+    return { recs, label: 'tous vos matchs', act: null }; // rien sur les deux derniers actes
   }
   const scopeTag = (scope) => `<span title="${esc(scope.act?.name || '')}">${esc(scope.label)}</span>`;
 
@@ -552,7 +552,7 @@ PAGES.home = async () => {
     const sub = [p.level != null ? `Niveau ${esc(p.level)}` : '', p.title ? esc(p.title) : ''].filter(Boolean).join(' · ');
     return `
       <div class="page-head dash-head">
-        <h1><small>${sub || 'Tableau de bord'}</small>${esc(p.name)}<span class="dash-tag">#${esc(p.tag)}</span></h1>
+        <h1>${sub ? `<small>${sub}</small>` : ''}${esc(p.name)}<span class="dash-tag">#${esc(p.tag)}</span></h1>
         <div class="wallet">
           <div class="coin" title="Valorant Points"><img src="${CURRENCY_ICON.vp}" alt="">${fmtNum(p.wallet.vp)}</div>
           <div class="coin" title="Radianite"><img src="${CURRENCY_ICON.rp}" alt="">${fmtNum(p.wallet.rp)}</div>
@@ -567,7 +567,6 @@ PAGES.home = async () => {
     return `
       <section class="top-agent" data-go="stats" style="${agentVars(ag)}">
         <div class="ta-bg"></div>
-        <div class="ta-ratio"><b>${g.winRate.toLocaleString('fr-FR', { maximumFractionDigits: 1 })}<small>%</small></b><span>de victoires</span></div>
         ${ag?.portrait ? `<div class="ta-art"><img src="${ag.portrait}" alt=""></div>` : ''}
         <div class="ta-body">
           <div class="ta-label">Agent favori · ${scopeTag(scope)}</div>
@@ -577,12 +576,12 @@ PAGES.home = async () => {
             ${g.timed === g.n && g.lengthMs ? `<span>Temps de jeu <b>${hours(g.lengthMs)}</b></span>` : ''}
           </div>
           <div class="ta-stats">
-            ${stat('Headshot %', f1(g.hs))}
-            ${stat('Kills / manche', f2(g.kpr))}
-            ${stat('Dégâts / manche', f1(g.adr))}
-            ${stat('K/D', f2(g.kd))}
-            ${stat('ACS', f1(g.acs))}
+            ${stat('Victoires', `${g.winRate.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`)}
             ${stat('Matchs', `${g.n} <em>${g.wins} V · ${g.losses} D</em>`)}
+            ${stat('ACS', f1(g.acs))}
+            ${stat('K/D', f2(g.kd))}
+            ${stat('Headshot %', f1(g.hs))}
+            ${stat('Dégâts / manche', f1(g.adr))}
           </div>
         </div>
       </section>`;
@@ -599,8 +598,8 @@ PAGES.home = async () => {
           <div class="ta-label">Agent favori</div>
           <div class="ta-name">${syncing ? 'Synchronisation…' : 'Aucun match'}</div>
           <p>${syncing
-            ? 'Tes matchs arrivent : agents, cartes et armes favoris s’afficheront ici tout seuls.'
-            : 'Joue une partie : tes agents, cartes et armes favoris s’afficheront ici.'}</p>
+            ? 'Synchronisation des matchs : agents, cartes et armes favoris s’afficheront ici.'
+            : 'Jouez une partie : vos agents, cartes et armes favoris s’afficheront ici.'}</p>
         </div>
       </section>`;
   }
@@ -743,7 +742,7 @@ PAGES.store = async () => {
   if (!alive()) return;
   content.innerHTML = `
     <div class="page-head">
-      <h1><small>Ta boutique</small>Boutique</h1>
+      <h1>Boutique</h1>
       <div class="wallet">
         <div class="coin"><img src="${CURRENCY_ICON.vp}" alt="">${fmtNum(s.wallet.vp)}</div>
         <div class="coin"><img src="${CURRENCY_ICON.rp}" alt="">${fmtNum(s.wallet.rp)}</div>
@@ -853,11 +852,11 @@ PAGES.agent = async () => {
       ? mapPick
         ? `Sur <b>${esc(map.name)}</b>, l'app prend <b>${esc(agentOf(mapPick)?.name)}</b>. S'il est déjà pris : ${defaults.length ? `liste par défaut (${defaultNames}).` : 'rien n\'est fait.'}`
         : defaults.length
-          ? `Aucun agent dédié : la liste par défaut s'applique (${defaultNames}). Clique sur un agent pour en choisir un pour cette carte.`
-          : `Aucun agent dédié et liste par défaut vide : rien n'est fait sur ${esc(map.name)}. Clique sur un agent pour en choisir un.`
+          ? `Aucun agent dédié : la liste par défaut s'applique (${defaultNames}). Cliquez sur un agent pour en choisir un pour cette carte.`
+          : `Aucun agent dédié et liste par défaut vide : rien n'est fait sur ${esc(map.name)}. Cliquez sur un agent pour en choisir un.`
       : defaults.length
         ? `Utilisée sur les cartes sans agent dédié, et en secours si l'agent de la carte est déjà pris. Le premier disponible dans l'ordre est choisi (${MAX_DEFAULT_AGENTS} max).`
-        : `Vide : l'app n'agit que sur les cartes où tu as choisi un agent. Clique sur des agents pour les ajouter par ordre de priorité (${MAX_DEFAULT_AGENTS} max).`;
+        : `Vide : l'app n'agit que sur les cartes où vous avez choisi un agent. Cliquez sur des agents pour les ajouter par ordre de priorité (${MAX_DEFAULT_AGENTS} max).`;
     const canClear = map ? !!mapPick : defaults.length > 0;
 
     const grid = state.assets.agents
@@ -873,27 +872,27 @@ PAGES.agent = async () => {
 
     content.innerHTML = `
       <div class="page-head">
-        <h1><small>Sélection d'agent</small>Agent auto</h1>
+        <h1>Agent auto</h1>
         ${lockZone(`<label class="switch" title="Activer / désactiver"><input type="checkbox" id="al-enabled" ${al.enabled && !actionsLocked() ? 'checked' : ''} ${lockAttr()}><span></span></label>`)}
       </div>
 
       ${actionsLocked() ? lockedNotice() : `<div class="warn-box">
-        Quand une partie est trouvée, Precise Gunplay choisit automatiquement ton agent pendant la phase de sélection.
+        Quand une partie est trouvée, Precise Gunplay choisit automatiquement votre agent pendant la phase de sélection.
         L'app utilise les mêmes API que le client officiel, mais l'automatisation n'est pas approuvée par Riot :
-        le mode <b>Verrouiller</b> est le plus risqué vis-à-vis des conditions d'utilisation. Utilise-le à tes risques ; le mode <b>Survoler</b> te laisse confirmer toi-même.
+        le mode <b>Verrouiller</b> est le plus risqué vis-à-vis des conditions d'utilisation. Utilisez-le à vos risques ; le mode <b>Survoler</b> vous laisse confirmer vous-même.
       </div>`}
 ${actionsLocked() ? '<div class="locked-zone">' : ''}
 
       <div class="panel" style="margin-top:16px">
         <div class="setting-row">
-          <div class="label"><div>Mode</div><div>Survoler : l'agent est présélectionné, tu cliques sur « Verrouiller ». Verrouiller : l'agent est validé directement.</div></div>
+          <div class="label"><div>Mode</div><div>Survoler : l'agent est présélectionné, vous cliquez sur « Verrouiller ». Verrouiller : l'agent est validé directement.</div></div>
           <div class="chip-group" id="al-mode">
             <button data-mode="select" class="${al.mode === 'select' ? 'on' : ''}">Survoler</button>
             <button data-mode="lock" class="${al.mode === 'lock' ? 'on' : ''}">Verrouiller</button>
           </div>
         </div>
         <div class="setting-row">
-          <div class="label"><div>Délai avant sélection</div><div>Laisse le temps à tes coéquipiers de choisir avant toi.</div></div>
+          <div class="label"><div>Délai avant sélection</div><div>Laisse le temps aux coéquipiers de choisir avant vous.</div></div>
           <input type="range" id="al-delay" min="0" max="8000" step="250" value="${al.delayMs}">
           <b id="al-delay-val" style="width:52px;text-align:right">${secs(al.delayMs)}</b>
         </div>
@@ -905,7 +904,7 @@ ${actionsLocked() ? '<div class="locked-zone">' : ''}
         </div>` : ''}
       </div>
 
-      <h2>Cartes <span class="muted" style="letter-spacing:.05em;text-transform:none;font-size:13px">— choisis ce que tu configures</span></h2>
+      <h2>Cartes</h2>
       <div class="scopes">${scopeTile(null)}${maps.map(scopeTile).join('')}</div>
 
       <div class="scope-head">
@@ -926,7 +925,7 @@ ${actionsLocked() ? '</div>' : ''}`;
     $('#al-enabled').onchange = (e) => {
       if (e.target.checked && !autolockReady(state.settings.autolock)) {
         e.target.checked = false;
-        return toast('Choisis d\'abord un agent, par défaut ou pour une carte.', 'error');
+        return toast('Choisissez d\'abord un agent, par défaut ou pour une carte.', 'error');
       }
       save({ enabled: e.target.checked });
     };
@@ -946,9 +945,9 @@ ${actionsLocked() ? '</div>' : ''}`;
       if (t.dataset.mode === 'lock' && al.mode !== 'lock') {
         return ask({
           title: 'Verrouillage automatique',
-          body: `Ton agent sera validé sans que tu aies à cliquer. Un verrouillage instantané se repère facilement :
+          body: `Votre agent sera validé sans que vous ayez à cliquer. Un verrouillage instantané se repère facilement :
             garde un <b>délai avant sélection</b> et un <b>délai avant verrouillage</b> pour rester discret.
-            Tu peux les régler juste en dessous.`,
+            Vous pouvez les régler juste en dessous.`,
           ok: 'Activer',
         }).then((yes) => yes && save({ mode: 'lock' }));
       }
@@ -1045,8 +1044,8 @@ PAGES.live = async () => {
     const d = last;
     if (d.state === 'idle') {
       content.innerHTML = `
-        <div class="page-head"><h1><small>En direct</small>Partie en direct</h1></div>
-        <div class="empty">${icon('live').replace('<svg', '<svg style="width:48px;height:48px;color:var(--muted)"')}
+        <div class="page-head"><h1>Partie en direct</h1></div>
+        <div class="empty">
           <h3>Pas de partie en cours</h3><div>Cette page se met à jour toute seule dès que la sélection d'agent commence.</div></div>`;
       return;
     }
@@ -1080,7 +1079,7 @@ PAGES.live = async () => {
         </div>`) : ''}
 
       <div class="live-note muted">K/D/A, K/D et HS : moyenne sur les 3 derniers matchs de chaque joueur dans ce mode (pas la partie en cours).</div>
-      ${teamHtml('ally', 'Ton équipe', d.allies, { pregame: d.state === 'pregame', score: d.score?.[0] })}
+      ${teamHtml('ally', 'Votre équipe', d.allies, { pregame: d.state === 'pregame', score: d.score?.[0] })}
       ${d.enemies.length ? teamHtml('enemy', 'Adversaires', d.enemies, { score: d.score?.[1] }) : ''}`;
   }
 
@@ -1095,12 +1094,12 @@ PAGES.live = async () => {
     if (t.id === 'lock-btn' && pick) {
       try {
         await call('pregame-lock', last.matchId, pick);
-        toast(`${agentOf(pick)?.name} verrouillé !`);
+        toast(`${agentOf(pick)?.name} verrouillé.`);
         refresh();
       } catch (err) { toast(err.message, 'error'); }
     }
     if (t.id === 'dodge-btn') {
-      if (!confirm('Quitter la sélection d\'agent ? Tu risques une pénalité (RR / temps d\'attente).')) return;
+      if (!confirm('Quitter la sélection d\'agent ? Vous risquez une pénalité (RR, temps d\'attente).')) return;
       try {
         await call('pregame-dodge', last.matchId);
         toast('Partie esquivée.');
@@ -1142,7 +1141,7 @@ PAGES.history = async () => {
           <div class="coin">${(k / Math.max(1, dth)).toFixed(2)} <span class="muted">K/D</span></div>
           <div class="coin">${Math.round(list.reduce((s, m) => s + m.acs, 0) / list.length)} <span class="muted">ACS moyen</span></div>
         </div>
-        ${list.map(matchHtml).join('')}` : '<div class="empty"><h3>Aucun match</h3><div>Joue une partie dans ce mode pour la voir ici.</div></div>';
+        ${list.map(matchHtml).join('')}` : '<div class="empty"><h3>Aucun match</h3><div>Jouez une partie dans ce mode pour la voir ici.</div></div>';
     } catch (e) {
       body = errorBox(e.message);
     }
@@ -1153,7 +1152,7 @@ PAGES.history = async () => {
   }
 
   const head = () => `
-    <div class="page-head"><h1><small>Tes performances</small>Historique</h1></div>
+    <div class="page-head"><h1>Historique</h1></div>
     <div class="chip-group" id="hfilter" style="margin-bottom:16px">${FILTERS.map(([v, l]) => `<button data-filter="${v}" class="${filter === v ? 'on' : ''}">${l}</button>`).join('')}</div>`;
 
   function placementBadge(m) {
@@ -1194,7 +1193,7 @@ PAGES.history = async () => {
   }
 
   function teamTable(t) {
-    const title = t.side === 'all' ? 'Classement' : t.side === 'ally' ? 'Ton équipe' : 'Adversaires';
+    const title = t.side === 'all' ? 'Classement' : t.side === 'ally' ? 'Votre équipe' : 'Adversaires';
     const outcome = t.side === 'all' ? '' : t.won ? 'Victoire' : 'Défaite';
     return `
       <div class="sb-team ${t.side}">
@@ -1219,7 +1218,7 @@ PAGES.history = async () => {
       <div class="sb-view-all">
         <div class="sb-team mixed">
           <div class="sb-head"><b>Classement de la partie</b>${ally && enemy ? `<span class="sb-score"><span class="ally">${ally.rounds}</span> – <span class="enemy">${enemy.rounds}</span></span>` : ''}<span class="muted">par ACS</span>
-            <span class="sb-legend"><i class="ally"></i>Ton équipe<i class="enemy"></i>Adversaires</span></div>
+            <span class="sb-legend"><i class="ally"></i>Votre équipe<i class="enemy"></i>Adversaires</span></div>
           ${sbTable(all, true)}
         </div>
       </div>`;
@@ -1904,7 +1903,7 @@ PAGES.stats = async () => {
 
     const head = `
       <div class="page-head">
-        <h1><small>Tes performances</small>Statistiques</h1>
+        <h1>Statistiques</h1>
         <div class="sync-box"><span id="sync-line">${syncLine()}</span><button class="btn ghost" id="st-refresh">Actualiser</button></div>
       </div>
       <div class="row st-filters">
@@ -1925,9 +1924,9 @@ PAGES.stats = async () => {
         <div class="empty">
           <h3>${syncing ? 'Synchronisation en cours…' : 'Aucun match'}</h3>
           <div>${syncing
-            ? 'Tes matchs arrivent : cette page se complète toute seule.'
+            ? 'Synchronisation des matchs : cette page se complète automatiquement.'
             : tooOld
-              ? 'Riot ne fournit que tes derniers matchs : cet acte est trop ancien pour être récupéré.<br>À partir de maintenant, Precise Gunplay garde tous tes matchs, pour tous les actes à venir.'
+              ? 'Riot ne fournit que les derniers matchs : cet acte est trop ancien pour être récupéré.<br>Precise Gunplay garde désormais tous vos matchs, pour les actes à venir.'
               : `Aucun match en ${esc(QUEUE_F.find(([v]) => v === f.queue)?.[1] || '')} pour ${esc(actName(f.act))}.`}</div>
         </div>`;
       bind();
@@ -1969,7 +1968,7 @@ PAGES.stats = async () => {
 
           ${agentsTable(agents)}
           ${matchList(recs, agents, maps)}
-          ${f.act === 'all' && oldest ? `<p class="muted" style="font-size:12px;margin-top:18px">Matchs en mémoire depuis le ${new Date(oldest).toLocaleDateString('fr-FR')}. Riot ne fournit que tes derniers matchs ; Precise Gunplay garde ensuite tout ton historique.</p>` : ''}
+          ${f.act === 'all' && oldest ? `<p class="muted" style="font-size:12px;margin-top:18px">Matchs en mémoire depuis le ${new Date(oldest).toLocaleDateString('fr-FR')}. Riot ne fournit que les derniers matchs ; Precise Gunplay garde ensuite tout votre historique.</p>` : ''}
         </div>
       </div>`;
 
@@ -2034,14 +2033,14 @@ PAGES.party = async () => {
   function draw() {
     const p = last;
     if (!p) {
-      content.innerHTML = '<div class="page-head"><h1><small>Social</small>Groupe</h1></div><div class="empty"><h3>Aucun groupe</h3><div>Lance VALORANT pour voir ton groupe.</div></div>';
+      content.innerHTML = '<div class="page-head"><h1>Groupe</h1></div><div class="empty"><h3>Aucun groupe</h3><div>Lancez VALORANT pour voir votre groupe.</div></div>';
       return;
     }
     const searching = p.state === 'MATCHMAKING';
     const queues = [...new Set([p.queue, ...p.eligibleQueues].filter((q) => q !== undefined))];
     content.innerHTML = `
       <div class="page-head">
-        <h1><small>Social</small>Groupe <span class="muted" style="font-size:18px">${p.members.length}/5</span></h1>
+        <h1>Groupe <span class="muted" style="font-size:18px">${p.members.length}/5</span></h1>
       </div>
       ${actionsLocked() ? lockedNotice() : ''}
       ${lockZone(`<div class="panel" style="margin-bottom:18px">
@@ -2168,7 +2167,7 @@ PAGES.friends = async () => {
       <div class="friend ${f.online ? '' : 'offline'} ${isLive(f) ? 'live' : ''} ${f.pid === openPid ? 'open' : ''}" data-pid="${esc(f.pid)}" title="Discuter avec ${esc(f.name)}"${bannerStyle(banner)}>
         ${friendAvatar(f)}
         <div class="fname">
-          <div>${esc(f.name)}<span class="muted">#${esc(f.tag)}</span>${f.note ? ` <span class="muted">(${esc(f.note)})</span>` : ''}${v?.withMe ? '<span class="fwith">Ton groupe</span>' : ''}</div>
+          <div>${esc(f.name)}<span class="muted">#${esc(f.tag)}</span>${f.note ? ` <span class="muted">(${esc(f.note)})</span>` : ''}${v?.withMe ? '<span class="fwith">Votre groupe</span>' : ''}</div>
           <div>${friendStatus(f, true)}</div>
         </div>
         ${unread ? `<span class="unread" title="${unread} message(s) non lu(s)">${unread}</span>` : ''}
@@ -2222,7 +2221,7 @@ PAGES.friends = async () => {
     head.innerHTML = `
       ${friendAvatar(f, 'big')}
       <div class="fname">
-        <div>${esc(f.name)}<span class="muted">#${esc(f.tag)}</span>${v?.withMe ? '<span class="fwith">Ton groupe</span>' : ''}</div>
+        <div>${esc(f.name)}<span class="muted">#${esc(f.tag)}</span>${v?.withMe ? '<span class="fwith">Votre groupe</span>' : ''}</div>
         ${f.title ? `<div class="ftitle">${esc(f.title)}</div>` : ''}
         <div>${friendStatus(f)}</div>
       </div>
@@ -2255,9 +2254,8 @@ PAGES.friends = async () => {
           <div class="flive-head"><span class="live-dot"></span>En partie maintenant<b>${live.length}</b></div>
           <div class="flive">${live.map(liveCard).join('')}</div>` : ''}
         <div class="chat-empty">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 5h16v11H8l-4 4z"/></svg>
           <h3>Messagerie</h3>
-          <p class="muted">${actionsLocked() ? 'Clique sur un ami pour lire vos derniers messages.<br>L\'envoi de messages est désactivé.' : 'Clique sur un ami pour discuter avec lui.<br>Les messages passent par ton Riot Client, comme dans le jeu.'}</p>
+          <p class="muted">${actionsLocked() ? 'Choisissez un ami pour lire vos derniers messages.<br>L\'envoi de messages est désactivé.' : 'Choisissez un ami pour discuter.<br>Les messages passent par le Riot Client, comme dans le jeu.'}</p>
         </div>
       </div>`;
   }
@@ -2279,7 +2277,7 @@ PAGES.friends = async () => {
       <div class="chat-head" id="chat-head"></div>
       <div class="chat-log" id="chat-log">${loader()}</div>
       ${lockZone(`<form class="chat-form" id="chat-form">
-        <input id="chat-input" type="text" maxlength="500" autocomplete="off" placeholder="${actionsLocked() ? 'Envoi de messages désactivé' : 'Écris un message…'}" ${lockAttr()}>
+        <input id="chat-input" type="text" maxlength="500" autocomplete="off" placeholder="${actionsLocked() ? 'Envoi de messages désactivé' : 'Votre message…'}" ${lockAttr()}>
         <button class="btn primary" type="submit" ${lockAttr()}>Envoyer</button>
       </form>`)}`;
     drawChatHead();
@@ -2322,14 +2320,14 @@ PAGES.friends = async () => {
           const sep = d !== day ? `<div class="chat-day">${esc((day = d))}</div>` : '';
           return `${sep}<div class="msg ${m.mine ? 'mine' : ''}"><div class="bubble">${esc(m.body)}</div><span class="mtime">${hhmm(m.time)}</span></div>`;
         }).join('')
-      : `<div class="chat-none muted">Aucun message récent avec ${esc(friendOf(pid)?.name || 'cet ami')}.${actionsLocked() ? '' : '<br>Dis-lui bonjour !'}</div>`;
+      : `<div class="chat-none muted">Aucun message récent avec ${esc(friendOf(pid)?.name || 'cet ami')}.</div>`;
     if (forceBottom || atBottom) log.scrollTop = log.scrollHeight;
     if (msgs.length && rawUnread[pid] && !actionsLocked()) call('chat-read', pid, msgs[msgs.length - 1].id).then(refreshUnread, () => {});
     markChatSeen(pid, msgs.map((m) => m.id));
   }
 
   content.innerHTML = `
-    <div class="page-head"><h1><small>Social</small>Amis</h1><div class="fstats" id="fcount"></div></div>
+    <div class="page-head"><h1>Amis</h1><div class="fstats" id="fcount"></div></div>
     <div class="friends-layout">
       <div class="friends-col">
         <input type="search" id="fsearch" placeholder="Rechercher un ami…" style="width:100%;margin-bottom:12px">
@@ -2367,7 +2365,7 @@ PAGES.collection = async () => {
   if (!alive()) return;
   let query = '';
   content.innerHTML = `
-    <div class="page-head"><h1><small>Ton inventaire</small>Collection</h1><span class="muted">${skins.length} skins</span></div>
+    <div class="page-head"><h1>Collection</h1><span class="muted">${skins.length} skins</span></div>
     <input type="search" id="csearch" placeholder="Rechercher un skin (ex : Vandal, Prime…)" style="width:360px;margin-bottom:16px">
     <div class="offers" id="cgrid"></div>`;
   const draw = () => {
@@ -2386,7 +2384,7 @@ PAGES.settings = async () => {
   const s = state.settings;
   const REGIONS = [['', 'Automatique'], ['eu', 'Europe (EU)'], ['na', 'Amérique du Nord (NA)'], ['latam', 'Amérique latine (LATAM)'], ['br', 'Brésil (BR)'], ['ap', 'Asie-Pacifique (AP)'], ['kr', 'Corée (KR)']];
   content.innerHTML = `
-    <div class="page-head"><h1><small>Configuration</small>Paramètres</h1></div>
+    <div class="page-head"><h1>Paramètres</h1></div>
     <div class="panel">
       <div class="setting-row">
         <div class="label"><div>Région</div><div>Détectée automatiquement. À forcer uniquement si la détection échoue.</div></div>
@@ -2397,7 +2395,7 @@ PAGES.settings = async () => {
         <label class="switch"><input type="checkbox" id="s-notif" ${s.notifications ? 'checked' : ''}><span></span></label>
       </div>
       <div class="setting-row">
-        <div class="label"><div>Lancer au démarrage de Windows</div><div>Ouvre Precise Gunplay automatiquement à l'ouverture de ta session.</div></div>
+        <div class="label"><div>Lancer au démarrage de Windows</div><div>Ouvre Precise Gunplay à l'ouverture de la session Windows.</div></div>
         <label class="switch"><input type="checkbox" id="s-login" ${s.openAtLogin ? 'checked' : ''}><span></span></label>
       </div>
       <div class="setting-row">
@@ -2416,8 +2414,8 @@ PAGES.settings = async () => {
 
     <h2>À propos</h2>
     <div class="panel muted" style="line-height:1.6">
-      <b style="color:var(--text)">Precise Gunplay</b> v${esc(state.update?.current || '')} — compagnon non officiel pour VALORANT. Code source : github.com/NOUSSS/precise-gunplay<br>
-      Ton compte est lié via la session locale du Riot Client : l'app ne voit jamais ton mot de passe et ne stocke aucun jeton.<br>
+      <b style="color:var(--text)">Precise Gunplay</b> v${esc(state.update?.current || '')}, compagnon non officiel pour VALORANT. Code source : github.com/NOUSSS/precise-gunplay<br>
+      Votre compte est lié via la session locale du Riot Client : l'app ne voit jamais votre mot de passe et ne stocke aucun jeton.<br>
       Precise Gunplay n'est ni approuvé ni affilié à Riot Games. VALORANT et Riot Games sont des marques de Riot Games, Inc.
     </div>`;
   $('#s-region').onchange = async (e) => {

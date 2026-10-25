@@ -49,7 +49,7 @@ function riotClientPath() {
 
 function launchRiot() {
   const exe = riotClientPath();
-  if (!exe) throw new Error('Riot Client introuvable sur ce PC. Installe VALORANT puis réessaie.');
+  if (!exe) throw new Error('Riot Client introuvable sur ce PC. Installez VALORANT puis réessayez.');
   // Si le Riot Client tourne déjà, il se met simplement au premier plan.
   spawn(exe, [], { detached: true, stdio: 'ignore' }).unref();
   return true;
@@ -103,7 +103,7 @@ function watchConnection() {
 function handle(channel, fn, { needsAuth = true } = {}) {
   ipcMain.handle(channel, async (_e, ...args) => {
     try {
-      if (needsAuth && !client.connected) throw new Error('Compte non connecté. Lance VALORANT et connecte-toi.');
+      if (needsAuth && !client.connected) throw new Error('Compte non connecté. Lancez VALORANT et connectez-vous.');
       return { ok: true, data: await fn(...args) };
     } catch (e) {
       return { ok: false, error: e.message, code: e.code };

@@ -58,13 +58,13 @@ class RiotClient {
     const lock = readLockfile();
     if (!lock) {
       this.reset();
-      throw new RiotError('RIOT_CLIENT_CLOSED', 'Riot Client introuvable. Lance VALORANT puis réessaie.');
+      throw new RiotError('RIOT_CLIENT_CLOSED', 'Riot Client introuvable. Lancez VALORANT puis réessayez.');
     }
     this.lock = lock;
     await this.refreshTokens();
     this.region = regionOverride || (await this.detectRegion());
     if (!this.region) {
-      throw new RiotError('NO_REGION', 'Région introuvable. Lance une fois VALORANT ou choisis ta région dans les paramètres.');
+      throw new RiotError('NO_REGION', 'Région introuvable. Lancez VALORANT une fois ou choisissez votre région dans les paramètres.');
     }
     this.shard = SHARD_BY_REGION[this.region] || this.region;
     this.version = await this.detectVersion();
@@ -77,12 +77,12 @@ class RiotClient {
     } catch (e) {
       this.tokens = null;
       // Pas de réponse HTTP = le Riot Client ne tourne pas (lockfile resté d'une ancienne session).
-      if (!e.status) throw new RiotError('RIOT_CLIENT_CLOSED', 'Riot Client fermé. Lance VALORANT puis réessaie.');
-      throw new RiotError('NOT_LOGGED_IN', 'Connecte-toi à ton compte dans le Riot Client.');
+      if (!e.status) throw new RiotError('RIOT_CLIENT_CLOSED', 'Riot Client fermé. Lancez VALORANT puis réessayez.');
+      throw new RiotError('NOT_LOGGED_IN', 'Connectez-vous à votre compte dans le Riot Client.');
     }
     if (!t || !t.accessToken || !t.token) {
       this.tokens = null;
-      throw new RiotError('NOT_LOGGED_IN', 'Connecte-toi à ton compte dans le Riot Client.');
+      throw new RiotError('NOT_LOGGED_IN', 'Connectez-vous à votre compte dans le Riot Client.');
     }
     this.tokens = { access: t.accessToken, entitlement: t.token };
     this.puuid = t.subject;
