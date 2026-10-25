@@ -58,7 +58,7 @@ class AutoLock extends EventEmitter {
       const pick = candidates.find((a) => !taken.has(a.toLowerCase()));
       if (!pick) {
         this.done.add(matchId);
-        this.emit('event', { type: 'unavailable', map: map?.name, message: 'Aucun de tes agents configurés n\'est disponible.' });
+        this.emit('event', { type: 'unavailable', map: map?.name, message: 'Aucun de vos agents configurés n\'est disponible.' });
         return;
       }
 
