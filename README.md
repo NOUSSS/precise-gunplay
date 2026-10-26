@@ -22,6 +22,8 @@ Onglet **Résolution étirée** : choisissez la résolution et activez l'interru
 - au menu, la résolution native revient ; à la fermeture du jeu, les écrans retrouvent leur pilote.
 
 La partie est détectée par le serveur de jeu de Riot ; s'il ne répond pas, la présence du client Riot prend le relais.
+Une résolution absente de la liste (1440 × 1080 par exemple) se saisit avec « Autre résolution… » : sur une carte AMD,
+l'app la crée elle-même ; sur une autre carte, elle indique comment la créer dans son panneau.
 Le délai, les raccourcis (Ctrl+F8 et Ctrl+F9 par défaut) et le réglage automatique de VALORANT sont dans les réglages avancés.
 
 Le passage sur le pilote générique demande une autorisation administrateur une seule fois (bouton **Autoriser**) : elle crée deux

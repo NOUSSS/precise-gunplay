@@ -2486,7 +2486,7 @@ PAGES.stretch = async () => {
         <select id="st-res" ${modes.length ? '' : 'disabled'}>${options ? `${options}<option value="custom">Autre résolution…</option>` : '<option>Aucune résolution disponible</option>'}</select>
       </div>
       <form class="setting-row st-custom" id="st-custom" hidden>
-        <div class="label"><div>Résolution personnalisée</div><div>Elle doit exister pour l'écran : créez-la d'abord dans le panneau de la carte graphique si besoin.</div></div>
+        <div class="label"><div>Résolution personnalisée</div><div>${/amd|radeon/i.test(d?.gpu || '') ? 'Créée automatiquement sur les cartes AMD qui le permettent.' : 'Elle doit exister dans le panneau de la carte graphique.'}</div></div>
         <div class="st-custom-fields">
           <input type="text" inputmode="numeric" id="st-cw" placeholder="1440" aria-label="Largeur" maxlength="4">
           <span class="muted">×</span>
