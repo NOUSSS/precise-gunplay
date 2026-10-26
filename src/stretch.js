@@ -359,7 +359,12 @@ class Stretch extends EventEmitter {
     this.emit('status', this.status());
   }
 
+  // La boucle réessaie toutes les 2 s : une même erreur n'est signalée qu'une fois par minute.
   notify(message, type = 'info') {
+    if (type === 'error') {
+      if (this.lastError?.message === message && Date.now() - this.lastError.at < 60000) return;
+      this.lastError = { message, at: Date.now() };
+    }
     this.emit('event', { type, message });
   }
 
@@ -604,6 +609,18 @@ class Stretch extends EventEmitter {
     return m;
   }
 
+  // Résolution saisie à la main : acceptée seulement si le pilote la connaît (rien n'est changé).
+  checkMode(w, h) {
+    const done = this.exclusive(async () => {
+      const d = await this.display.call('display');
+      await this.display.call(`test ${d.gdi} ${w} ${h} ${d.hz}`).catch(() => {
+        throw new Error(`${w} × ${h} n'existe pas pour cet écran. Créez-la dans le panneau de la carte graphique (résolution personnalisée), puis réessayez.`);
+      });
+    });
+    this.releaseDisplay();
+    return done;
+  }
+
   async applyStretched() {
     const c = this.cfg;
     if (!c.width || !c.height) throw new Error('Choisissez une résolution étirée.');
@@ -614,10 +631,20 @@ class Stretch extends EventEmitter {
     else this.emit('status', this.status());
   }
 
-  async applyNative() {
+  // Écrans en mode générique : le pilote refuse de remonter à la résolution native (code -2 ou -5).
+  // Réactivés, ils reprennent d'eux-mêmes leur mode enregistré, le natif ; jeu lancé, ils repassent
+  // ensuite en mode générique pour la prochaine partie.
+  async applyNative(regeneric = this.gameRunning) {
     const n = this.cfg.native;
     if (!n) throw new Error('Résolution native inconnue.');
-    await this.applyMode(n.w, n.h, n.hz);
+    try {
+      await this.applyMode(n.w, n.h, n.hz);
+    } catch (e) {
+      if (!monitorsDisabledByUs()) throw e;
+      await this.enableMonitors();
+      await this.applyMode(n.w, n.h, n.hz);
+      if (regeneric) await this.disableMonitors();
+    }
     this.res = 'native';
     this.emit('status', this.status());
   }
@@ -672,7 +699,7 @@ class Stretch extends EventEmitter {
   // Les écrans sont réactivés même si le retour à la résolution native échoue.
   async restore() {
     try {
-      if (this.res === 'stretched') await this.applyNative();
+      if (this.res === 'stretched') await this.applyNative(false);
     } finally {
       await this.enableMonitors();
     }

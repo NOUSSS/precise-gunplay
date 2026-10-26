@@ -159,6 +159,10 @@ function registerIpc() {
   handle('stretch-install', () => stretch.installMonitors(), { needsAuth: false });
   handle('stretch-lock', (lock) => stretch.setGameConfigLock(lock), { needsAuth: false });
   handle('stretch-test', () => stretch.test(), { needsAuth: false });
+  handle('stretch-check', (w, h) => {
+    if (![w, h].every((v) => Number.isInteger(v) && v >= 640 && v <= 7680)) throw new Error('Résolution invalide.');
+    return stretch.checkMode(w, h);
+  }, { needsAuth: false });
   handle('stretch-restore', () => stretch.restoreAll(), { needsAuth: false });
   handle('stretch-hotkeys-pause', (paused) => stretch.pauseHotkeys(!!paused), { needsAuth: false });
 

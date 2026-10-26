@@ -2483,8 +2483,17 @@ PAGES.stretch = async () => {
     <div class="panel st-gap">
       <div class="setting-row">
         <div class="label"><div>Résolution en partie</div><div>La fréquence reste à ${hz ? `${hz} Hz` : 'sa valeur actuelle'}.</div></div>
-        <select id="st-res" ${modes.length ? '' : 'disabled'}>${options || '<option>Aucune résolution disponible</option>'}</select>
+        <select id="st-res" ${modes.length ? '' : 'disabled'}>${options ? `${options}<option value="custom">Autre résolution…</option>` : '<option>Aucune résolution disponible</option>'}</select>
       </div>
+      <form class="setting-row st-custom" id="st-custom" hidden>
+        <div class="label"><div>Résolution personnalisée</div><div>Elle doit exister pour l'écran : créez-la d'abord dans le panneau de la carte graphique si besoin.</div></div>
+        <div class="st-custom-fields">
+          <input type="text" inputmode="numeric" id="st-cw" placeholder="1440" aria-label="Largeur" maxlength="4">
+          <span class="muted">×</span>
+          <input type="text" inputmode="numeric" id="st-ch" placeholder="1080" aria-label="Hauteur" maxlength="4">
+          <button class="btn" type="submit">Valider</button>
+        </div>
+      </form>
       ${c.enabled && (!info.monitorsReady || info.monitorsOutdated) ? `
       <div class="setting-row">
         <div class="label"><div>Autorisation Windows</div><div>${info.monitorsReady ? 'Une nouvelle version est à installer une fois. En attendant, l\'ancienne continue de fonctionner.' : 'Nécessaire une seule fois pour que la résolution étirée tienne en jeu.'}</div></div>
@@ -2544,8 +2553,26 @@ PAGES.stretch = async () => {
     navigate('stretch');
   };
   $('#st-res').onchange = (e) => {
+    const custom = e.target.value === 'custom';
+    $('#st-custom').hidden = !custom;
+    if (custom) return $('#st-cw').focus();
     const [w, h] = e.target.value.split('x').map(Number);
     return save({ width: w, height: h });
+  };
+  $('#st-custom').onsubmit = async (e) => {
+    e.preventDefault();
+    const [w, h] = ['#st-cw', '#st-ch'].map((id) => Number($(id).value.trim()));
+    if (![w, h].every((v) => Number.isInteger(v) && v >= 640)) return toast('Saisissez une largeur et une hauteur en pixels.', 'error');
+    const btn = e.target.querySelector('button');
+    btn.disabled = true;
+    try {
+      await call('stretch-check', w, h);
+      await save({ width: w, height: h });
+      navigate('stretch');
+    } catch (err) {
+      toast(err.message, 'error');
+      btn.disabled = false;
+    }
   };
   $('#st-delay').onchange = (e) => save({ delayMs: Number(e.target.value) });
   if ($('#st-monitors')) $('#st-monitors').onchange = (e) => save({ monitors: e.target.checked });

@@ -4,6 +4,7 @@
 #   procs <nom1> <nom2>          -> {"run":[true,false],"window":true}
 #   display                      -> écran principal, mode actuel et modes disponibles
 #   apply <gdi> <l> <h> <hz>     -> {"ok":true} ou {"error":"..."}
+#   test <gdi> <l> <h> <hz>      -> idem, sans rien changer (mode accepté par le pilote ?)
 $ErrorActionPreference = 'Stop'
 Add-Type -TypeDefinition @'
 using System;
@@ -136,7 +137,7 @@ public static class PgStretch
 
     // CDS_TEST d'abord : un mode refusé par le pilote n'est jamais appliqué (pas d'écran noir).
     // Sans CDS_UPDATEREGISTRY : changement dynamique, Windows revient au mode enregistré au redémarrage.
-    static string ApplyOn(string gdi, int w, int h, int hz)
+    static string ApplyOn(string gdi, int w, int h, int hz, bool testOnly)
     {
         DEVMODE cur = NewDevMode();
         bool haveCur = EnumDisplaySettings(gdi, ENUM_CURRENT_SETTINGS, ref cur);
@@ -147,16 +148,17 @@ public static class PgStretch
         dm.dmFields = (haveCur ? cur.dmFields : 0) | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY;
         int r = ChangeDisplaySettingsEx(gdi, ref dm, IntPtr.Zero, CDS_TEST, IntPtr.Zero);
         if (r != 0) return "Mode " + w + "x" + h + " @ " + dm.dmDisplayFrequency + " Hz refusé par le pilote (code " + r + ").";
+        if (testOnly) return null;
         r = ChangeDisplaySettingsEx(gdi, ref dm, IntPtr.Zero, 0, IntPtr.Zero);
         if (r != 0) return "Échec du changement de résolution (code " + r + ").";
         return null;
     }
 
-    public static string Apply(string gdi, int w, int h, int hz)
+    public static string Apply(string gdi, int w, int h, int hz, bool testOnly)
     {
-        string err = ApplyOn(gdi, w, h, hz);
+        string err = ApplyOn(gdi, w, h, hz, testOnly);
         // Secours : mode du bureau par défaut (écran principal).
-        if (err != null && ApplyOn(null, w, h, hz) == null) err = null;
+        if (err != null && ApplyOn(null, w, h, hz, testOnly) == null) err = null;
         return err == null ? "{\"ok\":true}" : "{\"error\":" + Str(err) + "}";
     }
 }
@@ -170,7 +172,8 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
     switch ($a[0]) {
       'procs' { $out = [PgStretch]::Procs([string[]]($a | Select-Object -Skip 1)) }
       'display' { $out = [PgStretch]::Display() }
-      'apply' { $out = [PgStretch]::Apply($a[1], [int]$a[2], [int]$a[3], [int]$a[4]) }
+      'apply' { $out = [PgStretch]::Apply($a[1], [int]$a[2], [int]$a[3], [int]$a[4], $false) }
+      'test' { $out = [PgStretch]::Apply($a[1], [int]$a[2], [int]$a[3], [int]$a[4], $true) }
       default { $out = '{"error":"Commande inconnue."}' }
     }
   } catch {
