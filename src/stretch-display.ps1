@@ -5,6 +5,8 @@
 #   display                      -> écran principal, mode actuel et modes disponibles
 #   apply <gdi> <l> <h> <hz>     -> {"ok":true} ou {"error":"..."}
 #   test <gdi> <l> <h> <hz>      -> idem, sans rien changer (mode accepté par le pilote ?)
+#   amdmode <gdi> <l> <h>        -> crée la résolution sur une carte AMD (ADLX) : {"ok":true},
+#                                   {"unsupported":true} (autre carte, pilote ancien) ou {"error":"..."}
 $ErrorActionPreference = 'Stop'
 Add-Type -TypeDefinition @'
 using System;
@@ -18,6 +20,7 @@ public static class PgStretch
     const uint CDS_TEST = 0x2;
     const int DM_PELSWIDTH = 0x80000, DM_PELSHEIGHT = 0x100000, DM_DISPLAYFREQUENCY = 0x400000;
     const int DISPLAY_DEVICE_ACTIVE = 0x1, DISPLAY_DEVICE_PRIMARY_DEVICE = 0x4;
+    const int EDD_GET_DEVICE_INTERFACE_NAME = 0x1;
     const uint TH32CS_SNAPPROCESS = 0x2;
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
@@ -117,7 +120,7 @@ public static class PgStretch
             DEVMODE cur = NewDevMode();
             if (!EnumDisplaySettings(dd.DeviceName, ENUM_CURRENT_SETTINGS, ref cur)) break;
             StringBuilder sb = new StringBuilder();
-            sb.Append("{\"gdi\":").Append(Str(dd.DeviceName))
+            sb.Append("{\"gdi\":").Append(Str(dd.DeviceName)).Append(",\"gpu\":").Append(Str(dd.DeviceString))
               .Append(",\"w\":").Append(cur.dmPelsWidth).Append(",\"h\":").Append(cur.dmPelsHeight).Append(",\"hz\":").Append(cur.dmDisplayFrequency)
               .Append(",\"modes\":[");
             HashSet<string> seen = new HashSet<string>();
@@ -161,6 +164,137 @@ public static class PgStretch
         if (err != null && ApplyOn(null, w, h, hz, testOnly) == null) err = null;
         return err == null ? "{\"ok\":true}" : "{\"error\":" + Str(err) + "}";
     }
+
+    // ---- Résolution personnalisée sur carte AMD (ADLX, fourni avec le pilote AMD) ----
+    // Interfaces C d'ADLX : chaque objet commence par sa table de fonctions (ordre des en-têtes du SDK).
+    [StructLayout(LayoutKind.Sequential)]
+    struct ADLX_CustomResolution
+    {
+        public int resWidth, resHeight, refreshRate, presentation, timingStandard, GPixelClock; // horloge en kHz
+        public int timingFlags, hTotal, vTotal, hDisplay, vDisplay, hFrontPorch, vFrontPorch, hSyncWidth, vSyncWidth, hPolarity, vPolarity;
+    }
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] static extern IntPtr LoadLibrary(string file);
+    [DllImport("kernel32.dll", CharSet = CharSet.Ansi)] static extern IntPtr GetProcAddress(IntPtr module, string name);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] delegate int AdlxVersionFn(out ulong version);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] delegate int AdlxInitFn(ulong version, out IntPtr system);
+    delegate int GetPtrFn(IntPtr self, out IntPtr result);
+    delegate int GetPtrForFn(IntPtr self, IntPtr arg, out IntPtr result);
+    delegate uint SizeFn(IntPtr self);
+    delegate int AtFn(IntPtr self, uint index, out IntPtr result);
+    delegate int GetBoolFn(IntPtr self, out bool result);
+    delegate int GetResFn(IntPtr self, out ADLX_CustomResolution result);
+    delegate int SetResFn(IntPtr self, ADLX_CustomResolution value);
+    delegate int WithPtrFn(IntPtr self, IntPtr arg);
+    delegate int ReleaseFn(IntPtr self);
+
+    static T Vt<T>(IntPtr obj, int index) where T : class
+    {
+        return Marshal.GetDelegateForFunctionPointer(Marshal.ReadIntPtr(Marshal.ReadIntPtr(obj), index * IntPtr.Size), typeof(T)) as T;
+    }
+    static void Release(IntPtr obj) { if (obj != IntPtr.Zero) Vt<ReleaseFn>(obj, 1)(obj); }
+    static void Ok(int r, string step) { if (r != 0) throw new Exception("Carte AMD : " + step + " impossible (code " + r + ")."); }
+
+    // « AUS2405 » : fabricant et produit, tels que Windows les nomme (DISPLAY\AUS2405\...).
+    static string MonitorModel(string gdi)
+    {
+        DISPLAY_DEVICE mon = new DISPLAY_DEVICE();
+        mon.cb = Marshal.SizeOf(typeof(DISPLAY_DEVICE));
+        if (!EnumDisplayDevices(gdi, 0, ref mon, EDD_GET_DEVICE_INTERFACE_NAME)) return null;
+        string[] parts = (mon.DeviceID ?? "").Split('#');
+        return parts.Length > 1 ? parts[1].ToUpperInvariant() : null;
+    }
+    // Même nom calculé depuis l'EDID (texte hexadécimal) : octets 8-9 fabricant, 10-11 produit.
+    static string EdidModel(string edid)
+    {
+        if (edid == null || edid.Length < 24) return null;
+        int m = Convert.ToInt32(edid.Substring(16, 4), 16);
+        int product = Convert.ToInt32(edid.Substring(22, 2) + edid.Substring(20, 2), 16);
+        string maker = "" + (char)('@' + ((m >> 10) & 31)) + (char)('@' + ((m >> 5) & 31)) + (char)('@' + (m & 31));
+        return maker + product.ToString("X4");
+    }
+
+    // Nouvelle résolution reprise du mode actuel de l'écran : mêmes marges et synchronisation,
+    // largeur et hauteur actives changées, horloge recalculée (même fréquence de balayage ligne).
+    // ADLX initialisé une fois pour toute la vie de l'assistant : le réinitialiser après
+    // ADLXTerminate dans le même processus fait planter le pilote.
+    static IntPtr adlxSystem = IntPtr.Zero;
+    static bool adlxTried = false;
+    static IntPtr AdlxSystem()
+    {
+        if (adlxTried) return adlxSystem;
+        adlxTried = true;
+        IntPtr dll = LoadLibrary("amdadlx64.dll");
+        if (dll == IntPtr.Zero) return IntPtr.Zero;
+        IntPtr pVer = GetProcAddress(dll, "ADLXQueryFullVersion"), pInit = GetProcAddress(dll, "ADLXInitialize");
+        if (pVer == IntPtr.Zero || pInit == IntPtr.Zero) return IntPtr.Zero;
+        ulong version;
+        IntPtr system;
+        if (((AdlxVersionFn)Marshal.GetDelegateForFunctionPointer(pVer, typeof(AdlxVersionFn)))(out version) == 0
+            && ((AdlxInitFn)Marshal.GetDelegateForFunctionPointer(pInit, typeof(AdlxInitFn)))(version, out system) == 0) adlxSystem = system;
+        return adlxSystem;
+    }
+
+    public static string AmdCreateMode(string gdi, int w, int h)
+    {
+        IntPtr system = AdlxSystem();
+        if (system == IntPtr.Zero) return "{\"unsupported\":true}";
+        // Juste après une création, Windows réénumère les écrans : le modèle reste illisible un moment.
+        string model = MonitorModel(gdi);
+        for (int i = 0; model == null && i < 15; i++) { System.Threading.Thread.Sleep(200); model = MonitorModel(gdi); }
+        IntPtr services = IntPtr.Zero, list = IntPtr.Zero;
+        try
+        {
+            Ok(Vt<GetPtrFn>(system, 3)(system, out services), "liste des écrans");
+            Ok(Vt<GetPtrFn>(services, 4)(services, out list), "liste des écrans");
+            uint count = Vt<SizeFn>(list, 3)(list);
+            // Écran du jeu : seul écran AMD de ce modèle. Modèle illisible ou deux écrans identiques :
+            // rien n'est créé (une résolution posée sur le mauvais écran ne servirait à rien).
+            uint target = 0, matches = 0;
+            for (uint i = 0; i < count; i++)
+            {
+                IntPtr display = IntPtr.Zero;
+                try
+                {
+                    Ok(Vt<AtFn>(list, 11)(list, i, out display), "lecture de l'écran");
+                    IntPtr edid;
+                    Vt<GetPtrFn>(display, 7)(display, out edid);
+                    if (model == null ? count == 1 : EdidModel(Marshal.PtrToStringAnsi(edid)) == model) { target = i; matches++; }
+                }
+                finally { Release(display); }
+            }
+            if (matches != 1) return "{\"unsupported\":true}";
+            {
+                IntPtr display = IntPtr.Zero, custom = IntPtr.Zero, current = IntPtr.Zero;
+                try
+                {
+                    Ok(Vt<AtFn>(list, 11)(list, target, out display), "lecture de l'écran");
+                    Ok(Vt<GetPtrForFn>(services, 18)(services, display, out custom), "résolutions personnalisées");
+                    bool supported;
+                    if (Vt<GetBoolFn>(custom, 3)(custom, out supported) != 0 || !supported) return "{\"unsupported\":true}";
+                    Ok(Vt<GetPtrFn>(custom, 5)(custom, out current), "lecture du mode actuel");
+                    ADLX_CustomResolution cr;
+                    Ok(Vt<GetResFn>(current, 3)(current, out cr), "lecture du mode actuel");
+                    int hBlank = cr.hTotal - cr.hDisplay, vBlank = cr.vTotal - cr.vDisplay;
+                    cr.resWidth = cr.hDisplay = w;
+                    cr.resHeight = cr.vDisplay = h;
+                    cr.hTotal = (w + hBlank + 7) / 8 * 8; // multiple de 8, comme les timings CVT
+                    cr.vTotal = h + vBlank;
+                    cr.timingStandard = 4; // manuel : ces valeurs telles quelles
+                    cr.GPixelClock = (int)Math.Round((double)cr.hTotal * cr.vTotal * cr.refreshRate / 10000.0) * 10;
+                    Ok(Vt<SetResFn>(current, 4)(current, cr), "préparation du mode");
+                    Ok(Vt<WithPtrFn>(custom, 6)(custom, current), "création de la résolution");
+                    return "{\"ok\":true}";
+                }
+                finally { Release(current); Release(custom); Release(display); }
+            }
+        }
+        catch (Exception e) { return "{\"error\":" + Str(e.Message) + "}"; }
+        finally
+        {
+            Release(list);
+            Release(services);
+        }
+    }
 }
 '@
 
@@ -173,6 +307,7 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
       'procs' { $out = [PgStretch]::Procs([string[]]($a | Select-Object -Skip 1)) }
       'display' { $out = [PgStretch]::Display() }
       'apply' { $out = [PgStretch]::Apply($a[1], [int]$a[2], [int]$a[3], [int]$a[4], $false) }
+      'amdmode' { $out = [PgStretch]::AmdCreateMode($a[1], [int]$a[2], [int]$a[3]) }
       'test' { $out = [PgStretch]::Apply($a[1], [int]$a[2], [int]$a[3], [int]$a[4], $true) }
       default { $out = '{"error":"Commande inconnue."}' }
     }

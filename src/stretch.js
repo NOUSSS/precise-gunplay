@@ -326,6 +326,7 @@ class Stretch extends EventEmitter {
     this.lastInMatch = null;
     this.coreAt = 0; // dernière réponse de core-game
     this.manual = false; // résolution choisie au raccourci, gardée jusqu'au prochain changement d'état
+    this.joinedLate = false; // jeu déjà lancé quand l'app l'a vu (lanceur jamais vu)
   }
 
   // Les actions (boucle, raccourcis, boutons) passent l'une après l'autre.
@@ -509,6 +510,7 @@ class Stretch extends EventEmitter {
         const prepared = this.launcherSeen; // lanceur déjà vu : résolution native déjà relevée
         this.resetGame();
         this.gameRunning = true;
+        this.joinedLate = !prepared;
         this.setPhase('game');
         if (!prepared) await this.captureNative();
         await this.disableMonitors();
@@ -561,16 +563,20 @@ class Stretch extends EventEmitter {
       if (inMatch !== null && this.lastInMatch !== null && Date.now() - this.coreAt < PRESENCE_TRUST_MS) inMatch = this.lastInMatch;
     }
     if (inMatch === null) return;
+    const firstState = this.lastInMatch === null;
     if (inMatch !== this.lastInMatch) {
       // Premier état connu : un choix fait au raccourci avant la première réponse est gardé.
-      if (this.lastInMatch !== null) this.manual = false;
+      if (!firstState) this.manual = false;
       this.lastInMatch = inMatch;
     }
     if (inMatch) {
       if (!this.armedAt) {
-        this.armedAt = Date.now();
+        // Jeu déjà lancé quand l'app l'a vu (app lancée ou relancée en cours de route) et déjà en
+        // partie au premier état connu : le chargement est passé depuis longtemps, pas de délai.
+        this.armedAt = firstState && this.joinedLate ? Date.now() - this.cfg.delayMs : Date.now();
         this.setPhase('armed');
-      } else if (!this.manual && this.res !== 'stretched' && Date.now() - this.armedAt >= this.cfg.delayMs) {
+      }
+      if (!this.manual && this.res !== 'stretched' && Date.now() - this.armedAt >= this.cfg.delayMs) {
         await this.applyStretched();
       }
       return;
@@ -609,15 +615,32 @@ class Stretch extends EventEmitter {
     return m;
   }
 
-  // Résolution saisie à la main : acceptée seulement si le pilote la connaît (rien n'est changé).
+  // Résolution saisie à la main : le pilote doit la connaître. Carte AMD : elle est créée au besoin ;
+  // autre carte : marche à suivre dans son panneau. L'affichage n'est pas changé.
   checkMode(w, h) {
-    const done = this.exclusive(async () => {
-      const d = await this.display.call('display');
-      await this.display.call(`test ${d.gdi} ${w} ${h} ${d.hz}`).catch(() => {
-        throw new Error(`${w} × ${h} n'existe pas pour cet écran. Créez-la dans le panneau de la carte graphique (résolution personnalisée), puis réessayez.`);
-      });
-    });
-    this.releaseDisplay();
+    // Étapes courtes, chacune à son tour dans la file : la boucle et les raccourcis passent entre deux.
+    const step = (cmd) => this.exclusive(() => this.display.call(cmd));
+    const done = (async () => {
+      const d = await step('display');
+      const n = this.cfg.native || d;
+      const accepted = () => step(`test ${d.gdi} ${w} ${h} ${n.hz}`).then(() => true, () => false);
+      if (await accepted()) return;
+      if (w > n.w || h > n.h) throw new Error(`Choisissez une résolution jusqu'à ${n.w} × ${n.h}.`);
+      // La nouvelle résolution reprend le mode actuel de l'écran : il doit être le mode natif.
+      if (d.w !== n.w || d.h !== n.h || d.hz !== n.hz) throw new Error(`Repassez l'écran en ${n.w} × ${n.h} à ${n.hz}${N}Hz (Tout restaurer), puis validez de nouveau.`);
+      const amd = await step(`amdmode ${d.gdi} ${w} ${h}`).catch((e) => ({ failed: e.message }));
+      if (amd.ok) {
+        for (let i = 0; i < 10; i++) {
+          if (await accepted()) return;
+          await sleep(500); // le pilote met à jour sa liste de modes
+        }
+      }
+      if (amd.failed) throw new Error(amd.failed);
+      throw new Error(/nvidia/i.test(d.gpu)
+        ? `${w} × ${h} n'existe pas pour cet écran. Créez-la dans le Panneau de configuration NVIDIA : Modifier la résolution, Personnaliser, Créer une résolution personnalisée. Validez-la ensuite ici.`
+        : `${w} × ${h} n'existe pas pour cet écran. Créez-la comme résolution personnalisée dans le logiciel de la carte graphique, puis validez-la ici.`);
+    })();
+    done.finally(() => this.releaseDisplay()).catch(() => {});
     return done;
   }
 
