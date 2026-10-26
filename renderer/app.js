@@ -2430,7 +2430,7 @@ function stretchStatusHtml(s) {
   const [title, detail, tone] = {
     off: ['Désactivée', n ? `Écran en ${resLabel(n.w, n.h)} à ${n.hz} Hz.` : '', ''],
     idle: ['En attente de VALORANT', `Passage en ${target} quand une partie commence.`, 'on'],
-    launching: ['Lancement du jeu', s.screensOff ? 'Écran préparé pour la résolution étirée.' : '', 'on'],
+    launching: ['Lancement du jeu', s.screensOff ? `${s.screensOff > 1 ? 'Écrans préparés' : 'Écran préparé'} pour la résolution étirée.` : '', 'on'],
     game: ['Au menu', offline ? 'Compte non connecté : la partie ne peut pas être détectée.' : `Résolution ${s.res === 'stretched' ? target : 'native'}.`, offline ? 'warn' : 'on'],
     armed: ['Partie trouvée', `Passage en ${target} dans <b data-ends="${s.switchAt}">${fmtDuration(s.switchAt - Date.now())}</b>.`, 'warn'],
     stretched: ['En partie', s.res === 'native' ? 'Résolution native, choisie au raccourci.' : `Résolution étirée ${target}.`, 'live'],
@@ -2500,7 +2500,7 @@ PAGES.stretch = async () => {
       </div>
       ${info.monitorsReady ? `
       <div class="setting-row">
-        <div class="label"><div>Écran en mode générique pendant le jeu</div><div>Du lancement à la fermeture du jeu, Windows utilise son pilote d'écran standard. C'est ce qui permet à la résolution étirée de tenir. L'image ne change pas.</div></div>
+        <div class="label"><div>Écrans en mode générique pendant le jeu</div><div>Du lancement à la fermeture du jeu, Windows utilise son pilote d'écran standard pour tous les écrans. C'est ce qui permet à la résolution étirée de tenir. L'image ne change pas.</div></div>
         <label class="switch"><input type="checkbox" id="st-monitors" ${c.monitors ? 'checked' : ''}><span></span></label>
       </div>` : ''}
       <div class="setting-row">

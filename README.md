@@ -16,10 +16,10 @@ Va sur la page [**Releases**](https://github.com/NOUSSS/precise-gunplay/releases
 ## Résolution étirée
 
 Onglet **Résolution étirée** : choisissez la résolution et activez l'interrupteur. Ensuite, tout est automatique :
-- dès le lancement de VALORANT, avant l'ouverture de sa fenêtre, l'écran du jeu passe sur le pilote générique de Windows
-  (désactivé dans le Gestionnaire de périphériques, rubrique Moniteurs) ; les autres écrans ne sont pas touchés ;
+- dès le lancement de VALORANT, avant l'ouverture de sa fenêtre, les écrans passent sur le pilote générique de Windows
+  (désactivés dans le Gestionnaire de périphériques, rubrique Moniteurs), sans que l'image change ;
 - 30 s après le début d'une partie (fin de l'écran de chargement), l'écran passe en résolution étirée, à la même fréquence ;
-- au menu, la résolution native revient ; à la fermeture du jeu, l'écran retrouve son pilote.
+- au menu, la résolution native revient ; à la fermeture du jeu, les écrans retrouvent leur pilote.
 
 La partie est détectée par le serveur de jeu de Riot ; s'il ne répond pas, la présence du client Riot prend le relais.
 Le délai, les raccourcis (Ctrl+F8 et Ctrl+F9 par défaut) et le réglage automatique de VALORANT sont dans les réglages avancés.

@@ -1,5 +1,5 @@
 // Résolution étirée automatique, même fonctionnement que ValStretch :
-// 1. dès le lanceur VALORANT.exe (avant la fenêtre du jeu), l'écran du jeu est désactivé dans le
+// 1. dès le lanceur VALORANT.exe (avant la fenêtre du jeu), les écrans sont désactivés dans le
 //    Gestionnaire de périphériques (pilote générique) : le jeu accepte alors la résolution du bureau ;
 // 2. quand le serveur de jeu signale une partie (core-game, ou la présence du client Riot s'il ne
 //    répond pas), on attend la fin du chargement (30 s par défaut) puis on passe en résolution étirée ;
@@ -220,7 +220,7 @@ async function monitorsInstalled() {
   try { installed = fs.readFileSync(path.join(SHARED_DIR, 'monitors.ps1'), 'utf8'); } catch { return null; }
   const [off, on] = await Promise.all([run('schtasks.exe', ['/query', '/tn', TASK('off')]), run('schtasks.exe', ['/query', '/tn', TASK('on')])]);
   if (off.code !== 0 || on.code !== 0) return null;
-  return normalize(installed) === normalize(bundledMonitorsScript()) && fs.existsSync(MONITORS_TARGET) ? 'ready' : 'outdated';
+  return normalize(installed) === normalize(bundledMonitorsScript()) ? 'ready' : 'outdated';
 }
 
 // Une seule fenêtre UAC : copie le script dans un dossier que seul un administrateur peut modifier,
@@ -619,22 +619,30 @@ class Stretch extends EventEmitter {
 
   async disableMonitors() {
     if (!this.cfg.monitors || !this.monitorsReady) return;
-    try {
-      // Seul l'écran du jeu compte pour la résolution étirée ; les autres restent tels quels.
-      // Écran introuvable : liste vide, tous les écrans sont concernés (méthode d'origine).
-      const { id } = await this.display.call('primary');
-      fs.writeFileSync(MONITORS_TARGET, JSON.stringify({ ids: id ? [id] : [] }));
-    } catch { /* ancienne autorisation : tous les écrans sont concernés */ }
+    // Tous les écrans, comme ValStretch : le jeu se place sur un écran encore reconnu ; s'il n'en
+    // reste aucun, il prend l'écran principal du bureau. Une ancienne version ne visait que
+    // l'écran principal : sa liste est vidée (fichier absent : tous les écrans, rien à écrire).
+    if (readJson(MONITORS_TARGET)?.ids?.length) {
+      try {
+        fs.writeFileSync(MONITORS_TARGET, JSON.stringify({ ids: [] }));
+      } catch {
+        throw new Error('Écrans non préparés : renouvelez l\'autorisation.');
+      }
+    }
     const r = await runMonitorsTask('off');
     this.screensOff = r.disabled?.length || 0;
     this.emit('status', this.status());
     if (r.failed?.length) this.notify(`Écran non préparé pour la résolution étirée : ${r.failed.join(', ')}.`, 'error');
-    // Garde-fou : plus aucun écran actif, on réactive tout de suite.
-    try {
-      await this.display.call('display');
-    } catch {
-      await this.enableMonitors();
-      throw new Error('Plus aucun écran actif : écrans remis comme avant.');
+    // Garde-fou : plus aucun écran actif après la reconfiguration, on réactive tout.
+    for (let i = 0; ; i++) {
+      try {
+        await this.display.call('display');
+        break;
+      } catch {
+        if (i < 5) { await sleep(300); continue; }
+        await this.enableMonitors();
+        throw new Error('Plus aucun écran actif : écrans remis comme avant.');
+      }
     }
     await sleep(400); // laisser Windows finir la reconfiguration
   }
