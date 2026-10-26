@@ -2438,6 +2438,16 @@ function stretchStatusHtml(s) {
   return `<span class="st-dot ${tone}"></span><div><b>${title}</b><div class="muted">${detail}</div></div>`;
 }
 
+// Ce qui empêche la résolution étirée de bien marcher, avec le bouton qui le règle quand il existe.
+function stretchProblemsHtml(s) {
+  if (!s.problems?.length) return '';
+  return `<div class="panel st-gap st-problems">${s.problems.map((p) => `
+    <div class="st-problem"><span class="st-dot warn"></span><div class="label">${esc(p.text)}</div>${p.action ? `<button class="btn" data-fix="${p.action}">${esc(p.label)}</button>` : ''}</div>`).join('')}
+  </div>`;
+}
+
+const screenName = (sc, i) => sc.name || `Écran ${sc.gdi.match(/\d+$/)?.[0] || i + 1}`;
+
 PAGES.stretch = async () => {
   const alive = guard();
   const info = await call('stretch-info');
@@ -2464,6 +2474,13 @@ PAGES.stretch = async () => {
   const options = (listed || !c.width ? modes : [[c.width, c.height], ...modes])
     .map(([w, h]) => `<option value="${w}x${h}" ${w === c.width && h === c.height ? 'selected' : ''}>${resLabel(w, h)} (${ratioLabel(w, h)})</option>`).join('');
   const hz = info.native?.hz || d?.hz;
+  const screens = info.screens || [];
+  const current = c.screen ? screens.findIndex((sc) => (c.screen.id && sc.id === c.screen.id) || sc.gdi === c.screen.gdi) : -1;
+  const autoIndex = Math.max(0, screens.findIndex((sc) => sc.gdi === (info.gameScreen || screens.find((x) => x.primary)?.gdi)));
+  const screenOptions = screens.length > 1 ? [
+    `<option value="auto" ${current < 0 ? 'selected' : ''}>Automatique (${esc(screenName(screens[autoIndex], autoIndex))})</option>`,
+    ...screens.map((sc, i) => `<option value="${i}" ${i === current ? 'selected' : ''}>${esc(screenName(sc, i))} (${resLabel(sc.w, sc.h)}${sc.primary ? ', principal' : ''})</option>`),
+  ].join('') : '';
   const HOTKEYS = [
     ['toggle', 'Basculer étirée ou native', 'Actif partout, jeu compris, quand la fonction est activée.'],
     ['native', 'Tout restaurer', 'Toujours actif, même fonction coupée. En partie : résolution native.'],
@@ -2483,9 +2500,16 @@ PAGES.stretch = async () => {
 
     <p class="muted st-rescue">Écran illisible : <span id="st-restore-key">${hotkeyHtml(info.hotkeys.native)}</span> remet l'affichage comme avant, à tout moment.</p>
 
+    <div id="st-problems">${stretchProblemsHtml(info)}</div>
+
     ${d ? '' : `<div class="warn-box st-gap">${esc(info.display?.error || 'Écran introuvable.')}</div>`}
 
     <div class="panel st-gap">
+      ${screenOptions ? `
+      <div class="setting-row">
+        <div class="label"><div>Écran du jeu</div><div>Celui dont la résolution change. Automatique : l'écran où s'affiche VALORANT, sinon l'écran principal.</div></div>
+        <select id="st-screen">${screenOptions}</select>
+      </div>` : ''}
       <div class="setting-row">
         <div class="label"><div>Résolution en partie</div><div>La fréquence reste à ${hz ? `${hz} Hz` : 'sa valeur actuelle'}.</div></div>
         <select id="st-res" ${modes.length ? '' : 'disabled'}>${options ? `${options}<option value="custom">Autre résolution…</option>` : '<option>Aucune résolution disponible</option>'}</select>
@@ -2499,11 +2523,6 @@ PAGES.stretch = async () => {
           <button class="btn" type="submit">Valider</button>
         </div>
       </form>
-      ${c.enabled && (!info.monitorsReady || info.monitorsOutdated) ? `
-      <div class="setting-row">
-        <div class="label"><div>Autorisation Windows</div><div>${info.monitorsReady ? 'Une nouvelle version est à installer une fois. En attendant, l\'ancienne continue de fonctionner.' : 'Nécessaire une seule fois pour que la résolution étirée tienne en jeu.'}</div></div>
-        <button class="btn primary" id="st-install">${info.monitorsReady ? 'Renouveler' : 'Autoriser'}</button>
-      </div>` : ''}
     </div>
 
     <details class="panel st-gap st-advanced" id="st-advanced" ${stretchAdvanced ? 'open' : ''}>
@@ -2533,6 +2552,30 @@ PAGES.stretch = async () => {
   state.onStretch = (s) => {
     const el = $('#st-state');
     if (el) el.innerHTML = stretchStatusHtml(s);
+    const box = $('#st-problems');
+    if (box) box.innerHTML = stretchProblemsHtml(s);
+  };
+
+  if ($('#st-screen')) $('#st-screen').onchange = async (e) => {
+    const sc = screens[Number(e.target.value)];
+    await save({ screen: sc ? { id: sc.id, gdi: sc.gdi, name: sc.name || null } : null });
+    navigate('stretch'); // résolutions de l'écran choisi
+  };
+  $('#st-problems').onclick = async (e) => {
+    const btn = e.target.closest('[data-fix]');
+    if (!btn) return;
+    btn.disabled = true;
+    try {
+      const fix = btn.dataset.fix;
+      if (fix === 'install') await call('stretch-install');
+      else if (fix === 'monitors') await save({ monitors: true });
+      else if (fix === 'lock') await call('stretch-lock', true);
+      else if (fix === 'screen-auto') await save({ screen: null });
+      navigate('stretch');
+    } catch (err) {
+      toast(err.message, 'error');
+      btn.disabled = false;
+    }
   };
 
   $('#st-advanced').ontoggle = (e) => { stretchAdvanced = e.target.open; };
@@ -2617,17 +2660,7 @@ PAGES.stretch = async () => {
       btn.addEventListener('blur', stop);
     };
   });
-  if ($('#st-install')) $('#st-install').onclick = async (e) => {
-    e.target.disabled = true;
-    try {
-      await call('stretch-install');
-      toast('Autorisation enregistrée.');
-      navigate('stretch');
-    } catch (err) {
-      toast(err.message, 'error');
-      e.target.disabled = false;
-    }
-  };
+
   $('#st-lock').onchange = async (e) => {
     try {
       await call('stretch-lock', e.target.checked);

@@ -486,6 +486,10 @@ kbd { display: inline-block; font: 600 11px var(--font); color: var(--text); bac
 kbd + kbd { margin-left: 4px; }
 .st-note { font-size: 12px; line-height: 1.5; margin: 14px 2px 0; }
 .st-rescue { font-size: 12px; margin: 10px 2px 0; }
+.st-problems { padding-top: 4px; padding-bottom: 4px; }
+.st-problem { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 13px; line-height: 1.5; }
+.st-problem:last-child { border-bottom: 0; }
+.st-problem .label { flex: 1; }
 
 /* ---------- Partie en direct ---------- */
 .match-head { position: relative; border-radius: var(--radius); overflow: hidden; background: var(--panel) center/cover; min-height: 120px; display: flex; align-items: flex-end; border: 1px solid #ffffff14; margin-bottom: 16px; }

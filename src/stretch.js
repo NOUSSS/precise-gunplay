@@ -152,6 +152,14 @@ function gameSettingsPath() {
   return candidates.sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs)[0];
 }
 
+// Mode d'affichage de VALORANT : 0 plein écran, 1 plein écran fenêtré, 2 fenêtré ; null si inconnu.
+function gameWindowMode() {
+  const file = gameSettingsPath();
+  if (!file) return null;
+  const m = /^\s*FullscreenMode\s*=\s*(\d+)/im.exec(fs.readFileSync(file, 'utf8'));
+  return m ? Number(m[1]) : null;
+}
+
 function gameConfigLocked() {
   const file = gameSettingsPath();
   if (!file) return null;
@@ -302,6 +310,8 @@ class Stretch extends EventEmitter {
     this.hotkeysFailed = [];
     this.hotkeysPaused = false; // saisie d'un nouveau raccourci en cours
     this.screensOff = 0; // écrans désactivés par la dernière tâche « off »
+    this.screensFailed = []; // écrans que la dernière tâche « off » n'a pas pu préparer
+    this.windowIssue = null; // le jeu n'a pas suivi la résolution étirée : message gardé jusqu'au prochain succès
     this.resetGame();
     this.res = null; // 'native' | 'stretched' | null (inconnu)
     this.phase = 'off';
@@ -313,6 +323,12 @@ class Stretch extends EventEmitter {
 
   get hotkeys() {
     return this.cfg.hotkeys;
+  }
+
+  // Écran visé : choisi sur la page (identifiant, nom GDI en secours), sinon celui du jeu ou le principal.
+  displayCmd() {
+    const sel = this.cfg.screen;
+    return sel ? `display ${sel.id || 'none'} ${sel.gdi || '-'}` : 'display auto -';
   }
 
   resetGame() {
@@ -328,6 +344,7 @@ class Stretch extends EventEmitter {
     this.manual = false; // résolution choisie au raccourci, gardée jusqu'au prochain changement d'état
     this.joinedLate = false; // jeu déjà lancé quand l'app l'a vu (lanceur jamais vu)
     this.oversized = 0; // ticks où la fenêtre du jeu dépasse l'écran étiré
+    this.gameScreen = null; // nom GDI de l'écran qui affiche le jeu
   }
 
   // Les actions (boucle, raccourcis, boutons) passent l'une après l'autre.
@@ -353,7 +370,31 @@ class Stretch extends EventEmitter {
       hotkeys: this.hotkeys,
       hotkeysFailed: this.hotkeysFailed,
       screensOff: this.screensOff,
+      screen: c.screen,
+      gameScreen: this.gameScreen,
+      problems: this.problems(),
     };
+  }
+
+  // Ce qui empêche la résolution étirée de bien marcher, avec quoi faire. « action » : bouton de la page.
+  problems() {
+    const c = this.cfg;
+    if (!c.enabled) return [];
+    const list = [];
+    if (c.monitors && !this.monitorsReady) {
+      list.push({ text: "Autorisation Windows manquante. Sans elle, VALORANT garde sa résolution et n'affiche qu'une partie de l'image.", action: 'install', label: 'Autoriser' });
+    } else if (c.monitors && this.monitorsOutdated) {
+      list.push({ text: "Autorisation Windows à renouveler pour cette version. L'ancienne fonctionne encore.", action: 'install', label: 'Renouveler' });
+    }
+    if (!c.monitors) list.push({ text: "Écrans en mode générique désactivés. VALORANT risque de garder sa résolution et de n'afficher qu'une partie de l'image.", action: 'monitors', label: 'Réactiver' });
+    if (this.screensFailed.length) list.push({ text: `Écran pas passé en mode générique : ${this.screensFailed.join(', ')}. Fermez VALORANT et relancez-le.` });
+    if (this.gameRunning && this.joinedLate && c.monitors) list.push({ text: "VALORANT a été lancé avant Precise Gunplay. Fermez le jeu et relancez-le, l'app restant ouverte." });
+    let mode = null;
+    try { mode = gameWindowMode(); } catch { /* fichier illisible */ }
+    if (mode !== null && mode !== 1) list.push({ text: `VALORANT est en mode ${mode === 0 ? 'plein écran' : 'fenêtré'}. La résolution étirée demande le plein écran fenêtré.`, action: 'lock', label: 'Régler VALORANT' });
+    if (c.screen && this.gameScreen && c.screen.gdi !== this.gameScreen) list.push({ text: "VALORANT s'affiche sur un autre écran que celui choisi.", action: 'screen-auto', label: "Viser l'écran du jeu" });
+    if (this.windowIssue) list.push({ text: this.windowIssue });
+    return list;
   }
 
   setPhase(phase) {
@@ -373,12 +414,14 @@ class Stretch extends EventEmitter {
   // Écran principal, modes disponibles, état des réglages : pour la page de l'interface.
   async info() {
     let display = null;
-    try { display = await this.display.call('display'); } catch (e) { display = { error: e.message }; }
+    try { display = await this.display.call(this.displayCmd()); } catch (e) { display = { error: e.message }; }
+    let screens = null;
+    try { screens = (await this.display.call('screens')).list; } catch { /* liste indisponible */ }
     let configLocked = null;
     try { configLocked = gameConfigLocked(); } catch { /* fichier illisible */ }
     await this.checkMonitors();
     this.releaseDisplay();
-    return { ...this.status(), display, configLocked };
+    return { ...this.status(), display, screens, configLocked };
   }
 
   // Fonction coupée : l'assistant d'affichage n'a pas à rester en mémoire (il se relance à la demande).
@@ -402,6 +445,13 @@ class Stretch extends EventEmitter {
 
   configure() {
     const on = this.cfg.enabled;
+    // Autre écran choisi : l'ancien revient en native, la résolution native du nouveau est relevée.
+    const screenKey = JSON.stringify(this.cfg.screen || null);
+    if (this.screenKey !== undefined && screenKey !== this.screenKey) {
+      this.exclusive(() => this.switchScreen()).catch((e) => this.notify(e.message, 'error'));
+      this.releaseDisplay();
+    }
+    this.screenKey = screenKey;
     if (on && !this.timer) {
       this.resetGame();
       this.exclusive(() => this.captureNative()).catch(() => {});
@@ -424,6 +474,16 @@ class Stretch extends EventEmitter {
       }
       this.emit('status', this.status());
     }
+  }
+
+  async switchScreen() {
+    const n = this.cfg.native;
+    if (this.res === 'stretched' && n?.gdi) {
+      await this.display.call(`apply ${n.gdi} ${n.w} ${n.h} ${n.hz}`);
+      this.res = 'native';
+    }
+    await this.captureNative();
+    this.emit('status', this.status());
   }
 
   // Raccourcis globaux. « Tout restaurer » reste actif même fonction coupée : avec un seul écran devenu
@@ -465,18 +525,18 @@ class Stretch extends EventEmitter {
     const p = await this.display.call(`procs ${LAUNCHER} ${GAME}`);
     if (p.run.some(Boolean)) return; // jeu déjà lancé : la boucle prend le relais
     await this.enableMonitors();
-    const d = await this.display.call('display');
+    const d = await this.display.call(this.displayCmd());
     const c = this.cfg;
     if (c.native && d.w === c.width && d.h === c.height) await this.applyNative();
   }
 
   // Résolution native = mode actuel de l'écran, tant qu'il n'est pas déjà étiré.
   async captureNative() {
-    const d = await this.display.call('display');
+    const d = await this.display.call(this.displayCmd());
     const c = this.cfg;
     if (d.w === c.width && d.h === c.height) return;
-    if (!c.native || c.native.w !== d.w || c.native.h !== d.h || c.native.hz !== d.hz) {
-      this.settings.update({ stretch: { native: { w: d.w, h: d.h, hz: d.hz } } });
+    if (!c.native || c.native.w !== d.w || c.native.h !== d.h || c.native.hz !== d.hz || c.native.gdi !== d.gdi) {
+      this.settings.update({ stretch: { native: { w: d.w, h: d.h, hz: d.hz, gdi: d.gdi } } });
       this.emit('status', this.status());
     }
   }
@@ -498,6 +558,10 @@ class Stretch extends EventEmitter {
       if (p.window) {
         this.windowSeen = true;
         this.windowGone = 0;
+        if (p.screen && p.screen !== this.gameScreen) {
+          this.gameScreen = p.screen;
+          this.emit('status', this.status());
+        }
       }
       if (this.gameRunning) {
         // La fenêtre se ferme avant le processus (qui reste ~15-20 s) : on restaure sans l'attendre.
@@ -552,6 +616,10 @@ class Stretch extends EventEmitter {
     const c = this.cfg;
     if (!p.ww || (p.ww <= c.width + 8 && p.wh <= c.height + 8)) {
       this.oversized = 0;
+      if (p.ww && this.windowIssue) {
+        this.windowIssue = null;
+        this.emit('status', this.status());
+      }
       return;
     }
     if (++this.oversized < 3000 / TICK_MS) return;
@@ -561,7 +629,9 @@ class Stretch extends EventEmitter {
     const cause = this.joinedLate || !this.screensOff
       ? (this.cfg.monitors && this.monitorsReady ? 'Fermez-le puis relancez-le avec Precise Gunplay ouvert.' : 'Activez « Écrans en mode générique pendant le jeu » dans les réglages avancés, puis relancez le jeu.')
       : 'Relancez le jeu. Si cela se reproduit, réglez la mise à l\'échelle de la carte graphique sur plein écran.';
-    this.notify(`VALORANT n'a pas suivi la résolution étirée : retour en native. ${cause}`, 'error');
+    this.windowIssue = `VALORANT n'a pas suivi la résolution étirée à la dernière partie. ${cause}`;
+    this.notify(`VALORANT n'a pas suivi la résolution étirée : retour en native. ${cause}`, 'error');
+    this.emit('status', this.status());
   }
 
   // GET core-game : MatchID = en partie (tous les modes), 404 = pas en partie. S'il ne répond pas
@@ -633,7 +703,7 @@ class Stretch extends EventEmitter {
   }
 
   async applyMode(w, h, hz) {
-    const d = await this.display.call('display');
+    const d = await this.display.call(this.displayCmd());
     const m = this.pickMode(d, w, h, hz);
     if (d.w !== m.w || d.h !== m.h || d.hz !== m.hz) await this.display.call(`apply ${d.gdi} ${m.w} ${m.h} ${m.hz}`);
     return m;
@@ -645,7 +715,7 @@ class Stretch extends EventEmitter {
     // Étapes courtes, chacune à son tour dans la file : la boucle et les raccourcis passent entre deux.
     const step = (cmd) => this.exclusive(() => this.display.call(cmd));
     const done = (async () => {
-      const d = await step('display');
+      const d = await step(this.displayCmd());
       const n = this.cfg.native || d;
       const accepted = () => step(`test ${d.gdi} ${w} ${h} ${n.hz}`).then(() => true, () => false);
       if (await accepted()) return;
@@ -682,7 +752,7 @@ class Stretch extends EventEmitter {
   // Carte AMD : mise à l'échelle GPU en plein écran, sinon l'écran reçoit le signal étiré et beaucoup
   // l'affichent mal (image figée, artefacts). Un échec n'empêche pas l'étirement.
   async ensureGpuScaling() {
-    const d = await this.display.call('display');
+    const d = await this.display.call(this.displayCmd());
     if (!/amd|radeon/i.test(d.gpu)) return;
     const r = await this.display.call(`amdscale ${d.gdi}`).catch((e) => ({ failed: e.message }));
     if (r.failed) this.notify(`Mise à l'échelle GPU non activée : ${r.failed}`, 'error');
@@ -721,12 +791,13 @@ class Stretch extends EventEmitter {
     }
     const r = await runMonitorsTask('off');
     this.screensOff = r.disabled?.length || 0;
+    this.screensFailed = r.failed || [];
     this.emit('status', this.status());
     if (r.failed?.length) this.notify(`Écran non préparé pour la résolution étirée : ${r.failed.join(', ')}.`, 'error');
     // Garde-fou : plus aucun écran actif après la reconfiguration, on réactive tout.
     for (let i = 0; ; i++) {
       try {
-        await this.display.call('display');
+        await this.display.call('display auto -');
         break;
       } catch {
         if (i < 5) { await sleep(300); continue; }
@@ -741,6 +812,7 @@ class Stretch extends EventEmitter {
     if (!monitorsDisabledByUs()) return;
     const r = await runMonitorsTask('on');
     this.screensOff = 0;
+    this.screensFailed = [];
     if (r.failed?.length) this.notify(`Écran pas remis comme avant : ${r.failed.join(', ')}. Réactivez-le dans le Gestionnaire de périphériques, rubrique Moniteurs.`, 'error');
     await sleep(300);
   }

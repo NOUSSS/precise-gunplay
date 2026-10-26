@@ -2,7 +2,9 @@
 # sur stdin/stdout. Aucun accès au jeu : liste des processus par instantané Toolhelp (comme le
 # Gestionnaire des tâches), recherche de fenêtre par titre, réglages d'affichage Windows standard.
 #   procs <nom1> <nom2>          -> {"run":[true,false],"window":true,"ww":1920,"wh":1080}
-#   display                      -> écran principal, mode actuel et modes disponibles
+#   display <écran> <gdi>        -> écran visé (« auto » : celui du jeu, sinon le principal ; sinon
+#                                   identifiant choisi), mode actuel et modes disponibles
+#   screens                      -> écrans actifs avec leur nom, et celui qui affiche le jeu
 #   apply <gdi> <l> <h> <hz>     -> {"ok":true} ou {"error":"..."}
 #   test <gdi> <l> <h> <hz>      -> idem, sans rien changer (mode accepté par le pilote ?)
 #   amdmode <gdi> <l> <h>        -> crée la résolution sur une carte AMD (ADLX) : {"ok":true},
@@ -88,79 +90,171 @@ public static class PgStretch
         return "\"" + (s ?? "").Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
     }
 
-    public static string Procs(string[] names)
+    const string GAME_EXE = "valorant-win64-shipping.exe";
+
+    // Processus en cours, noms en minuscules -> identifiants (instantané Toolhelp).
+    static Dictionary<string, List<uint>> Processes()
     {
-        bool[] run = new bool[names.Length];
-        HashSet<uint> gamePids = new HashSet<uint>();
+        Dictionary<string, List<uint>> found = new Dictionary<string, List<uint>>();
         IntPtr snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-        if (snap != IntPtr.Zero && snap != new IntPtr(-1))
+        if (snap == IntPtr.Zero || snap == new IntPtr(-1)) return found;
+        try
         {
-            try
+            PROCESSENTRY32W pe = new PROCESSENTRY32W();
+            pe.dwSize = (uint)Marshal.SizeOf(typeof(PROCESSENTRY32W));
+            if (Process32FirstW(snap, ref pe))
             {
-                PROCESSENTRY32W pe = new PROCESSENTRY32W();
-                pe.dwSize = (uint)Marshal.SizeOf(typeof(PROCESSENTRY32W));
-                if (Process32FirstW(snap, ref pe))
+                do
                 {
-                    do
-                    {
-                        string n = (pe.szExeFile ?? "").ToLowerInvariant();
-                        for (int i = 0; i < names.Length; i++) if (n == names[i]) run[i] = true;
-                        if (names.Length > 0 && n == names[names.Length - 1]) gamePids.Add(pe.th32ProcessID);
-                    } while (Process32NextW(snap, ref pe));
-                }
+                    string n = (pe.szExeFile ?? "").ToLowerInvariant();
+                    if (!found.ContainsKey(n)) found[n] = new List<uint>();
+                    found[n].Add(pe.th32ProcessID);
+                } while (Process32NextW(snap, ref pe));
             }
-            finally { CloseHandle(snap); }
         }
-        // La fenêtre du jeu se ferme ~15-20 s avant la fin du processus : elle sert à restaurer plus tôt.
-        // Fenêtre visible du processus du jeu (dernier nom), ni par titre (« VALORANT  ») ni par classe
-        // (« VALORANTUnrealWindow ») : ils varient selon les versions.
+        finally { CloseHandle(snap); }
+        return found;
+    }
+
+    // Fenêtre visible du processus du jeu, ni par titre (« VALORANT  ») ni par classe
+    // (« VALORANTUnrealWindow ») : ils varient selon les versions.
+    static IntPtr GameWindow(Dictionary<string, List<uint>> procs)
+    {
+        List<uint> pids;
+        if (!procs.TryGetValue(GAME_EXE, out pids)) return IntPtr.Zero;
         IntPtr hwnd = IntPtr.Zero;
-        if (gamePids.Count > 0) EnumWindows((h, l) =>
+        EnumWindows((h, l) =>
         {
             uint owner;
             GetWindowThreadProcessId(h, out owner);
-            if (!IsWindowVisible(h) || !gamePids.Contains(owner)) return true;
+            if (!IsWindowVisible(h) || !pids.Contains(owner)) return true;
             hwnd = h;
             return false;
         }, IntPtr.Zero);
+        return hwnd;
+    }
+    static IntPtr GameWindow() { return GameWindow(Processes()); }
+
+    public static string Procs(string[] names)
+    {
+        Dictionary<string, List<uint>> procs = Processes();
+        // La fenêtre du jeu se ferme ~15-20 s avant la fin du processus : elle sert à restaurer plus tôt.
+        IntPtr hwnd = GameWindow(procs);
         StringBuilder sb = new StringBuilder("{\"run\":[");
-        for (int i = 0; i < run.Length; i++) sb.Append(i > 0 ? "," : "").Append(run[i] ? "true" : "false");
+        for (int i = 0; i < names.Length; i++) sb.Append(i > 0 ? "," : "").Append(procs.ContainsKey(names[i]) ? "true" : "false");
         sb.Append("],\"window\":").Append(hwnd != IntPtr.Zero ? "true" : "false");
-        // Taille de la fenêtre (lecture seule) : plus grande que l'écran, le jeu n'a pas suivi la résolution.
+        // Taille de la fenêtre et écran qui l'affiche (lecture seule) : plus grande que l'écran, le jeu
+        // n'a pas suivi la résolution.
         RECT r;
-        if (hwnd != IntPtr.Zero && GetWindowRect(hwnd, out r)) sb.Append(",\"ww\":").Append(r.Right - r.Left).Append(",\"wh\":").Append(r.Bottom - r.Top);
+        if (hwnd != IntPtr.Zero && GetWindowRect(hwnd, out r))
+            sb.Append(",\"ww\":").Append(r.Right - r.Left).Append(",\"wh\":").Append(r.Bottom - r.Top).Append(",\"screen\":").Append(Str(WindowScreen(hwnd)));
         return sb.Append("}").ToString();
     }
 
-    // Écran principal (cible du changement de résolution), avec ses modes 32 bits.
-    public static string Display()
+    // Écrans actifs du bureau. « id » : identifiant Windows de l'écran branché (DISPLAY\AUS2405\...),
+    // « model » : fabricant et produit ; tous deux absents en mode générique.
+    class Screen { public string gdi, gpu, id, model; public bool primary; }
+    static List<Screen> ActiveScreens()
     {
+        List<Screen> list = new List<Screen>();
         for (int i = 0; ; i++)
         {
             DISPLAY_DEVICE dd = new DISPLAY_DEVICE();
             dd.cb = Marshal.SizeOf(typeof(DISPLAY_DEVICE));
             if (!EnumDisplayDevices(null, i, ref dd, 0)) break;
-            if ((dd.StateFlags & DISPLAY_DEVICE_ACTIVE) == 0 || (dd.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE) == 0) continue;
-
-            DEVMODE cur = NewDevMode();
-            if (!EnumDisplaySettings(dd.DeviceName, ENUM_CURRENT_SETTINGS, ref cur)) break;
-            StringBuilder sb = new StringBuilder();
-            sb.Append("{\"gdi\":").Append(Str(dd.DeviceName)).Append(",\"gpu\":").Append(Str(dd.DeviceString))
-              .Append(",\"w\":").Append(cur.dmPelsWidth).Append(",\"h\":").Append(cur.dmPelsHeight).Append(",\"hz\":").Append(cur.dmDisplayFrequency)
-              .Append(",\"modes\":[");
-            HashSet<string> seen = new HashSet<string>();
-            for (int m = 0; m < 1000; m++)
+            if ((dd.StateFlags & DISPLAY_DEVICE_ACTIVE) == 0) continue;
+            Screen s = new Screen { gdi = dd.DeviceName, gpu = dd.DeviceString, primary = (dd.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE) != 0 };
+            DISPLAY_DEVICE mon = new DISPLAY_DEVICE();
+            mon.cb = Marshal.SizeOf(typeof(DISPLAY_DEVICE));
+            if (EnumDisplayDevices(dd.DeviceName, 0, ref mon, EDD_GET_DEVICE_INTERFACE_NAME))
             {
-                DEVMODE dm = NewDevMode();
-                if (!EnumDisplaySettings(dd.DeviceName, m, ref dm)) break;
-                if (dm.dmBitsPerPel != 32) continue;
-                string key = dm.dmPelsWidth + "," + dm.dmPelsHeight + "," + dm.dmDisplayFrequency;
-                if (!seen.Add(key)) continue;
-                sb.Append(seen.Count > 1 ? "," : "").Append("[").Append(key).Append("]");
+                // \\?\DISPLAY#AUS2405#7&e7f65c7&0&UID264#{...} -> DISPLAY\AUS2405\7&E7F65C7&0&UID264
+                string[] p = (mon.DeviceID ?? "").Split('#');
+                if (p.Length > 2 && !p[1].Equals("Default_Monitor", StringComparison.OrdinalIgnoreCase))
+                {
+                    s.model = p[1].ToUpperInvariant();
+                    s.id = ("DISPLAY\\" + p[1] + "\\" + p[2]).ToUpperInvariant();
+                }
             }
-            return sb.Append("]}").ToString();
+            list.Add(s);
         }
-        return "{\"error\":\"Aucun écran principal actif.\"}";
+        return list;
+    }
+
+    // Écran visé : « auto » = celui de la fenêtre du jeu, sinon l'écran principal. Sinon l'écran choisi,
+    // retrouvé par identifiant, nom GDI puis modèle (l'identifiant change en mode générique).
+    static Screen Resolve(List<Screen> list, string want, string wantGdi, string gameGdi)
+    {
+        Screen primary = list.Find(s => s.primary) ?? (list.Count > 0 ? list[0] : null);
+        if (string.IsNullOrEmpty(want) || want == "auto")
+            return (gameGdi != null ? list.Find(s => s.gdi == gameGdi) : null) ?? primary;
+        string model = want.Split('\\').Length > 1 ? want.Split('\\')[1] : null;
+        return list.Find(s => s.id == want) ?? list.Find(s => s.gdi == wantGdi) ?? list.Find(s => s.model != null && s.model == model) ?? primary;
+    }
+
+    // Écran visé, avec ses modes 32 bits.
+    public static string Display(string want, string wantGdi)
+    {
+        IntPtr game = GameWindow();
+        Screen sc = Resolve(ActiveScreens(), want, wantGdi, game != IntPtr.Zero ? WindowScreen(game) : null);
+        if (sc == null) return "{\"error\":\"Aucun écran actif.\"}";
+        DEVMODE cur = NewDevMode();
+        if (!EnumDisplaySettings(sc.gdi, ENUM_CURRENT_SETTINGS, ref cur)) return "{\"error\":\"Écran illisible.\"}";
+        StringBuilder sb = new StringBuilder();
+        sb.Append("{\"gdi\":").Append(Str(sc.gdi)).Append(",\"id\":").Append(sc.id == null ? "null" : Str(sc.id)).Append(",\"gpu\":").Append(Str(sc.gpu))
+          .Append(",\"primary\":").Append(sc.primary ? "true" : "false")
+          .Append(",\"w\":").Append(cur.dmPelsWidth).Append(",\"h\":").Append(cur.dmPelsHeight).Append(",\"hz\":").Append(cur.dmDisplayFrequency)
+          .Append(",\"modes\":[");
+        HashSet<string> seen = new HashSet<string>();
+        for (int m = 0; m < 1000; m++)
+        {
+            DEVMODE dm = NewDevMode();
+            if (!EnumDisplaySettings(sc.gdi, m, ref dm)) break;
+            if (dm.dmBitsPerPel != 32) continue;
+            string key = dm.dmPelsWidth + "," + dm.dmPelsHeight + "," + dm.dmDisplayFrequency;
+            if (!seen.Add(key)) continue;
+            sb.Append(seen.Count > 1 ? "," : "").Append("[").Append(key).Append("]");
+        }
+        return sb.Append("]}").ToString();
+    }
+
+    // Liste pour le choix de l'écran : nom GDI, identifiant, principal, mode actuel, écran du jeu.
+    public static string Screens()
+    {
+        IntPtr game = GameWindow();
+        string gameGdi = game != IntPtr.Zero ? WindowScreen(game) : null;
+        StringBuilder sb = new StringBuilder("{\"game\":").Append(gameGdi == null ? "null" : Str(gameGdi)).Append(",\"list\":[");
+        List<Screen> list = ActiveScreens();
+        for (int i = 0; i < list.Count; i++)
+        {
+            Screen s = list[i];
+            DEVMODE cur = NewDevMode();
+            EnumDisplaySettings(s.gdi, ENUM_CURRENT_SETTINGS, ref cur);
+            sb.Append(i > 0 ? "," : "").Append("{\"gdi\":").Append(Str(s.gdi)).Append(",\"id\":").Append(s.id == null ? "null" : Str(s.id))
+              .Append(",\"primary\":").Append(s.primary ? "true" : "false")
+              .Append(",\"w\":").Append(cur.dmPelsWidth).Append(",\"h\":").Append(cur.dmPelsHeight).Append(",\"hz\":").Append(cur.dmDisplayFrequency).Append("}");
+        }
+        return sb.Append("]}").ToString();
+    }
+
+    const uint MONITOR_DEFAULTTONEAREST = 2;
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    struct MONITORINFOEX
+    {
+        public int cbSize;
+        public RECT rcMonitor, rcWork;
+        public uint dwFlags;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string szDevice;
+    }
+    [DllImport("user32.dll")] static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern bool GetMonitorInfo(IntPtr monitor, ref MONITORINFOEX info);
+
+    // Nom GDI (\\.\DISPLAY1) de l'écran qui affiche la fenêtre.
+    static string WindowScreen(IntPtr hwnd)
+    {
+        MONITORINFOEX mi = new MONITORINFOEX();
+        mi.cbSize = Marshal.SizeOf(typeof(MONITORINFOEX));
+        return GetMonitorInfo(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), ref mi) ? mi.szDevice : null;
     }
 
     // CDS_TEST d'abord : un mode refusé par le pilote n'est jamais appliqué (pas d'écran noir).
@@ -185,8 +279,9 @@ public static class PgStretch
     public static string Apply(string gdi, int w, int h, int hz, bool testOnly)
     {
         string err = ApplyOn(gdi, w, h, hz, testOnly);
-        // Secours : mode du bureau par défaut (écran principal).
-        if (err != null && ApplyOn(null, w, h, hz, testOnly) == null) err = null;
+        // Secours : mode du bureau par défaut, seulement si l'écran visé est l'écran principal.
+        Screen sc = ActiveScreens().Find(x => x.gdi == gdi);
+        if (err != null && sc != null && sc.primary && ApplyOn(null, w, h, hz, testOnly) == null) err = null;
         return err == null ? "{\"ok\":true}" : "{\"error\":" + Str(err) + "}";
     }
 
@@ -374,7 +469,20 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
   try {
     switch ($a[0]) {
       'procs' { $out = [PgStretch]::Procs([string[]]($a | Select-Object -Skip 1)) }
-      'display' { $out = [PgStretch]::Display() }
+      'display' { $out = [PgStretch]::Display($a[1], $a[2]) }
+      'screens' {
+        # Noms commerciaux (« VG24VQR ») lus dans l'EDID via WMI, par identifiant d'écran.
+        $names = @{}
+        try {
+          Get-CimInstance -Namespace root\wmi -ClassName WmiMonitorID -ErrorAction Stop | ForEach-Object {
+            $n = (($_.UserFriendlyName | Where-Object { $_ -ne 0 } | ForEach-Object { [char]$_ }) -join '').Trim()
+            if ($n) { $names[($_.InstanceName -replace '_\d+$', '').ToUpperInvariant()] = $n }
+          }
+        } catch {}
+        $s = [PgStretch]::Screens() | ConvertFrom-Json
+        foreach ($x in $s.list) { $x | Add-Member name $(if ($x.id) { $names[$x.id] } else { $null }) }
+        $out = $s | ConvertTo-Json -Compress -Depth 4
+      }
       'apply' { $out = [PgStretch]::Apply($a[1], [int]$a[2], [int]$a[3], [int]$a[4], $false) }
       'amdmode' { $out = [PgStretch]::AmdCreateMode($a[1], [int]$a[2], [int]$a[3]) }
       'amdscale' { $out = [PgStretch]::AmdGpuScaling($a[1]) }
