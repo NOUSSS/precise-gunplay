@@ -2414,7 +2414,7 @@ function stretchStatusHtml(s) {
     off: ['Désactivée', n ? `Écran en ${resLabel(n.w, n.h)} à ${n.hz} Hz.` : '', ''],
     idle: ['En attente de VALORANT', `Passage en ${target} quand une partie commence.`, 'on'],
     launching: ['Lancement du jeu', s.monitors ? 'Écrans désactivés dans le Gestionnaire de périphériques.' : '', 'on'],
-    game: ['Au menu', offline ? 'Compte non connecté : la partie ne peut pas être détectée.' : `Résolution ${s.res === 'stretched' ? target : 'native'}.`, offline ? 'warn' : 'on'],
+    game: ['Au menu', offline ? 'Compte non connecté : la partie ne peut pas être détectée.' : `Résolution ${s.res === 'stretched' ? target : 'native'}.`, offline ? 'warn' : 'on'],
     armed: ['Partie trouvée', `Passage en ${target} dans <b data-ends="${s.switchAt}">${fmtDuration(s.switchAt - Date.now())}</b>.`, 'warn'],
     stretched: ['En partie', `Résolution étirée ${target}.`, 'live'],
   }[s.phase] || ['', '', ''];
@@ -2472,7 +2472,7 @@ PAGES.stretch = async () => {
         <select id="st-delay">${STRETCH_DELAYS.map((ms) => `<option value="${ms}" ${c.delayMs === ms ? 'selected' : ''}>${ms / 1000} s</option>`).join('')}</select>
       </div>
       <div class="setting-row">
-        <div class="label"><div>Désactiver les écrans pendant le jeu</div><div>Comme dans le Gestionnaire de périphériques, du lancement à la fermeture du jeu : sans cela, VALORANT peut ignorer la résolution étirée.${info.monitorsReady ? '' : ' Demande une autorisation administrateur, une seule fois.'}</div></div>
+        <div class="label"><div>Désactiver les écrans pendant le jeu</div><div>Comme dans le Gestionnaire de périphériques, du lancement à la fermeture du jeu : sans cela, VALORANT peut ignorer la résolution étirée.${info.monitorsReady ? '' : ' Demande une autorisation administrateur, une seule fois.'}</div></div>
         ${info.monitorsReady
           ? `<label class="switch"><input type="checkbox" id="st-monitors" ${c.monitors ? 'checked' : ''}><span></span></label>`
           : '<button class="btn" id="st-install">Autoriser</button>'}
@@ -2487,7 +2487,7 @@ PAGES.stretch = async () => {
       </div>
     </div>
 
-    <p class="muted st-note">Réglez aussi la mise à l'échelle de la carte graphique sur plein écran. AMD Adrenalin : Mise à l'échelle GPU. NVIDIA : Ajuster la taille et la position du bureau, Plein écran, effectuée sur le GPU.</p>`;
+    <p class="muted st-note">Réglez aussi la mise à l'échelle de la carte graphique sur plein écran. AMD Adrenalin : Mise à l'échelle GPU. NVIDIA : Ajuster la taille et la position du bureau, Plein écran, effectuée sur le GPU.</p>`;
 
   state.onStretch = (s) => {
     const el = $('#st-state');

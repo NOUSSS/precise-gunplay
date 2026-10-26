@@ -14,7 +14,7 @@ function Read-State {
   try { return @((Get-Content $stateFile -Raw | ConvertFrom-Json).ids | Where-Object { $_ }) } catch { return @() }
 }
 function Write-State($ids) {
-  @{ ids = @($ids) } | ConvertTo-Json | Set-Content -Path $stateFile -Encoding UTF8
+  @{ ids = @($ids | Where-Object { $_ }) } | ConvertTo-Json | Set-Content -Path $stateFile -Encoding UTF8
 }
 function Get-Status($ids) {
   $map = @{}
@@ -48,7 +48,7 @@ try {
       $status = Get-Status $targets
       $disabled = @($targets | Where-Object { $status[$_] -ne 'OK' })
       $failed = @($targets | Where-Object { $status[$_] -eq 'OK' })
-      Write-State (@(Read-State) + $disabled | Select-Object -Unique)
+      Write-State @(@(Read-State) + $disabled | Where-Object { $_ } | Select-Object -Unique)
     }
   } else {
     $ids = @(Read-State)
