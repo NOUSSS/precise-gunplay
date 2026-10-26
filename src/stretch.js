@@ -767,20 +767,39 @@ class Stretch extends EventEmitter {
 
   // Écrans en mode générique : le pilote refuse de remonter à la résolution native (code -2 ou -5).
   // Réactivés, ils reprennent d'eux-mêmes leur mode enregistré, le natif ; jeu lancé, ils repassent
-  // ensuite en mode générique pour la prochaine partie.
+  // ensuite en mode générique pour la prochaine partie. Mode natif absent de la liste alors que l'app
+  // n'a rien désactivé (arrêt brutal, reconfiguration en cours) : on attend qu'il revienne.
   async applyNative(regeneric = this.gameRunning) {
     const n = this.cfg.native;
     if (!n) throw new Error('Résolution native inconnue.');
     try {
       await this.applyMode(n.w, n.h, n.hz);
     } catch (e) {
-      if (!monitorsDisabledByUs()) throw e;
-      await this.enableMonitors();
+      const ours = monitorsDisabledByUs();
+      if (ours) await this.enableMonitors();
+      else if (await this.listsMode(n) === 'exact') throw e; // mode connu mais refusé : réessayer n'y changerait rien
+      if (!(await this.waitForMode(n))) throw new Error(`L'écran ne propose plus ${n.w} × ${n.h} : il est sans doute resté en mode générique. Réactivez-le dans le Gestionnaire de périphériques, rubrique Moniteurs.`);
       await this.applyMode(n.w, n.h, n.hz);
       if (regeneric) await this.disableMonitors();
     }
     this.res = 'native';
     this.emit('status', this.status());
+  }
+
+  // 'exact' : le mode natif est dans la liste de l'écran ; 'size' : la résolution seule (autre
+  // fréquence) ; null : absente, ou écran illisible pendant une reconfiguration.
+  async listsMode(n) {
+    const d = await this.display.call(this.displayCmd()).catch(() => null);
+    const same = d?.modes?.filter(([w, h]) => w === n.w && h === n.h) || [];
+    return same.some(([, , hz]) => hz === n.hz) ? 'exact' : same.length ? 'size' : null;
+  }
+
+  // Après une réactivation, Windows reconstruit la liste des modes de l'écran en quelques secondes :
+  // on attend la fréquence native (5 s au plus), sinon on se contente de la résolution.
+  async waitForMode(n) {
+    let found = null;
+    for (let i = 0; i < 20 && (found = await this.listsMode(n)) !== 'exact'; i++) await sleep(250);
+    return found;
   }
 
   async disableMonitors() {
