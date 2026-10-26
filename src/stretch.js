@@ -52,22 +52,28 @@ class DisplayHelper {
   constructor(file) {
     this.file = file;
     this.proc = null;
-    this.queue = [];
   }
 
+  // Chaque processus a sa propre file d'attente : un ancien processus arrêté ne touche pas aux
+  // requêtes du suivant.
   ensure() {
-    if (this.proc) return this.ready;
+    if (this.proc) {
+      const current = this.proc;
+      return current.ready.then(() => current);
+    }
     const p = spawn('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', this.file], { windowsHide: true });
+    p.queue = [];
     this.proc = p;
     let buf = '';
     let stderr = '';
     let started = false;
-    this.ready = new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { reject(new Error('L\'assistant d\'affichage ne répond pas.')); this.stop(); }, 30000);
-      this.onReady = () => { started = true; clearTimeout(timer); resolve(); };
-      this.onFail = (e) => { clearTimeout(timer); reject(e); };
+    let onReady, onFail;
+    p.ready = new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { reject(new Error('L\'assistant d\'affichage ne répond pas.')); this.stop(p); }, 30000);
+      onReady = () => { started = true; clearTimeout(timer); resolve(); };
+      onFail = (e) => { clearTimeout(timer); reject(e); };
     });
-    this.ready.catch(() => {});
+    p.ready.catch(() => {});
     p.stdout.setEncoding('utf8');
     p.stderr.setEncoding('utf8');
     p.stderr.on('data', (d) => { stderr += d; });
@@ -79,37 +85,40 @@ class DisplayHelper {
         buf = buf.slice(i + 1);
         let msg;
         try { msg = JSON.parse(line); } catch { continue; }
-        if (msg.ready) { this.onReady(); continue; }
-        const q = this.queue.shift();
+        if (msg.ready) { onReady(); continue; }
+        const q = p.queue.shift();
         if (q) { clearTimeout(q.timer); q.resolve(msg); }
       }
     });
     const fail = (e) => {
       if (this.proc === p) this.proc = null;
-      if (!started) this.onFail(new Error(`Assistant d'affichage indisponible${stderr ? ` : ${stderr.trim().split('\n')[0]}` : ''}.`));
-      for (const q of this.queue.splice(0)) { clearTimeout(q.timer); q.reject(e); }
+      if (!started) onFail(new Error(`Assistant d'affichage indisponible${stderr ? ` : ${stderr.trim().split('\n')[0]}` : ''}.`));
+      for (const q of p.queue.splice(0)) { clearTimeout(q.timer); q.reject(e); }
     };
     p.on('error', fail);
     p.on('exit', () => fail(new Error('Assistant d\'affichage arrêté.')));
-    return this.ready;
+    return p.ready.then(() => p);
   }
 
   async call(cmd) {
-    await this.ensure();
+    const p = await this.ensure();
+    if (p.exitCode !== null || !p.stdin.writable) {
+      if (this.proc === p) this.proc = null;
+      throw new Error('Assistant d\'affichage arrêté.');
+    }
     const res = await new Promise((resolve, reject) => {
-      const q = { resolve, reject, timer: setTimeout(() => { reject(new Error('Délai dépassé (affichage).')); this.stop(); }, 15000) };
-      this.queue.push(q);
-      this.proc.stdin.write(cmd + '\n');
+      const q = { resolve, reject, timer: setTimeout(() => { reject(new Error('Délai dépassé (affichage).')); this.stop(p); }, 15000) };
+      p.queue.push(q);
+      p.stdin.write(cmd + '\n');
     });
     if (res.error) throw new Error(res.error);
     return res;
   }
 
-  stop() {
-    if (this.proc) {
-      this.proc.kill();
-      this.proc = null;
-    }
+  stop(p = this.proc) {
+    if (!p) return;
+    if (this.proc === p) this.proc = null;
+    p.kill();
   }
 }
 
@@ -150,7 +159,7 @@ function gameConfigLocked() {
 
 function setGameConfigLock(lock) {
   const file = gameSettingsPath();
-  if (!file) throw new Error('Configuration de VALORANT introuvable : lancez le jeu une fois.');
+  if (!file) throw new Error('Configuration de VALORANT introuvable : lancez le jeu une fois.');
   fs.chmodSync(file, 0o666);
   if (!lock) return false;
 
@@ -197,7 +206,7 @@ function setGameConfigLock(lock) {
 
 // ---------------------------------------------------------------- Écrans (Gestionnaire de périphériques)
 function monitorsDisabledByUs() {
-  return (readJson(MONITORS_STATE)?.ids || []).length > 0;
+  return (readJson(MONITORS_STATE)?.ids || []).some(Boolean);
 }
 
 async function monitorsInstalled() {
@@ -245,13 +254,14 @@ foreach ($mode in 'off', 'on') {
 }
 
 async function runMonitorsTask(mode) {
-  const start = Date.now();
+  // Seul un résultat écrit après celui déjà présent compte : le précédent peut dater d'une seconde.
+  const previous = readJson(MONITORS_RESULT)?.at || 0;
   const res = await run('schtasks.exe', ['/run', '/tn', TASK(mode)]);
-  if (res.code !== 0) throw new Error(`Tâche « Ecrans ${mode} » introuvable : réautorisez la désactivation des écrans.`);
+  if (res.code !== 0) throw new Error(`Tâche « Ecrans ${mode} » introuvable : réautorisez la désactivation des écrans.`);
   for (let waited = 0; waited < 60000; waited += 250) {
     await sleep(250);
     const r = readJson(MONITORS_RESULT);
-    if (r && r.mode === mode && r.at >= start - 2000) {
+    if (r && r.mode === mode && r.at > previous) {
       if (r.error) throw new Error(r.error);
       return r;
     }
@@ -332,7 +342,13 @@ class Stretch extends EventEmitter {
     let configLocked = null;
     try { configLocked = gameConfigLocked(); } catch { /* fichier illisible */ }
     this.monitorsReady = await monitorsInstalled();
+    this.releaseDisplay();
     return { ...this.status(), display, configLocked, hotkeys: { toggle: 'Ctrl+F8', native: 'Ctrl+F9' } };
+  }
+
+  // Fonction coupée : l'assistant d'affichage n'a pas à rester en mémoire (il se relance à la demande).
+  releaseDisplay() {
+    this.exclusive(() => { if (!this.timer) this.display.stop(); }).catch(() => {});
   }
 
   async start() {
@@ -340,6 +356,7 @@ class Stretch extends EventEmitter {
     // Récupération après un arrêt brutal : écrans restés désactivés ou résolution étirée résiduelle.
     if (this.cfg.enabled || monitorsDisabledByUs()) await this.exclusive(() => this.recover()).catch((e) => this.notify(e.message, 'error'));
     this.configure();
+    this.releaseDisplay();
   }
 
   configure() {
@@ -357,6 +374,7 @@ class Stretch extends EventEmitter {
       globalShortcut.unregister(HOTKEY_TOGGLE);
       globalShortcut.unregister(HOTKEY_NATIVE);
       this.exclusive(() => this.restore()).catch((e) => this.notify(e.message, 'error'));
+      this.releaseDisplay();
       this.resetGame();
       this.setPhase('off');
     } else {
@@ -405,9 +423,12 @@ class Stretch extends EventEmitter {
       if (this.gameRunning) {
         // La fenêtre se ferme avant le processus (qui reste ~15-20 s) : on restaure sans l'attendre.
         if (this.windowSeen && !p.window && ++this.windowGone >= 3) {
-          await this.restoreAfterGame();
-          this.resetGame();
-          this.ignoreUntilExit = true;
+          try {
+            await this.restoreAfterGame();
+          } finally {
+            this.resetGame();
+            this.ignoreUntilExit = true;
+          }
         }
       } else if (!this.ignoreUntilExit) {
         const prepared = this.launcherSeen; // lanceur déjà vu : résolution native déjà relevée
@@ -418,17 +439,21 @@ class Stretch extends EventEmitter {
         await this.disableMonitors();
       }
     } else {
-      this.ignoreUntilExit = false;
+      // Après la restauration, le lanceur peut survivre quelques secondes au jeu : ce n'est pas un nouveau lancement.
+      if (!launcher) this.ignoreUntilExit = false;
       if (launcher) {
-        if (!this.launcherSeen && !this.gameRunning) {
+        if (!this.launcherSeen && !this.gameRunning && !this.ignoreUntilExit) {
           this.launcherSeen = true;
           this.setPhase('launching');
           await this.captureNative();
           await this.disableMonitors();
         }
       } else if (this.gameRunning || this.launcherSeen) {
-        await this.restoreAfterGame();
-        this.resetGame();
+        try {
+          await this.restoreAfterGame();
+        } finally {
+          this.resetGame();
+        }
       }
     }
 
@@ -440,10 +465,15 @@ class Stretch extends EventEmitter {
 
   // GET core-game : MatchID = en partie (tous les modes), 404 = pas en partie. Sans réponse : on n'agit pas.
   async pollSession() {
-    if (!this.client.connected || this.client.rateLimitedUntil('/core-game')) return;
+    if (this.sessionPending || !this.client.connected || this.client.rateLimitedUntil('/core-game')) return;
+    // Une requête freinée par Riot (429, nouvelles tentatives) ne doit pas bloquer la boucle :
+    // au-delà de 5 s on passe, la requête finit seule et aucune autre n'est lancée entre-temps.
+    this.sessionPending = true;
+    const req = this.client.getCoregamePlayer().finally(() => { this.sessionPending = false; });
+    req.catch(() => {});
     let core;
     try {
-      core = await this.client.getCoregamePlayer();
+      core = await Promise.race([req, sleep(5000).then(() => { throw new Error('Délai dépassé (core-game).'); })]);
     } catch {
       return;
     }
@@ -497,13 +527,13 @@ class Stretch extends EventEmitter {
   async disableMonitors() {
     if (!this.cfg.monitors || !this.monitorsReady) return;
     const r = await runMonitorsTask('off');
-    if (r.failed?.length) this.notify(`Écran non désactivé : ${r.failed.join(', ')}.`, 'error');
+    if (r.failed?.length) this.notify(`Écran non désactivé : ${r.failed.join(', ')}.`, 'error');
     // Garde-fou : plus aucun écran actif, on réactive tout de suite.
     try {
       await this.display.call('display');
     } catch {
       await this.enableMonitors();
-      throw new Error('Plus aucun écran actif après la désactivation : écrans réactivés.');
+      throw new Error('Plus aucun écran actif après la désactivation : écrans réactivés.');
     }
     await sleep(400); // laisser Windows finir la reconfiguration
   }
@@ -511,20 +541,26 @@ class Stretch extends EventEmitter {
   async enableMonitors() {
     if (!monitorsDisabledByUs()) return;
     const r = await runMonitorsTask('on');
-    if (r.failed?.length) this.notify(`Écran toujours désactivé : ${r.failed.join(', ')}. Réactivez-le dans le Gestionnaire de périphériques.`, 'error');
+    if (r.failed?.length) this.notify(`Écran toujours désactivé : ${r.failed.join(', ')}. Réactivez-le dans le Gestionnaire de périphériques.`, 'error');
     await sleep(300);
   }
 
   async restoreAfterGame() {
     this.armedAt = 0;
-    if (this.res === 'stretched') await this.applyNative();
-    await this.enableMonitors();
-    this.setPhase('idle');
+    try {
+      await this.restore();
+    } finally {
+      this.setPhase('idle');
+    }
   }
 
+  // Les écrans sont réactivés même si le retour à la résolution native échoue.
   async restore() {
-    if (this.res === 'stretched') await this.applyNative();
-    await this.enableMonitors();
+    try {
+      if (this.res === 'stretched') await this.applyNative();
+    } finally {
+      await this.enableMonitors();
+    }
   }
 
   // ---- Actions de l'interface et raccourcis ----
@@ -540,19 +576,23 @@ class Stretch extends EventEmitter {
   }
 
   test() {
-    return this.exclusive(async () => {
+    const done = this.exclusive(async () => {
       await this.captureNative();
       await this.applyStretched();
       await sleep(TEST_MS);
       await this.applyNative();
     });
+    this.releaseDisplay();
+    return done;
   }
 
   restoreAll() {
-    return this.exclusive(async () => {
+    const done = this.exclusive(async () => {
       await this.enableMonitors();
       if (this.cfg.native) await this.applyNative();
     });
+    this.releaseDisplay();
+    return done;
   }
 
   async installMonitors() {
