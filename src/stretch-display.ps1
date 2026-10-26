@@ -1,12 +1,14 @@
 # Assistant d'affichage pour la résolution étirée : lancé une fois par l'app, il répond ligne par ligne
 # sur stdin/stdout. Aucun accès au jeu : liste des processus par instantané Toolhelp (comme le
 # Gestionnaire des tâches), recherche de fenêtre par titre, réglages d'affichage Windows standard.
-#   procs <nom1> <nom2>          -> {"run":[true,false],"window":true}
+#   procs <nom1> <nom2>          -> {"run":[true,false],"window":true,"ww":1920,"wh":1080}
 #   display                      -> écran principal, mode actuel et modes disponibles
 #   apply <gdi> <l> <h> <hz>     -> {"ok":true} ou {"error":"..."}
 #   test <gdi> <l> <h> <hz>      -> idem, sans rien changer (mode accepté par le pilote ?)
 #   amdmode <gdi> <l> <h>        -> crée la résolution sur une carte AMD (ADLX) : {"ok":true},
 #                                   {"unsupported":true} (autre carte, pilote ancien) ou {"error":"..."}
+#   amdscale <gdi>               -> mise à l'échelle GPU plein écran sur une carte AMD :
+#                                   {"ok":true,"changed":bool}, {"unsupported":true} ou {"error":"..."}
 $ErrorActionPreference = 'Stop'
 Add-Type -TypeDefinition @'
 using System;
@@ -61,7 +63,14 @@ public static class PgStretch
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern bool EnumDisplayDevices(string dev, int n, ref DISPLAY_DEVICE dd, int flags);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern bool EnumDisplaySettings(string dev, int n, ref DEVMODE dm);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int ChangeDisplaySettingsEx(string dev, ref DEVMODE dm, IntPtr hwnd, uint flags, IntPtr lParam);
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr FindWindow(string cls, string title);
+    delegate bool EnumWindowsProc(IntPtr hwnd, IntPtr lParam);
+    [DllImport("user32.dll")] static extern bool EnumWindows(EnumWindowsProc proc, IntPtr lParam);
+    [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
+    [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr hwnd);
+    [StructLayout(LayoutKind.Sequential)] struct RECT { public int Left, Top, Right, Bottom; }
+    [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
+    // Tailles en pixels réels, comme les modes d'affichage, quelle que soit la mise à l'échelle Windows.
+    [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
     [DllImport("kernel32.dll")] static extern IntPtr CreateToolhelp32Snapshot(uint flags, uint pid);
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] static extern bool Process32FirstW(IntPtr snap, ref PROCESSENTRY32W pe);
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] static extern bool Process32NextW(IntPtr snap, ref PROCESSENTRY32W pe);
@@ -82,6 +91,7 @@ public static class PgStretch
     public static string Procs(string[] names)
     {
         bool[] run = new bool[names.Length];
+        HashSet<uint> gamePids = new HashSet<uint>();
         IntPtr snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
         if (snap != IntPtr.Zero && snap != new IntPtr(-1))
         {
@@ -95,16 +105,31 @@ public static class PgStretch
                     {
                         string n = (pe.szExeFile ?? "").ToLowerInvariant();
                         for (int i = 0; i < names.Length; i++) if (n == names[i]) run[i] = true;
+                        if (names.Length > 0 && n == names[names.Length - 1]) gamePids.Add(pe.th32ProcessID);
                     } while (Process32NextW(snap, ref pe));
                 }
             }
             finally { CloseHandle(snap); }
         }
         // La fenêtre du jeu se ferme ~15-20 s avant la fin du processus : elle sert à restaurer plus tôt.
-        bool window = FindWindow("UnrealWindow", "VALORANT") != IntPtr.Zero || FindWindow(null, "VALORANT") != IntPtr.Zero;
+        // Fenêtre visible du processus du jeu (dernier nom), ni par titre (« VALORANT  ») ni par classe
+        // (« VALORANTUnrealWindow ») : ils varient selon les versions.
+        IntPtr hwnd = IntPtr.Zero;
+        if (gamePids.Count > 0) EnumWindows((h, l) =>
+        {
+            uint owner;
+            GetWindowThreadProcessId(h, out owner);
+            if (!IsWindowVisible(h) || !gamePids.Contains(owner)) return true;
+            hwnd = h;
+            return false;
+        }, IntPtr.Zero);
         StringBuilder sb = new StringBuilder("{\"run\":[");
         for (int i = 0; i < run.Length; i++) sb.Append(i > 0 ? "," : "").Append(run[i] ? "true" : "false");
-        return sb.Append("],\"window\":").Append(window ? "true" : "false").Append("}").ToString();
+        sb.Append("],\"window\":").Append(hwnd != IntPtr.Zero ? "true" : "false");
+        // Taille de la fenêtre (lecture seule) : plus grande que l'écran, le jeu n'a pas suivi la résolution.
+        RECT r;
+        if (hwnd != IntPtr.Zero && GetWindowRect(hwnd, out r)) sb.Append(",\"ww\":").Append(r.Right - r.Left).Append(",\"wh\":").Append(r.Bottom - r.Top);
+        return sb.Append("}").ToString();
     }
 
     // Écran principal (cible du changement de résolution), avec ses modes 32 bits.
@@ -181,7 +206,10 @@ public static class PgStretch
     delegate int GetPtrForFn(IntPtr self, IntPtr arg, out IntPtr result);
     delegate uint SizeFn(IntPtr self);
     delegate int AtFn(IntPtr self, uint index, out IntPtr result);
-    delegate int GetBoolFn(IntPtr self, out bool result);
+    delegate int GetBoolFn(IntPtr self, [MarshalAs(UnmanagedType.U1)] out bool result); // adlx_bool : 1 octet
+    delegate int SetBoolFn(IntPtr self, [MarshalAs(UnmanagedType.U1)] bool value);
+    delegate int GetIntFn(IntPtr self, out int result);
+    delegate int SetIntFn(IntPtr self, int value);
     delegate int GetResFn(IntPtr self, out ADLX_CustomResolution result);
     delegate int SetResFn(IntPtr self, ADLX_CustomResolution value);
     delegate int WithPtrFn(IntPtr self, IntPtr arg);
@@ -234,40 +262,80 @@ public static class PgStretch
         return adlxSystem;
     }
 
+    // Écran du jeu dans la liste ADLX : seul écran AMD de ce modèle. Modèle illisible ou deux écrans
+    // identiques : aucun (un réglage posé sur le mauvais écran ne servirait à rien).
+    static int AmdTarget(string gdi, IntPtr list)
+    {
+        // Juste après une création, Windows réénumère les écrans : le modèle reste illisible un moment.
+        string model = MonitorModel(gdi);
+        for (int i = 0; model == null && i < 15; i++) { System.Threading.Thread.Sleep(200); model = MonitorModel(gdi); }
+        uint count = Vt<SizeFn>(list, 3)(list);
+        int target = -1, matches = 0;
+        for (uint i = 0; i < count; i++)
+        {
+            IntPtr display = IntPtr.Zero;
+            try
+            {
+                Ok(Vt<AtFn>(list, 11)(list, i, out display), "lecture de l'écran");
+                IntPtr edid;
+                Vt<GetPtrFn>(display, 7)(display, out edid);
+                if (model == null ? count == 1 : EdidModel(Marshal.PtrToStringAnsi(edid)) == model) { target = (int)i; matches++; }
+            }
+            finally { Release(display); }
+        }
+        return matches == 1 ? target : -1;
+    }
+
+    // Mise à l'échelle GPU en plein écran : la carte agrandit l'image et l'écran reçoit toujours sa
+    // résolution native. Sans elle, l'écran agrandit lui-même le signal 4:3 et beaucoup le rendent mal
+    // (image figée, artefacts). Rien n'est touché si c'est déjà le cas.
+    public static string AmdGpuScaling(string gdi)
+    {
+        IntPtr system = AdlxSystem();
+        if (system == IntPtr.Zero) return "{\"unsupported\":true}";
+        IntPtr services = IntPtr.Zero, list = IntPtr.Zero, display = IntPtr.Zero, scaling = IntPtr.Zero, mode = IntPtr.Zero;
+        try
+        {
+            Ok(Vt<GetPtrFn>(system, 3)(system, out services), "liste des écrans");
+            Ok(Vt<GetPtrFn>(services, 4)(services, out list), "liste des écrans");
+            int target = AmdTarget(gdi, list);
+            if (target < 0) return "{\"unsupported\":true}";
+            Ok(Vt<AtFn>(list, 11)(list, (uint)target, out display), "lecture de l'écran");
+            Ok(Vt<GetPtrForFn>(services, 11)(services, display, out scaling), "mise à l'échelle GPU");
+            bool supported, enabled;
+            if (Vt<GetBoolFn>(scaling, 3)(scaling, out supported) != 0 || !supported) return "{\"unsupported\":true}";
+            bool changed = false;
+            Ok(Vt<GetBoolFn>(scaling, 4)(scaling, out enabled), "mise à l'échelle GPU");
+            if (!enabled) { Ok(Vt<SetBoolFn>(scaling, 5)(scaling, true), "activation de la mise à l'échelle GPU"); changed = true; }
+            // Mode plein écran (1) : l'image 4:3 est étirée sur toute la dalle, sans bandes noires.
+            if (Vt<GetPtrForFn>(services, 12)(services, display, out mode) == 0 && Vt<GetBoolFn>(mode, 3)(mode, out supported) == 0 && supported)
+            {
+                int current;
+                Ok(Vt<GetIntFn>(mode, 4)(mode, out current), "mode de mise à l'échelle");
+                if (current != 1) { Ok(Vt<SetIntFn>(mode, 5)(mode, 1), "mode de mise à l'échelle"); changed = true; }
+            }
+            return "{\"ok\":true,\"changed\":" + (changed ? "true" : "false") + "}";
+        }
+        catch (Exception e) { return "{\"error\":" + Str(e.Message) + "}"; }
+        finally { Release(mode); Release(scaling); Release(display); Release(list); Release(services); }
+    }
+
     public static string AmdCreateMode(string gdi, int w, int h)
     {
         IntPtr system = AdlxSystem();
         if (system == IntPtr.Zero) return "{\"unsupported\":true}";
-        // Juste après une création, Windows réénumère les écrans : le modèle reste illisible un moment.
-        string model = MonitorModel(gdi);
-        for (int i = 0; model == null && i < 15; i++) { System.Threading.Thread.Sleep(200); model = MonitorModel(gdi); }
         IntPtr services = IntPtr.Zero, list = IntPtr.Zero;
         try
         {
             Ok(Vt<GetPtrFn>(system, 3)(system, out services), "liste des écrans");
             Ok(Vt<GetPtrFn>(services, 4)(services, out list), "liste des écrans");
-            uint count = Vt<SizeFn>(list, 3)(list);
-            // Écran du jeu : seul écran AMD de ce modèle. Modèle illisible ou deux écrans identiques :
-            // rien n'est créé (une résolution posée sur le mauvais écran ne servirait à rien).
-            uint target = 0, matches = 0;
-            for (uint i = 0; i < count; i++)
-            {
-                IntPtr display = IntPtr.Zero;
-                try
-                {
-                    Ok(Vt<AtFn>(list, 11)(list, i, out display), "lecture de l'écran");
-                    IntPtr edid;
-                    Vt<GetPtrFn>(display, 7)(display, out edid);
-                    if (model == null ? count == 1 : EdidModel(Marshal.PtrToStringAnsi(edid)) == model) { target = i; matches++; }
-                }
-                finally { Release(display); }
-            }
-            if (matches != 1) return "{\"unsupported\":true}";
+            int target = AmdTarget(gdi, list);
+            if (target < 0) return "{\"unsupported\":true}";
             {
                 IntPtr display = IntPtr.Zero, custom = IntPtr.Zero, current = IntPtr.Zero;
                 try
                 {
-                    Ok(Vt<AtFn>(list, 11)(list, target, out display), "lecture de l'écran");
+                    Ok(Vt<AtFn>(list, 11)(list, (uint)target, out display), "lecture de l'écran");
                     Ok(Vt<GetPtrForFn>(services, 18)(services, display, out custom), "résolutions personnalisées");
                     bool supported;
                     if (Vt<GetBoolFn>(custom, 3)(custom, out supported) != 0 || !supported) return "{\"unsupported\":true}";
@@ -298,6 +366,7 @@ public static class PgStretch
 }
 '@
 
+[void][PgStretch]::SetProcessDPIAware()
 [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
 [Console]::Out.WriteLine('{"ready":true}')
 while ($null -ne ($line = [Console]::In.ReadLine())) {
@@ -308,6 +377,7 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
       'display' { $out = [PgStretch]::Display() }
       'apply' { $out = [PgStretch]::Apply($a[1], [int]$a[2], [int]$a[3], [int]$a[4], $false) }
       'amdmode' { $out = [PgStretch]::AmdCreateMode($a[1], [int]$a[2], [int]$a[3]) }
+      'amdscale' { $out = [PgStretch]::AmdGpuScaling($a[1]) }
       'test' { $out = [PgStretch]::Apply($a[1], [int]$a[2], [int]$a[3], [int]$a[4], $true) }
       default { $out = '{"error":"Commande inconnue."}' }
     }
