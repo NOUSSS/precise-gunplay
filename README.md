@@ -16,15 +16,15 @@ Va sur la page [**Releases**](https://github.com/NOUSSS/precise-gunplay/releases
 ## Résolution étirée
 
 Onglet **Résolution étirée** : choisissez la résolution et activez l'interrupteur. Ensuite, tout est automatique :
-- dès le lancement de VALORANT, avant l'ouverture de sa fenêtre, les écrans sont désactivés dans le Gestionnaire de périphériques ;
+- dès le lancement de VALORANT, avant l'ouverture de sa fenêtre, l'écran du jeu passe sur le pilote générique de Windows
+  (désactivé dans le Gestionnaire de périphériques, rubrique Moniteurs) ; les autres écrans ne sont pas touchés ;
 - 30 s après le début d'une partie (fin de l'écran de chargement), l'écran passe en résolution étirée, à la même fréquence ;
-- au menu, la résolution native revient ; à la fermeture du jeu, les écrans sont réactivés.
+- au menu, la résolution native revient ; à la fermeture du jeu, l'écran retrouve son pilote.
 
 La partie est détectée par le serveur de jeu de Riot ; s'il ne répond pas, la présence du client Riot prend le relais.
-Avec plusieurs écrans, vous pouvez en laisser certains actifs pendant le jeu. Les deux raccourcis (Ctrl+F8 et Ctrl+F9
-par défaut) se modifient sur la page.
+Le délai, les raccourcis (Ctrl+F8 et Ctrl+F9 par défaut) et le réglage automatique de VALORANT sont dans les réglages avancés.
 
-La désactivation des écrans demande une autorisation administrateur une seule fois (bouton **Autoriser**) : elle crée deux
+Le passage sur le pilote générique demande une autorisation administrateur une seule fois (bouton **Autoriser**) : elle crée deux
 tâches planifiées dans le dossier « Precise Gunplay » du Planificateur de tâches. Après une mise à jour qui change ce
 script, la page propose de la renouveler. L'app ne touche jamais au processus du jeu.
 Réglez aussi la mise à l'échelle de la carte graphique sur plein écran (AMD : Mise à l'échelle GPU ; NVIDIA : Plein écran, effectuée sur le GPU).

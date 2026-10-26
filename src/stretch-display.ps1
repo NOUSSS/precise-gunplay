@@ -4,7 +4,7 @@
 #   procs <nom1> <nom2>          -> {"run":[true,false],"window":true}
 #   display                      -> écran principal, mode actuel et modes disponibles
 #   apply <gdi> <l> <h> <hz>     -> {"ok":true} ou {"error":"..."}
-#   monitors                     -> écrans du Gestionnaire de périphériques, principal repéré
+#   primary                      -> {"id":"DISPLAY\\..."} : périphérique « Moniteurs » de l'écran principal
 $ErrorActionPreference = 'Stop'
 Add-Type -TypeDefinition @'
 using System;
@@ -194,13 +194,7 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
       'procs' { $out = [PgStretch]::Procs([string[]]($a | Select-Object -Skip 1)) }
       'display' { $out = [PgStretch]::Display() }
       'apply' { $out = [PgStretch]::Apply($a[1], [int]$a[2], [int]$a[3], [int]$a[4]) }
-      'monitors' {
-        $primary = [PgStretch]::PrimaryMonitorId()
-        $list = @(Get-PnpDevice -Class Monitor -PresentOnly -ErrorAction SilentlyContinue | ForEach-Object {
-          [ordered]@{ id = $_.InstanceId; name = $_.FriendlyName; primary = [bool]($primary -and $_.InstanceId -eq $primary) }
-        })
-        $out = ConvertTo-Json -Compress -Depth 3 -InputObject @{ list = $list }
-      }
+      'primary' { $out = ConvertTo-Json -Compress -InputObject @{ id = [PgStretch]::PrimaryMonitorId() } }
       default { $out = '{"error":"Commande inconnue."}' }
     }
   } catch {

@@ -2419,9 +2419,9 @@ function accelFromEvent(e) {
   if (!mods.length && !key.startsWith('F')) return null;
   return [...mods, key].join('+');
 }
-const screenName = (name) => /\(([^)]+)\)\s*$/.exec(name || '')?.[1] || name || 'Écran';
 
 let stretchDisplay = null; // écran relevé à l'ouverture de la page, tant que la résolution native n'est pas connue
+let stretchAdvanced = false; // « Réglages avancés » ouvert
 
 function stretchStatusHtml(s) {
   const n = s.native || stretchDisplay;
@@ -2430,7 +2430,7 @@ function stretchStatusHtml(s) {
   const [title, detail, tone] = {
     off: ['Désactivée', n ? `Écran en ${resLabel(n.w, n.h)} à ${n.hz} Hz.` : '', ''],
     idle: ['En attente de VALORANT', `Passage en ${target} quand une partie commence.`, 'on'],
-    launching: ['Lancement du jeu', s.screensOff ? 'Écrans désactivés dans le Gestionnaire de périphériques.' : '', 'on'],
+    launching: ['Lancement du jeu', s.screensOff ? 'Écran préparé pour la résolution étirée.' : '', 'on'],
     game: ['Au menu', offline ? 'Compte non connecté : la partie ne peut pas être détectée.' : `Résolution ${s.res === 'stretched' ? target : 'native'}.`, offline ? 'warn' : 'on'],
     armed: ['Partie trouvée', `Passage en ${target} dans <b data-ends="${s.switchAt}">${fmtDuration(s.switchAt - Date.now())}</b>.`, 'warn'],
     stretched: ['En partie', s.res === 'native' ? 'Résolution native, choisie au raccourci.' : `Résolution étirée ${target}.`, 'live'],
@@ -2464,8 +2464,6 @@ PAGES.stretch = async () => {
   const options = (listed || !c.width ? modes : [[c.width, c.height], ...modes])
     .map(([w, h]) => `<option value="${w}x${h}" ${w === c.width && h === c.height ? 'selected' : ''}>${resLabel(w, h)} (${ratioLabel(w, h)})</option>`).join('');
   const hz = info.native?.hz || d?.hz;
-  const keep = c.monitorsKeep || [];
-  const screens = info.monitorsReady && c.monitors && info.screens.length > 1 ? info.screens : [];
   const HOTKEYS = [['toggle', 'Basculer étirée ou native'], ['native', 'Revenir en native']];
 
   content.innerHTML = `
@@ -2484,31 +2482,29 @@ PAGES.stretch = async () => {
 
     <div class="panel st-gap">
       <div class="setting-row">
-        <div class="label"><div>Résolution en partie</div><div>La fréquence reste à ${hz ? `${hz} Hz` : 'sa valeur actuelle'}. Pour une résolution absente de la liste, créez-la dans le panneau de la carte graphique.</div></div>
+        <div class="label"><div>Résolution en partie</div><div>La fréquence reste à ${hz ? `${hz} Hz` : 'sa valeur actuelle'}.</div></div>
         <select id="st-res" ${modes.length ? '' : 'disabled'}>${options || '<option>Aucune résolution disponible</option>'}</select>
       </div>
+      ${!info.monitorsReady || info.monitorsOutdated ? `
+      <div class="setting-row">
+        <div class="label"><div>Autorisation Windows</div><div>${info.monitorsReady ? 'À renouveler une fois après cette mise à jour de l\'app.' : 'Nécessaire une seule fois pour que la résolution étirée tienne en jeu.'}</div></div>
+        <button class="btn primary" id="st-install">${info.monitorsReady ? 'Renouveler' : 'Autoriser'}</button>
+      </div>` : ''}
+    </div>
+
+    <details class="panel st-gap st-advanced" id="st-advanced" ${stretchAdvanced ? 'open' : ''}>
+      <summary>Réglages avancés</summary>
       <div class="setting-row">
         <div class="label"><div>Délai avant le passage</div><div>VALORANT signale la partie dès l'écran de chargement. Augmentez-le si la résolution change avant l'apparition.</div></div>
         <select id="st-delay">${STRETCH_DELAYS.map((ms) => `<option value="${ms}" ${c.delayMs === ms ? 'selected' : ''}>${ms / 1000} s</option>`).join('')}</select>
       </div>
+      ${info.monitorsReady ? `
       <div class="setting-row">
-        <div class="label"><div>Désactiver les écrans pendant le jeu</div><div>Comme dans le Gestionnaire de périphériques, du lancement à la fermeture du jeu : sans cela, VALORANT peut ignorer la résolution étirée.${info.monitorsReady ? '' : ' Demande une autorisation administrateur, une seule fois.'}</div></div>
-        ${info.monitorsReady
-          ? `<label class="switch"><input type="checkbox" id="st-monitors" ${c.monitors ? 'checked' : ''}><span></span></label>`
-          : '<button class="btn" id="st-install">Autoriser</button>'}
-      </div>
-      ${info.monitorsOutdated ? `
-      <div class="setting-row st-screen">
-        <div class="label"><div>Mise à jour de l'autorisation</div><div>Le script des écrans a changé avec l'app. Une nouvelle autorisation administrateur l'installe et permet de laisser certains écrans actifs.</div></div>
-        <button class="btn" id="st-install">Mettre à jour</button>
+        <div class="label"><div>Écran en mode générique pendant le jeu</div><div>Du lancement à la fermeture du jeu, Windows utilise son pilote d'écran standard. C'est ce qui permet à la résolution étirée de tenir. L'image ne change pas.</div></div>
+        <label class="switch"><input type="checkbox" id="st-monitors" ${c.monitors ? 'checked' : ''}><span></span></label>
       </div>` : ''}
-      ${screens.map((m) => `
-      <div class="setting-row st-screen">
-        <div class="label"><div>${esc(screenName(m.name))}</div><div>${m.primary ? 'Écran du jeu. Le laisser actif peut empêcher la résolution étirée.' : 'Écran secondaire.'}</div></div>
-        <label class="switch" title="Désactivé pendant le jeu"><input type="checkbox" data-screen="${esc(m.id)}" ${keep.includes(m.id) ? '' : 'checked'} ${info.monitorsOutdated ? 'disabled' : ''}><span></span></label>
-      </div>`).join('')}
       <div class="setting-row">
-        <div class="label"><div>Verrouiller la configuration du jeu</div><div>Plein écran fenêtré et format Remplir, puis fichier en lecture seule pour que VALORANT ne les modifie pas.</div></div>
+        <div class="label"><div>Régler VALORANT automatiquement</div><div>Plein écran fenêtré et format Remplir, nécessaires à l'étirement. Le fichier de configuration passe en lecture seule pour que le jeu ne les change pas.</div></div>
         <label class="switch"><input type="checkbox" id="st-lock" ${info.configLocked ? 'checked' : ''} ${info.configLocked === null ? 'disabled title="Lancez VALORANT une fois"' : ''}><span></span></label>
       </div>
       ${HOTKEYS.map(([k, label]) => `
@@ -2516,32 +2512,23 @@ PAGES.stretch = async () => {
         <div class="label"><div>${label}</div><div id="st-hk-${k}-note">${info.hotkeysFailed?.includes(k) ? 'Déjà utilisé par une autre application.' : 'Actif partout, jeu compris, quand la fonction est activée.'}</div></div>
         <button class="btn st-hotkey" data-hotkey="${k}" title="Modifier">${hotkeyHtml(info.hotkeys[k])}</button>
       </div>`).join('')}
-    </div>
+    </details>
 
-    <p class="muted st-note">Réglez aussi la mise à l'échelle de la carte graphique sur plein écran. AMD Adrenalin : Mise à l'échelle GPU. NVIDIA : Ajuster la taille et la position du bureau, Plein écran, effectuée sur le GPU.</p>`;
+    <p class="muted st-note">Si l'image n'est pas étirée en jeu, réglez la mise à l'échelle de la carte graphique sur plein écran : Mise à l'échelle GPU chez AMD, Plein écran effectuée sur le GPU chez NVIDIA.</p>`;
 
   state.onStretch = (s) => {
     const el = $('#st-state');
     if (el) el.innerHTML = stretchStatusHtml(s);
   };
 
+  $('#st-advanced').ontoggle = (e) => { stretchAdvanced = e.target.open; };
   $('#st-enabled').onchange = (e) => save({ enabled: e.target.checked });
   $('#st-res').onchange = (e) => {
     const [w, h] = e.target.value.split('x').map(Number);
     return save({ width: w, height: h });
   };
   $('#st-delay').onchange = (e) => save({ delayMs: Number(e.target.value) });
-  if ($('#st-monitors')) $('#st-monitors').onchange = async (e) => {
-    await save({ monitors: e.target.checked });
-    navigate('stretch'); // affiche ou masque le choix des écrans
-  };
-  content.querySelectorAll('[data-screen]').forEach((input) => {
-    input.onchange = () => {
-      const id = input.dataset.screen;
-      const ids = (state.settings.stretch.monitorsKeep || []).filter((x) => x !== id);
-      return save({ monitorsKeep: input.checked ? ids : [...ids, id] });
-    };
-  });
+  if ($('#st-monitors')) $('#st-monitors').onchange = (e) => save({ monitors: e.target.checked });
   content.querySelectorAll('[data-hotkey]').forEach((btn) => {
     btn.onclick = () => {
       if (btn.dataset.capturing) return;
