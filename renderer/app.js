@@ -156,6 +156,7 @@ const ICONS = {
   friends: '<path d="M4 5h16v11H9l-5 4z"/>',
   stats: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
   collection: '<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M3 15l5-5 4 4 3-3 6 6"/>',
+  stretch: '<rect x="2.5" y="4" width="19" height="13" rx="1.5"/><path d="M8 21h8M12 17v4M6.5 10.5h11M6.5 10.5l2-2M6.5 10.5l2 2M17.5 10.5l-2-2M17.5 10.5l-2 2"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
 };
 const icon = (name) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]}</svg>`;
@@ -164,6 +165,7 @@ const NAV = [
   ['home', 'Accueil'],
   ['store', 'Boutique'],
   ['agent', 'Agent auto'],
+  ['stretch', 'Résolution étirée'],
   ['live', 'Partie en direct'],
   ['history', 'Historique'],
   ['stats', 'Statistiques'],
@@ -181,7 +183,7 @@ function renderNav() {
     n === 'sep'
       ? '<div class="nav-sep"></div>'
       : `<button class="nav-item ${state.page === n[0] ? 'active' : ''}" data-page="${n[0]}">${icon(n[0])}${n[1]}${
-          n[0] === 'agent' && autolockOn ? '<span class="nav-dot" title="Activé"></span>' : ''
+          (n[0] === 'agent' && autolockOn) || (n[0] === 'stretch' && state.settings?.stretch?.enabled) ? '<span class="nav-dot" title="Activé"></span>' : ''
         }${n[0] === 'friends' && unreadTotal() ? `<span class="nav-badge">${unreadTotal()}</span>` : ''}</button>`
   ).join('');
   syncNavPill();
@@ -321,6 +323,7 @@ $('#account').addEventListener('click', () => state.status.connected && navigate
 
 function navigate(page) {
   state.onUnread = null;
+  state.onStretch = null;
   state.timers.forEach(clearInterval);
   state.timers = [];
   state.page = page;
@@ -329,7 +332,7 @@ function navigate(page) {
   renderNav();
   content.scrollTop = 0;
   chipPos.clear();
-  const needsAuth = page !== 'settings';
+  const needsAuth = page !== 'settings' && page !== 'stretch';
   if (needsAuth && !state.status.connected) return renderConnect();
   state.entering = true;
   content.innerHTML = loader();
@@ -2380,6 +2383,161 @@ PAGES.collection = async () => {
 };
 
 // ---------- Paramètres ----------
+// ================= Résolution étirée =================
+const RATIOS = { '4:3': 4 / 3, '5:4': 5 / 4, '16:10': 16 / 10, '3:2': 3 / 2, '16:9': 16 / 9 };
+function ratioLabel(w, h) {
+  const hit = Object.entries(RATIOS).find(([, v]) => Math.abs(v - w / h) < 0.02);
+  return hit ? hit[0] : `${(w / h).toFixed(2).replace('.', ',')}:1`;
+}
+const resLabel = (w, h) => `${w} × ${h}`;
+
+// Résolutions proposées : plus petites que l'écran et d'un autre format que lui (sinon rien n'est étiré).
+function stretchModes(d) {
+  if (!d?.modes) return [];
+  const native = d.w / d.h;
+  const seen = new Set();
+  return d.modes
+    .filter(([w, h]) => w <= d.w && h <= d.h && Math.abs(w / h - native) > 0.02)
+    .filter(([w, h]) => !seen.has(`${w}x${h}`) && seen.add(`${w}x${h}`))
+    .sort((a, b) => b[0] * b[1] - a[0] * a[1]);
+}
+
+const STRETCH_DELAYS = [15000, 30000, 45000, 60000];
+
+let stretchDisplay = null; // écran relevé à l'ouverture de la page, tant que la résolution native n'est pas connue
+
+function stretchStatusHtml(s) {
+  const n = s.native || stretchDisplay;
+  const target = resLabel(s.width, s.height);
+  const offline = !state.status.connected && ['game', 'armed'].includes(s.phase);
+  const [title, detail, tone] = {
+    off: ['Désactivée', n ? `Écran en ${resLabel(n.w, n.h)} à ${n.hz} Hz.` : '', ''],
+    idle: ['En attente de VALORANT', `Passage en ${target} quand une partie commence.`, 'on'],
+    launching: ['Lancement du jeu', s.monitors ? 'Écrans désactivés dans le Gestionnaire de périphériques.' : '', 'on'],
+    game: ['Au menu', offline ? 'Compte non connecté : la partie ne peut pas être détectée.' : `Résolution ${s.res === 'stretched' ? target : 'native'}.`, offline ? 'warn' : 'on'],
+    armed: ['Partie trouvée', `Passage en ${target} dans <b data-ends="${s.switchAt}">${fmtDuration(s.switchAt - Date.now())}</b>.`, 'warn'],
+    stretched: ['En partie', `Résolution étirée ${target}.`, 'live'],
+  }[s.phase] || ['', '', ''];
+  return `<span class="st-dot ${tone}"></span><div><b>${title}</b><div class="muted">${detail}</div></div>`;
+}
+
+PAGES.stretch = async () => {
+  const alive = guard();
+  const info = await call('stretch-info');
+  if (!alive()) return;
+  state.stretch = info;
+
+  const save = async (patch) => {
+    state.settings = await call('settings-set', { stretch: patch });
+    renderNav();
+  };
+
+  const d = info.display?.error ? null : info.display;
+  stretchDisplay = d;
+  // Les modes sont filtrés par rapport à la résolution native, même si l'écran est étiré en ce moment.
+  const modes = stretchModes(d && info.native ? { ...d, w: info.native.w, h: info.native.h } : d);
+  let c = state.settings.stretch;
+  // Première visite : la plus grande résolution 4:3 disponible.
+  if (!c.width && modes.length) {
+    const pick = modes.find(([w, h]) => ratioLabel(w, h) === '4:3') || modes[0];
+    await save({ width: pick[0], height: pick[1] });
+    c = state.settings.stretch;
+  }
+  const listed = modes.some(([w, h]) => w === c.width && h === c.height);
+  const options = (listed || !c.width ? modes : [[c.width, c.height], ...modes])
+    .map(([w, h]) => `<option value="${w}x${h}" ${w === c.width && h === c.height ? 'selected' : ''}>${resLabel(w, h)} (${ratioLabel(w, h)})</option>`).join('');
+  const hz = info.native?.hz || d?.hz;
+
+  content.innerHTML = `
+    <div class="page-head">
+      <h1>Résolution étirée</h1>
+      <label class="switch" title="Activer / désactiver"><input type="checkbox" id="st-enabled" ${c.enabled ? 'checked' : ''} ${modes.length ? '' : 'disabled'}><span></span></label>
+    </div>
+
+    <div class="panel st-status">
+      <div class="st-state" id="st-state">${stretchStatusHtml(info)}</div>
+      <button class="btn" id="st-test" ${modes.length ? '' : 'disabled'}>Tester 3 s</button>
+      <button class="btn ghost" id="st-restore">Tout restaurer</button>
+    </div>
+
+    ${d ? '' : `<div class="warn-box st-gap">${esc(info.display?.error || 'Écran introuvable.')}</div>`}
+
+    <div class="panel st-gap">
+      <div class="setting-row">
+        <div class="label"><div>Résolution en partie</div><div>La fréquence reste à ${hz ? `${hz} Hz` : 'sa valeur actuelle'}. Pour une résolution absente de la liste, créez-la dans le panneau de la carte graphique.</div></div>
+        <select id="st-res" ${modes.length ? '' : 'disabled'}>${options || '<option>Aucune résolution disponible</option>'}</select>
+      </div>
+      <div class="setting-row">
+        <div class="label"><div>Délai avant le passage</div><div>VALORANT signale la partie dès l'écran de chargement. Augmentez-le si la résolution change avant l'apparition.</div></div>
+        <select id="st-delay">${STRETCH_DELAYS.map((ms) => `<option value="${ms}" ${c.delayMs === ms ? 'selected' : ''}>${ms / 1000} s</option>`).join('')}</select>
+      </div>
+      <div class="setting-row">
+        <div class="label"><div>Désactiver les écrans pendant le jeu</div><div>Comme dans le Gestionnaire de périphériques, du lancement à la fermeture du jeu : sans cela, VALORANT peut ignorer la résolution étirée.${info.monitorsReady ? '' : ' Demande une autorisation administrateur, une seule fois.'}</div></div>
+        ${info.monitorsReady
+          ? `<label class="switch"><input type="checkbox" id="st-monitors" ${c.monitors ? 'checked' : ''}><span></span></label>`
+          : '<button class="btn" id="st-install">Autoriser</button>'}
+      </div>
+      <div class="setting-row">
+        <div class="label"><div>Verrouiller la configuration du jeu</div><div>Plein écran fenêtré et format Remplir, puis fichier en lecture seule pour que VALORANT ne les modifie pas.</div></div>
+        <label class="switch"><input type="checkbox" id="st-lock" ${info.configLocked ? 'checked' : ''} ${info.configLocked === null ? 'disabled title="Lancez VALORANT une fois"' : ''}><span></span></label>
+      </div>
+      <div class="setting-row">
+        <div class="label"><div>Raccourcis</div></div>
+        <div class="st-keys"><span><kbd>Ctrl</kbd><kbd>F8</kbd></span><span>Étirée ou native</span><span><kbd>Ctrl</kbd><kbd>F9</kbd></span><span>Native</span></div>
+      </div>
+    </div>
+
+    <p class="muted st-note">Réglez aussi la mise à l'échelle de la carte graphique sur plein écran. AMD Adrenalin : Mise à l'échelle GPU. NVIDIA : Ajuster la taille et la position du bureau, Plein écran, effectuée sur le GPU.</p>`;
+
+  state.onStretch = (s) => {
+    const el = $('#st-state');
+    if (el) el.innerHTML = stretchStatusHtml(s);
+  };
+
+  $('#st-enabled').onchange = (e) => save({ enabled: e.target.checked });
+  $('#st-res').onchange = (e) => {
+    const [w, h] = e.target.value.split('x').map(Number);
+    return save({ width: w, height: h });
+  };
+  $('#st-delay').onchange = (e) => save({ delayMs: Number(e.target.value) });
+  if ($('#st-monitors')) $('#st-monitors').onchange = (e) => save({ monitors: e.target.checked });
+  if ($('#st-install')) $('#st-install').onclick = async (e) => {
+    e.target.disabled = true;
+    try {
+      await call('stretch-install');
+      toast('Autorisation enregistrée.');
+      navigate('stretch');
+    } catch (err) {
+      toast(err.message, 'error');
+      e.target.disabled = false;
+    }
+  };
+  $('#st-lock').onchange = async (e) => {
+    try {
+      await call('stretch-lock', e.target.checked);
+      toast(e.target.checked ? 'Configuration du jeu verrouillée.' : 'Configuration du jeu déverrouillée.');
+    } catch (err) {
+      e.target.checked = !e.target.checked;
+      toast(err.message, 'error');
+    }
+  };
+  $('#st-test').onclick = async (e) => {
+    e.target.disabled = true;
+    try { await call('stretch-test'); } catch (err) { toast(err.message, 'error'); }
+    e.target.disabled = false;
+  };
+  $('#st-restore').onclick = async (e) => {
+    e.target.disabled = true;
+    try {
+      await call('stretch-restore');
+      toast('Écrans et résolution native restaurés.');
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+    e.target.disabled = false;
+  };
+};
+
 PAGES.settings = async () => {
   const s = state.settings;
   const REGIONS = [['', 'Automatique'], ['eu', 'Europe (EU)'], ['na', 'Amérique du Nord (NA)'], ['latam', 'Amérique latine (LATAM)'], ['br', 'Brésil (BR)'], ['ap', 'Asie-Pacifique (AP)'], ['kr', 'Corée (KR)']];
@@ -2454,6 +2612,11 @@ PAGES.settings = async () => {
   window.api.on('update', onUpdate);
   onUpdate(await call('update-state'));
   window.api.on('autolock-event', (evt) => toast(evt.message, evt.type === 'error' ? 'error' : 'info'));
+  window.api.on('stretch-event', (evt) => toast(evt.message, evt.type === 'error' ? 'error' : 'info'));
+  window.api.on('stretch', (s) => {
+    state.stretch = s;
+    state.onStretch?.(s);
+  });
   state.status = await call('status');
   renderNav();
   renderAccount();

@@ -11,12 +11,13 @@ const { AutoLock } = require('./src/autolock');
 const { CLIENT_ACTIONS_DISABLED, CLIENT_ACTIONS_MESSAGE, assertClientActionsAllowed } = require('./src/restrictions');
 const { Updater } = require('./src/updater');
 const { Stats } = require('./src/stats');
+const { Stretch } = require('./src/stretch');
 
 app.setAppUserModelId('com.nouss.precisegunplay');
 
 let win = null;
 const client = new RiotClient();
-let assets, settings, services, autolock, updater, stats;
+let assets, settings, services, autolock, updater, stats, stretch;
 let status = { connected: false, message: 'Recherche du Riot Client…' };
 let connecting = false;
 
@@ -127,6 +128,7 @@ function registerIpc() {
       client.reset();
       tryConnect();
     }
+    if (patch && patch.stretch) stretch.configure();
     return next;
   }, { needsAuth: false });
   handle('launch-riot', launchRiot, { needsAuth: false });
@@ -152,6 +154,12 @@ function registerIpc() {
   handle('chat-send', (cid, text) => { assertClientActionsAllowed(); return services.chatSend(cid, text); });
   handle('stats-data', () => stats.data());
   handle('stats-sync', () => { stats.sync(); return stats.state; });
+
+  handle('stretch-info', () => stretch.info(), { needsAuth: false });
+  handle('stretch-install', () => stretch.installMonitors(), { needsAuth: false });
+  handle('stretch-lock', (lock) => stretch.setGameConfigLock(lock), { needsAuth: false });
+  handle('stretch-test', () => stretch.test(), { needsAuth: false });
+  handle('stretch-restore', () => stretch.restoreAll(), { needsAuth: false });
 
   handle('pregame-select', (matchId, agentId) => { assertClientActionsAllowed(); return client.selectAgent(matchId, agentId); });
   handle('pregame-lock', (matchId, agentId) => { assertClientActionsAllowed(); return client.lockAgent(matchId, agentId); });
@@ -214,11 +222,25 @@ app.whenReady().then(() => {
     }
   });
 
+  stretch = new Stretch(client, settings, dataDir);
+  stretch.on('status', (s) => send('stretch', s));
+  stretch.on('event', (evt) => send('stretch-event', evt));
+
   registerIpc();
   createWindow();
   tryConnect();
   watchConnection();
   autolock.start();
+  stretch.start().catch(() => {});
 });
 
 app.on('window-all-closed', () => app.quit());
+
+// Résolution étirée : à la fermeture, l'écran revient en natif et les écrans désactivés sont réactivés.
+let cleanedUp = false;
+app.on('before-quit', (e) => {
+  if (cleanedUp || !stretch || !stretch.needsCleanup()) return;
+  e.preventDefault();
+  cleanedUp = true;
+  stretch.shutdown().finally(() => app.quit());
+});

@@ -13,6 +13,17 @@ Va sur la page [**Releases**](https://github.com/NOUSSS/precise-gunplay/releases
 > L'app n'est pas signée numériquement : au premier lancement, Windows SmartScreen peut afficher « Windows a protégé votre ordinateur ».
 > Clique sur **Informations complémentaires** puis **Exécuter quand même**.
 
+## Résolution étirée
+
+Onglet **Résolution étirée** : choisissez la résolution et activez l'interrupteur. Ensuite, tout est automatique :
+- dès le lancement de VALORANT, avant l'ouverture de sa fenêtre, les écrans sont désactivés dans le Gestionnaire de périphériques ;
+- 30 s après le début d'une partie (fin de l'écran de chargement), l'écran passe en résolution étirée, à la même fréquence ;
+- au menu, la résolution native revient ; à la fermeture du jeu, les écrans sont réactivés.
+
+La désactivation des écrans demande une autorisation administrateur une seule fois (bouton **Autoriser**) : elle crée deux
+tâches planifiées dans le dossier « Precise Gunplay » du Planificateur de tâches. L'app ne touche jamais au processus du jeu.
+Réglez aussi la mise à l'échelle de la carte graphique sur plein écran (AMD : Mise à l'échelle GPU ; NVIDIA : Plein écran, effectuée sur le GPU).
+
 ## Lancer / compiler
 
 ```bash
