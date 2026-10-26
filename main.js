@@ -160,6 +160,7 @@ function registerIpc() {
   handle('stretch-lock', (lock) => stretch.setGameConfigLock(lock), { needsAuth: false });
   handle('stretch-test', () => stretch.test(), { needsAuth: false });
   handle('stretch-restore', () => stretch.restoreAll(), { needsAuth: false });
+  handle('stretch-hotkeys-pause', (paused) => stretch.pauseHotkeys(!!paused), { needsAuth: false });
 
   handle('pregame-select', (matchId, agentId) => { assertClientActionsAllowed(); return client.selectAgent(matchId, agentId); });
   handle('pregame-lock', (matchId, agentId) => { assertClientActionsAllowed(); return client.lockAgent(matchId, agentId); });

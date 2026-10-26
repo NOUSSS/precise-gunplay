@@ -2430,7 +2430,7 @@ function stretchStatusHtml(s) {
   const [title, detail, tone] = {
     off: ['Désactivée', n ? `Écran en ${resLabel(n.w, n.h)} à ${n.hz} Hz.` : '', ''],
     idle: ['En attente de VALORANT', `Passage en ${target} quand une partie commence.`, 'on'],
-    launching: ['Lancement du jeu', s.monitors ? 'Écrans désactivés dans le Gestionnaire de périphériques.' : '', 'on'],
+    launching: ['Lancement du jeu', s.screensOff ? 'Écrans désactivés dans le Gestionnaire de périphériques.' : '', 'on'],
     game: ['Au menu', offline ? 'Compte non connecté : la partie ne peut pas être détectée.' : `Résolution ${s.res === 'stretched' ? target : 'native'}.`, offline ? 'warn' : 'on'],
     armed: ['Partie trouvée', `Passage en ${target} dans <b data-ends="${s.switchAt}">${fmtDuration(s.switchAt - Date.now())}</b>.`, 'warn'],
     stretched: ['En partie', s.res === 'native' ? 'Résolution native, choisie au raccourci.' : `Résolution étirée ${target}.`, 'live'],
@@ -2497,9 +2497,9 @@ PAGES.stretch = async () => {
           ? `<label class="switch"><input type="checkbox" id="st-monitors" ${c.monitors ? 'checked' : ''}><span></span></label>`
           : '<button class="btn" id="st-install">Autoriser</button>'}
       </div>
-      ${screens.length && info.monitorsOutdated ? `
+      ${info.monitorsOutdated ? `
       <div class="setting-row st-screen">
-        <div class="label"><div>Choix des écrans</div><div>Une nouvelle autorisation administrateur permet de laisser certains écrans actifs. En attendant, tous sont désactivés.</div></div>
+        <div class="label"><div>Mise à jour de l'autorisation</div><div>Le script des écrans a changé avec l'app. Une nouvelle autorisation administrateur l'installe et permet de laisser certains écrans actifs.</div></div>
         <button class="btn" id="st-install">Mettre à jour</button>
       </div>` : ''}
       ${screens.map((m) => `
@@ -2544,13 +2544,19 @@ PAGES.stretch = async () => {
   });
   content.querySelectorAll('[data-hotkey]').forEach((btn) => {
     btn.onclick = () => {
+      if (btn.dataset.capturing) return;
+      btn.dataset.capturing = '1';
       const name = btn.dataset.hotkey;
-      const current = () => ({ toggle: 'Control+F8', native: 'Control+F9', ...state.settings.stretch.hotkeys });
+      const current = () => state.settings.stretch.hotkeys;
       btn.textContent = 'Appuyez sur les touches';
+      call('stretch-hotkeys-pause', true).catch(() => {}); // les raccourcis actuels n'agissent pas pendant la saisie
       const stop = () => {
+        if (!btn.dataset.capturing) return;
+        delete btn.dataset.capturing;
         document.removeEventListener('keydown', onKey, true);
         btn.removeEventListener('blur', stop);
         btn.innerHTML = hotkeyHtml(current()[name]);
+        call('stretch-hotkeys-pause', false).catch(() => {});
       };
       const onKey = async (e) => {
         e.preventDefault();
@@ -2559,7 +2565,7 @@ PAGES.stretch = async () => {
         if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return; // on attend la touche principale
         const accel = accelFromEvent(e);
         const keys = current();
-        if (!accel) return toast('Combinaison non prise en charge : ajoutez Ctrl, Alt ou Maj, ou choisissez une touche F.', 'error');
+        if (!accel) return toast('Combinaison non prise en charge : ajoutez Ctrl, Alt ou Maj, ou choisissez une touche F.', 'error');
         if (Object.entries(keys).some(([k, v]) => k !== name && v === accel)) return toast('Déjà utilisé pour l\'autre raccourci.', 'error');
         stop();
         await save({ hotkeys: { ...keys, [name]: accel } });

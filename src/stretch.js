@@ -11,14 +11,14 @@ const fs = require('fs');
 const path = require('path');
 const { spawn, execFile } = require('child_process');
 const { globalShortcut } = require('electron');
-const { decodePresence } = require('./services');
+const { myPresence } = require('./services');
 
 const LAUNCHER = 'valorant.exe';
 const GAME = 'valorant-win64-shipping.exe';
 const TICK_MS = 250;
 const SESSION_MS = 2000; // une requête core-game toutes les 2 s au plus, uniquement jeu lancé
 const TEST_MS = 3000;
-const DEFAULT_HOTKEYS = { toggle: 'Control+F8', native: 'Control+F9' };
+const PRESENCE_TRUST_MS = 10000; // la présence suit core-game avec du retard : elle ne le contredit pas aussitôt
 
 // Tâches planifiées (droits administrateur) qui désactivent / réactivent les écrans.
 const TASK = (mode) => `\\Precise Gunplay\\Ecrans ${mode}`;
@@ -101,14 +101,14 @@ class DisplayHelper {
     return p.ready.then(() => p);
   }
 
-  async call(cmd) {
+  async call(cmd, timeoutMs = 15000) {
     const p = await this.ensure();
     if (p.exitCode !== null || !p.stdin.writable) {
       if (this.proc === p) this.proc = null;
       throw new Error('Assistant d\'affichage arrêté.');
     }
     const res = await new Promise((resolve, reject) => {
-      const q = { resolve, reject, timer: setTimeout(() => { reject(new Error('Délai dépassé (affichage).')); this.stop(p); }, 15000) };
+      const q = { resolve, reject, timer: setTimeout(() => { reject(new Error('Délai dépassé (affichage).')); this.stop(p); }, timeoutMs) };
       p.queue.push(q);
       p.stdin.write(cmd + '\n');
     });
@@ -239,7 +239,7 @@ $me = [Security.Principal.WindowsIdentity]::GetCurrent()
 # Liste des écrans à garder : seul fichier que le compte peut modifier.
 $keep = Join-Path $dir 'monitors-keep.json'
 if (-not (Test-Path $keep)) { [IO.File]::WriteAllText($keep, '{"ids":[]}') }
-& icacls.exe $keep /grant "*$($me.User.Value):M" | Out-Null
+& icacls.exe $keep /grant:r "*$($me.User.Value):(W)" | Out-Null
 $principal = New-ScheduledTaskPrincipal -UserId $me.Name -LogonType S4U -RunLevel Highest
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 2) -MultipleInstances Queue
 $svc = New-Object -ComObject Schedule.Service
@@ -300,6 +300,9 @@ class Stretch extends EventEmitter {
     this.monitorsOutdated = false;
     this.hotkeysOn = []; // raccourcis enregistrés
     this.hotkeysFailed = [];
+    this.hotkeysPaused = false; // saisie d'un nouveau raccourci en cours
+    this.screens = []; // écrans du Gestionnaire de périphériques, relevés hors partie
+    this.screensOff = 0; // écrans désactivés par la dernière tâche « off »
     this.resetGame();
     this.res = null; // 'native' | 'stretched' | null (inconnu)
     this.phase = 'off';
@@ -310,7 +313,7 @@ class Stretch extends EventEmitter {
   }
 
   get hotkeys() {
-    return { ...DEFAULT_HOTKEYS, ...(this.cfg.hotkeys || {}) };
+    return this.cfg.hotkeys;
   }
 
   resetGame() {
@@ -322,6 +325,7 @@ class Stretch extends EventEmitter {
     this.armedAt = 0;
     this.nextSession = 0;
     this.lastInMatch = null;
+    this.coreAt = 0; // dernière réponse de core-game
     this.manual = false; // résolution choisie au raccourci, gardée jusqu'au prochain changement d'état
   }
 
@@ -347,6 +351,7 @@ class Stretch extends EventEmitter {
       monitorsOutdated: this.monitorsOutdated,
       hotkeys: this.hotkeys,
       hotkeysFailed: this.hotkeysFailed,
+      screensOff: this.screensOff,
     };
   }
 
@@ -363,8 +368,11 @@ class Stretch extends EventEmitter {
   async info() {
     let display = null;
     try { display = await this.display.call('display'); } catch (e) { display = { error: e.message }; }
-    let screens = [];
-    try { screens = (await this.display.call('monitors')).list || []; } catch { /* liste indisponible : pas de choix */ }
+    // Get-PnpDevice est lent : pas pendant le jeu, où l'assistant sert à la boucle (liste gardée).
+    if (!this.gameRunning && !this.launcherSeen) {
+      try { this.screens = (await this.display.call('monitors', 60000)).list || []; } catch { /* liste indisponible : pas de choix */ }
+    }
+    const screens = this.screens;
     let configLocked = null;
     try { configLocked = gameConfigLocked(); } catch { /* fichier illisible */ }
     await this.checkMonitors();
@@ -397,7 +405,7 @@ class Stretch extends EventEmitter {
       this.resetGame();
       this.exclusive(() => this.captureNative()).catch(() => {});
       this.timer = setInterval(() => this.tick(), TICK_MS);
-      this.registerHotkeys();
+      if (!this.hotkeysPaused) this.registerHotkeys();
       this.setPhase('idle');
     } else if (!on && this.timer) {
       clearInterval(this.timer);
@@ -408,7 +416,7 @@ class Stretch extends EventEmitter {
       this.resetGame();
       this.setPhase('off');
     } else {
-      if (on && Object.values(this.hotkeys).join() !== this.hotkeysWanted) this.registerHotkeys();
+      if (on && !this.hotkeysPaused && Object.values(this.hotkeys).join() !== this.hotkeysWanted) this.registerHotkeys();
       this.emit('status', this.status());
     }
   }
@@ -426,7 +434,15 @@ class Stretch extends EventEmitter {
       else this.hotkeysFailed.push(name);
     }
     this.hotkeysWanted = Object.values(keys).join();
-    if (this.hotkeysFailed.length) this.notify('Raccourci déjà utilisé par une autre application : choisissez-en un autre.', 'error');
+    if (this.hotkeysFailed.length) this.notify('Raccourci déjà utilisé par une autre application : choisissez-en un autre.', 'error');
+  }
+
+  // Pendant la saisie d'un raccourci sur la page, les raccourcis actuels ne doivent pas agir.
+  pauseHotkeys(paused) {
+    this.hotkeysPaused = paused;
+    if (paused) this.unregisterHotkeys();
+    else if (this.timer) this.registerHotkeys();
+    this.emit('status', this.status());
   }
 
   unregisterHotkeys() {
@@ -434,7 +450,7 @@ class Stretch extends EventEmitter {
       try { globalShortcut.unregister(accel); } catch { /* déjà libéré */ }
     }
     this.hotkeysOn = [];
-    this.hotkeysFailed = [];
+    if (!this.hotkeysPaused) this.hotkeysFailed = [];
     this.hotkeysWanted = '';
   }
 
@@ -533,13 +549,19 @@ class Stretch extends EventEmitter {
       try {
         const core = await Promise.race([req, sleep(5000).then(() => { throw new Error('Délai dépassé (core-game).'); })]);
         inMatch = !!core?.MatchID;
+        this.coreAt = Date.now();
       } catch { /* secours ci-dessous */ }
     }
-    if (inMatch === null) inMatch = await this.presenceInMatch();
+    if (inMatch === null) {
+      inMatch = await this.presenceInMatch();
+      // Juste après une réponse de core-game, la présence en retard ne le contredit pas : on garde son état.
+      if (inMatch !== null && this.lastInMatch !== null && Date.now() - this.coreAt < PRESENCE_TRUST_MS) inMatch = this.lastInMatch;
+    }
     if (inMatch === null) return;
     if (inMatch !== this.lastInMatch) {
+      // Premier état connu : un choix fait au raccourci avant la première réponse est gardé.
+      if (this.lastInMatch !== null) this.manual = false;
       this.lastInMatch = inMatch;
-      this.manual = false;
     }
     if (inMatch) {
       if (!this.armedAt) {
@@ -563,8 +585,7 @@ class Stretch extends EventEmitter {
     } catch {
       return null;
     }
-    const me = (pr?.presences || []).find((p) => p.puuid === this.client.puuid && p.product === 'valorant');
-    const d = me && decodePresence(me);
+    const d = myPresence(pr, this.client.puuid);
     const loop = d?.sessionLoopState || d?.matchPresenceData?.sessionLoopState;
     return loop ? loop === 'INGAME' : null;
   }
@@ -608,6 +629,8 @@ class Stretch extends EventEmitter {
       fs.writeFileSync(MONITORS_KEEP, JSON.stringify({ ids: this.cfg.monitorsKeep || [] }));
     } catch { /* ancienne autorisation : tous les écrans sont désactivés */ }
     const r = await runMonitorsTask('off');
+    this.screensOff = r.disabled?.length || 0;
+    this.emit('status', this.status());
     if (r.failed?.length) this.notify(`Écran non désactivé : ${r.failed.join(', ')}.`, 'error');
     // Garde-fou : plus aucun écran actif, on réactive tout de suite.
     try {
@@ -622,6 +645,7 @@ class Stretch extends EventEmitter {
   async enableMonitors() {
     if (!monitorsDisabledByUs()) return;
     const r = await runMonitorsTask('on');
+    this.screensOff = 0;
     if (r.failed?.length) this.notify(`Écran toujours désactivé : ${r.failed.join(', ')}. Réactivez-le dans le Gestionnaire de périphériques.`, 'error');
     await sleep(300);
   }
