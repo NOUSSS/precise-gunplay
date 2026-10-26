@@ -19,6 +19,8 @@ const DEFAULTS = {
     height: 0,
     delayMs: 30000, // le jeu se dit en partie dès l'écran de chargement : on attend avant de basculer
     monitors: true, // désactiver les écrans dans le Gestionnaire de périphériques pendant le jeu
+    monitorsKeep: [], // identifiants des écrans à laisser actifs
+    hotkeys: { toggle: 'Control+F8', native: 'Control+F9' },
     native: null, // { w, h, hz } relevée automatiquement
   },
 };

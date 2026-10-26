@@ -691,4 +691,4 @@ class Services {
 const CID_RE = /^[\w-]+@[\w.-]+$/;
 const CHAT_MAX = 500;
 
-module.exports = { Services };
+module.exports = { Services, decodePresence };
