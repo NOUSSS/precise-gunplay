@@ -2464,7 +2464,10 @@ PAGES.stretch = async () => {
   const options = (listed || !c.width ? modes : [[c.width, c.height], ...modes])
     .map(([w, h]) => `<option value="${w}x${h}" ${w === c.width && h === c.height ? 'selected' : ''}>${resLabel(w, h)} (${ratioLabel(w, h)})</option>`).join('');
   const hz = info.native?.hz || d?.hz;
-  const HOTKEYS = [['toggle', 'Basculer étirée ou native'], ['native', 'Revenir en native']];
+  const HOTKEYS = [
+    ['toggle', 'Basculer étirée ou native', 'Actif partout, jeu compris, quand la fonction est activée.'],
+    ['native', 'Tout restaurer', 'Toujours actif, même fonction coupée. En partie : résolution native.'],
+  ];
 
   content.innerHTML = `
     <div class="page-head">
@@ -2477,6 +2480,8 @@ PAGES.stretch = async () => {
       <button class="btn" id="st-test" ${modes.length ? '' : 'disabled'}>Tester 3 s</button>
       <button class="btn ghost" id="st-restore">Tout restaurer</button>
     </div>
+
+    <p class="muted st-rescue">Écran illisible : <span id="st-restore-key">${hotkeyHtml(info.hotkeys.native)}</span> remet l'affichage comme avant, à tout moment.</p>
 
     ${d ? '' : `<div class="warn-box st-gap">${esc(info.display?.error || 'Écran introuvable.')}</div>`}
 
@@ -2516,14 +2521,14 @@ PAGES.stretch = async () => {
         <div class="label"><div>Régler VALORANT automatiquement</div><div>Plein écran fenêtré et format Remplir, nécessaires à l'étirement. Le fichier de configuration passe en lecture seule pour que le jeu ne les change pas.</div></div>
         <label class="switch"><input type="checkbox" id="st-lock" ${info.configLocked ? 'checked' : ''} ${info.configLocked === null ? 'disabled title="Lancez VALORANT une fois"' : ''}><span></span></label>
       </div>
-      ${HOTKEYS.map(([k, label]) => `
+      ${HOTKEYS.map(([k, label, note]) => `
       <div class="setting-row">
-        <div class="label"><div>${label}</div><div id="st-hk-${k}-note">${info.hotkeysFailed?.includes(k) ? 'Déjà utilisé par une autre application.' : 'Actif partout, jeu compris, quand la fonction est activée.'}</div></div>
+        <div class="label"><div>${label}</div><div id="st-hk-${k}-note">${info.hotkeysFailed?.includes(k) ? 'Déjà utilisé par une autre application.' : note}</div></div>
         <button class="btn st-hotkey" data-hotkey="${k}" title="Modifier">${hotkeyHtml(info.hotkeys[k])}</button>
       </div>`).join('')}
     </details>
 
-    <p class="muted st-note">Si l'image n'est pas étirée en jeu, réglez la mise à l'échelle de la carte graphique sur plein écran : Mise à l'échelle GPU chez AMD, Plein écran effectuée sur le GPU chez NVIDIA.</p>`;
+    <p class="muted st-note">${/amd|radeon/i.test(d?.gpu || '') ? "Carte AMD : la mise à l'échelle GPU passe en plein écran avant chaque passage en résolution étirée." : "Si l'image n'est pas étirée en jeu ou si l'écran affiche des artefacts, réglez la mise à l'échelle de la carte graphique sur plein écran : Plein écran effectuée sur le GPU chez NVIDIA."}</p>`;
 
   state.onStretch = (s) => {
     const el = $('#st-state');
@@ -2605,7 +2610,8 @@ PAGES.stretch = async () => {
         await save({ hotkeys: { ...keys, [name]: accel } });
         btn.innerHTML = hotkeyHtml(accel);
         const failed = state.stretch?.hotkeysFailed?.includes(name);
-        $(`#st-hk-${name}-note`).textContent = failed ? 'Déjà utilisé par une autre application.' : 'Actif partout, jeu compris, quand la fonction est activée.';
+        $(`#st-hk-${name}-note`).textContent = failed ? 'Déjà utilisé par une autre application.' : HOTKEYS.find(([k]) => k === name)[2];
+        if (name === 'native') $('#st-restore-key').innerHTML = hotkeyHtml(accel);
       };
       document.addEventListener('keydown', onKey, true);
       btn.addEventListener('blur', stop);

@@ -327,6 +327,7 @@ class Stretch extends EventEmitter {
     this.coreAt = 0; // dernière réponse de core-game
     this.manual = false; // résolution choisie au raccourci, gardée jusqu'au prochain changement d'état
     this.joinedLate = false; // jeu déjà lancé quand l'app l'a vu (lanceur jamais vu)
+    this.oversized = 0; // ticks où la fenêtre du jeu dépasse l'écran étiré
   }
 
   // Les actions (boucle, raccourcis, boutons) passent l'une après l'autre.
@@ -410,13 +411,13 @@ class Stretch extends EventEmitter {
     } else if (!on && this.timer) {
       clearInterval(this.timer);
       this.timer = null;
-      this.unregisterHotkeys();
+      if (!this.hotkeysPaused) this.registerHotkeys();
       this.exclusive(() => this.restore()).catch((e) => this.notify(e.message, 'error'));
       this.releaseDisplay();
       this.resetGame();
       this.setPhase('off');
     } else {
-      if (on && !this.hotkeysPaused && Object.values(this.hotkeys).join() !== this.hotkeysWanted) this.registerHotkeys();
+      if (!this.hotkeysPaused && Object.values(this.hotkeys).join() !== this.hotkeysWanted) this.registerHotkeys();
       // Nouvelle résolution choisie pendant que l'écran est étiré : appliquée tout de suite.
       if (on && this.res === 'stretched' && this.stretchedTo !== `${this.cfg.width}x${this.cfg.height}`) {
         this.exclusive(() => (this.res === 'stretched' ? this.applyStretched() : null)).catch((e) => this.notify(e.message, 'error'));
@@ -425,13 +426,15 @@ class Stretch extends EventEmitter {
     }
   }
 
-  // Raccourcis globaux, actifs tant que la fonction est activée. Un raccourci déjà pris par une autre
-  // application est signalé une fois.
+  // Raccourcis globaux. « Tout restaurer » reste actif même fonction coupée : avec un seul écran devenu
+  // illisible, c'est le seul moyen de s'en sortir. La bascule ne l'est que fonction activée. Un raccourci
+  // déjà pris par une autre application est signalé une fois.
   registerHotkeys() {
     this.unregisterHotkeys();
     const actions = { toggle: () => this.toggle(), native: () => this.forceNative() };
     const keys = this.hotkeys;
     for (const [name, accel] of Object.entries(keys)) {
+      if (name === 'toggle' && !this.timer) continue;
       let ok = false;
       try { ok = globalShortcut.register(accel, () => actions[name]().catch((e) => this.notify(e.message, 'error'))); } catch { /* combinaison invalide */ }
       if (ok) this.hotkeysOn.push(accel);
@@ -445,7 +448,7 @@ class Stretch extends EventEmitter {
   pauseHotkeys(paused) {
     this.hotkeysPaused = paused;
     if (paused) this.unregisterHotkeys();
-    else if (this.timer) this.registerHotkeys();
+    else this.registerHotkeys();
     this.emit('status', this.status());
   }
 
@@ -534,10 +537,31 @@ class Stretch extends EventEmitter {
       }
     }
 
+    if (this.gameRunning && this.res === 'stretched') await this.checkGameWindow(p);
+    else this.oversized = 0;
+
     if (this.gameRunning && Date.now() >= this.nextSession) {
       this.nextSession = Date.now() + SESSION_MS;
       await this.pollSession();
     }
+  }
+
+  // Fenêtre du jeu restée plus grande que l'écran étiré : on ne voit qu'une partie de l'image (écran
+  // pas en mode générique, jeu lancé avant l'app). Après 3 s sans qu'elle suive, retour en native.
+  async checkGameWindow(p) {
+    const c = this.cfg;
+    if (!p.ww || (p.ww <= c.width + 8 && p.wh <= c.height + 8)) {
+      this.oversized = 0;
+      return;
+    }
+    if (++this.oversized < 3000 / TICK_MS) return;
+    this.oversized = 0;
+    await this.applyNative();
+    this.manual = true; // pas de nouvel essai avant le prochain changement d'état
+    const cause = this.joinedLate || !this.screensOff
+      ? (this.cfg.monitors && this.monitorsReady ? 'Fermez-le puis relancez-le avec Precise Gunplay ouvert.' : 'Activez « Écrans en mode générique pendant le jeu » dans les réglages avancés, puis relancez le jeu.')
+      : 'Relancez le jeu. Si cela se reproduit, réglez la mise à l\'échelle de la carte graphique sur plein écran.';
+    this.notify(`VALORANT n'a pas suivi la résolution étirée : retour en native. ${cause}`, 'error');
   }
 
   // GET core-game : MatchID = en partie (tous les modes), 404 = pas en partie. S'il ne répond pas
@@ -627,7 +651,7 @@ class Stretch extends EventEmitter {
       if (await accepted()) return;
       if (w > n.w || h > n.h) throw new Error(`Choisissez une résolution jusqu'à ${n.w} × ${n.h}.`);
       // La nouvelle résolution reprend le mode actuel de l'écran : il doit être le mode natif.
-      if (d.w !== n.w || d.h !== n.h || d.hz !== n.hz) throw new Error(`Repassez l'écran en ${n.w} × ${n.h} à ${n.hz}${N}Hz (Tout restaurer), puis validez de nouveau.`);
+      if (d.w !== n.w || d.h !== n.h || d.hz !== n.hz) throw new Error(`Repassez l'écran en ${n.w} × ${n.h} à ${n.hz} Hz (Tout restaurer), puis validez de nouveau.`);
       const amd = await step(`amdmode ${d.gdi} ${w} ${h}`).catch((e) => ({ failed: e.message }));
       if (amd.ok) {
         for (let i = 0; i < 10; i++) {
@@ -647,11 +671,22 @@ class Stretch extends EventEmitter {
   async applyStretched() {
     const c = this.cfg;
     if (!c.width || !c.height) throw new Error('Choisissez une résolution étirée.');
+    await this.ensureGpuScaling();
     await this.applyMode(c.width, c.height, 0); // 0 = garder la fréquence actuelle
     this.res = 'stretched';
     this.stretchedTo = `${c.width}x${c.height}`;
     if (this.phase === 'armed') this.setPhase('stretched');
     else this.emit('status', this.status());
+  }
+
+  // Carte AMD : mise à l'échelle GPU en plein écran, sinon l'écran reçoit le signal étiré et beaucoup
+  // l'affichent mal (image figée, artefacts). Un échec n'empêche pas l'étirement.
+  async ensureGpuScaling() {
+    const d = await this.display.call('display');
+    if (!/amd|radeon/i.test(d.gpu)) return;
+    const r = await this.display.call(`amdscale ${d.gdi}`).catch((e) => ({ failed: e.message }));
+    if (r.failed) this.notify(`Mise à l'échelle GPU non activée : ${r.failed}`, 'error');
+    if (r.changed) await sleep(1500); // le pilote réinitialise l'affichage
   }
 
   // Écrans en mode générique : le pilote refuse de remonter à la résolution native (code -2 ou -5).
@@ -738,11 +773,12 @@ class Stretch extends EventEmitter {
     });
   }
 
+  // Jeu lancé : résolution native jusqu'au prochain changement d'état. Sinon : tout restaurer.
   forceNative() {
+    if (!this.gameRunning) return this.restoreAll();
     return this.exclusive(async () => {
       await this.applyNative();
-      if (this.gameRunning) this.manual = true;
-      if (!this.gameRunning) await this.enableMonitors();
+      this.manual = true;
     });
   }
 

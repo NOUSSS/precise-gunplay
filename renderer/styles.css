@@ -485,6 +485,7 @@ body:has(.connect) .acc-btn { display: none; }
 kbd { display: inline-block; font: 600 11px var(--font); color: var(--text); background: var(--panel-2); border: 1px solid var(--line); border-radius: 5px; padding: 2px 6px; }
 kbd + kbd { margin-left: 4px; }
 .st-note { font-size: 12px; line-height: 1.5; margin: 14px 2px 0; }
+.st-rescue { font-size: 12px; margin: 10px 2px 0; }
 
 /* ---------- Partie en direct ---------- */
 .match-head { position: relative; border-radius: var(--radius); overflow: hidden; background: var(--panel) center/cover; min-height: 120px; display: flex; align-items: flex-end; border: 1px solid #ffffff14; margin-bottom: 16px; }
