@@ -411,6 +411,10 @@ class Stretch extends EventEmitter {
       this.setPhase('off');
     } else {
       if (on && !this.hotkeysPaused && Object.values(this.hotkeys).join() !== this.hotkeysWanted) this.registerHotkeys();
+      // Nouvelle résolution choisie pendant que l'écran est étiré : appliquée tout de suite.
+      if (on && this.res === 'stretched' && this.stretchedTo !== `${this.cfg.width}x${this.cfg.height}`) {
+        this.exclusive(() => (this.res === 'stretched' ? this.applyStretched() : null)).catch((e) => this.notify(e.message, 'error'));
+      }
       this.emit('status', this.status());
     }
   }
@@ -605,6 +609,7 @@ class Stretch extends EventEmitter {
     if (!c.width || !c.height) throw new Error('Choisissez une résolution étirée.');
     await this.applyMode(c.width, c.height, 0); // 0 = garder la fréquence actuelle
     this.res = 'stretched';
+    this.stretchedTo = `${c.width}x${c.height}`;
     if (this.phase === 'armed') this.setPhase('stretched');
     else this.emit('status', this.status());
   }
