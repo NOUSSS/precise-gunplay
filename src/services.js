@@ -54,6 +54,12 @@ function decodePresence(p) {
   }
 }
 
+/** Notre propre présence VALORANT, décodée (null si absente). */
+function myPresence(pr, puuid) {
+  const p = (pr?.presences || []).find((x) => x.puuid === puuid && x.product === 'valorant');
+  return (p && decodePresence(p)) || null;
+}
+
 class Services {
   constructor(client, assets) {
     this.client = client;
@@ -297,8 +303,7 @@ class Services {
 
   /** Score de la partie en cours [nous, eux], lu dans notre propre présence (mise à jour à chaque round). */
   myMatchScore(pr) {
-    const p = (pr?.presences || []).find((x) => x.puuid === this.client.puuid && x.product === 'valorant');
-    const d = p && decodePresence(p);
+    const d = myPresence(pr, this.client.puuid);
     if (!d) return null;
     const party = d.partyPresenceData || {};
     const ally = d.partyOwnerMatchScoreAllyTeam ?? party.partyOwnerMatchScoreAllyTeam;
@@ -691,4 +696,4 @@ class Services {
 const CID_RE = /^[\w-]+@[\w.-]+$/;
 const CHAT_MAX = 500;
 
-module.exports = { Services, decodePresence };
+module.exports = { Services, myPresence };
