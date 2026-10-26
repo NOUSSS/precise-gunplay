@@ -4,7 +4,6 @@
 #   procs <nom1> <nom2>          -> {"run":[true,false],"window":true}
 #   display                      -> écran principal, mode actuel et modes disponibles
 #   apply <gdi> <l> <h> <hz>     -> {"ok":true} ou {"error":"..."}
-#   primary                      -> {"id":"DISPLAY\\..."} : périphérique « Moniteurs » de l'écran principal
 $ErrorActionPreference = 'Stop'
 Add-Type -TypeDefinition @'
 using System;
@@ -18,7 +17,6 @@ public static class PgStretch
     const uint CDS_TEST = 0x2;
     const int DM_PELSWIDTH = 0x80000, DM_PELSHEIGHT = 0x100000, DM_DISPLAYFREQUENCY = 0x400000;
     const int DISPLAY_DEVICE_ACTIVE = 0x1, DISPLAY_DEVICE_PRIMARY_DEVICE = 0x4;
-    const int EDD_GET_DEVICE_INTERFACE_NAME = 0x1;
     const uint TH32CS_SNAPPROCESS = 0x2;
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
@@ -136,27 +134,6 @@ public static class PgStretch
         return "{\"error\":\"Aucun écran principal actif.\"}";
     }
 
-    // Identifiant PnP du moniteur de l'écran principal :
-    // \\?\DISPLAY#GSM5B7F#5&2a1b&0&UID4353#{guid} -> DISPLAY\GSM5B7F\5&2a1b&0&UID4353
-    public static string PrimaryMonitorId()
-    {
-        for (int i = 0; ; i++)
-        {
-            DISPLAY_DEVICE dd = new DISPLAY_DEVICE();
-            dd.cb = Marshal.SizeOf(typeof(DISPLAY_DEVICE));
-            if (!EnumDisplayDevices(null, i, ref dd, 0)) return null;
-            if ((dd.StateFlags & DISPLAY_DEVICE_ACTIVE) == 0 || (dd.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE) == 0) continue;
-            DISPLAY_DEVICE mon = new DISPLAY_DEVICE();
-            mon.cb = Marshal.SizeOf(typeof(DISPLAY_DEVICE));
-            if (!EnumDisplayDevices(dd.DeviceName, 0, ref mon, EDD_GET_DEVICE_INTERFACE_NAME)) return null;
-            string id = mon.DeviceID ?? "";
-            if (id.StartsWith("\\\\?\\")) id = id.Substring(4);
-            int k = id.IndexOf("#{");
-            if (k >= 0) id = id.Substring(0, k);
-            return id.Replace('#', '\\');
-        }
-    }
-
     // CDS_TEST d'abord : un mode refusé par le pilote n'est jamais appliqué (pas d'écran noir).
     // Sans CDS_UPDATEREGISTRY : changement dynamique, Windows revient au mode enregistré au redémarrage.
     static string ApplyOn(string gdi, int w, int h, int hz)
@@ -194,7 +171,6 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
       'procs' { $out = [PgStretch]::Procs([string[]]($a | Select-Object -Skip 1)) }
       'display' { $out = [PgStretch]::Display() }
       'apply' { $out = [PgStretch]::Apply($a[1], [int]$a[2], [int]$a[3], [int]$a[4]) }
-      'primary' { $out = ConvertTo-Json -Compress -InputObject @{ id = [PgStretch]::PrimaryMonitorId() } }
       default { $out = '{"error":"Commande inconnue."}' }
     }
   } catch {
