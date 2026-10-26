@@ -2404,6 +2404,23 @@ function stretchModes(d) {
 
 const STRETCH_DELAYS = [15000, 30000, 45000, 60000];
 
+// Raccourcis : accélérateurs Electron (« Control+F8 ») affichés en touches.
+const KEY_LABELS = { Control: 'Ctrl', Alt: 'Alt', Shift: 'Maj' };
+const hotkeyHtml = (accel) => accel.split('+').map((k) => `<kbd>${esc(KEY_LABELS[k] || k.replace(/^num/, 'Pavé '))}</kbd>`).join('');
+function accelFromEvent(e) {
+  let key = null;
+  if (/^F([1-9]|1\d|2[0-4])$/.test(e.code)) key = e.code;
+  else if (/^Key[A-Z]$/.test(e.code)) key = e.code.slice(3);
+  else if (/^Digit\d$/.test(e.code)) key = e.code.slice(5);
+  else if (/^Numpad\d$/.test(e.code)) key = 'num' + e.code.slice(6);
+  if (!key) return null;
+  const mods = [e.ctrlKey && 'Control', e.altKey && 'Alt', e.shiftKey && 'Shift'].filter(Boolean);
+  // Une lettre ou un chiffre seuls seraient captés dans toutes les applications, jeu compris.
+  if (!mods.length && !key.startsWith('F')) return null;
+  return [...mods, key].join('+');
+}
+const screenName = (name) => /\(([^)]+)\)\s*$/.exec(name || '')?.[1] || name || 'Écran';
+
 let stretchDisplay = null; // écran relevé à l'ouverture de la page, tant que la résolution native n'est pas connue
 
 function stretchStatusHtml(s) {
@@ -2416,7 +2433,7 @@ function stretchStatusHtml(s) {
     launching: ['Lancement du jeu', s.monitors ? 'Écrans désactivés dans le Gestionnaire de périphériques.' : '', 'on'],
     game: ['Au menu', offline ? 'Compte non connecté : la partie ne peut pas être détectée.' : `Résolution ${s.res === 'stretched' ? target : 'native'}.`, offline ? 'warn' : 'on'],
     armed: ['Partie trouvée', `Passage en ${target} dans <b data-ends="${s.switchAt}">${fmtDuration(s.switchAt - Date.now())}</b>.`, 'warn'],
-    stretched: ['En partie', `Résolution étirée ${target}.`, 'live'],
+    stretched: ['En partie', s.res === 'native' ? 'Résolution native, choisie au raccourci.' : `Résolution étirée ${target}.`, 'live'],
   }[s.phase] || ['', '', ''];
   return `<span class="st-dot ${tone}"></span><div><b>${title}</b><div class="muted">${detail}</div></div>`;
 }
@@ -2447,6 +2464,9 @@ PAGES.stretch = async () => {
   const options = (listed || !c.width ? modes : [[c.width, c.height], ...modes])
     .map(([w, h]) => `<option value="${w}x${h}" ${w === c.width && h === c.height ? 'selected' : ''}>${resLabel(w, h)} (${ratioLabel(w, h)})</option>`).join('');
   const hz = info.native?.hz || d?.hz;
+  const keep = c.monitorsKeep || [];
+  const screens = info.monitorsReady && c.monitors && info.screens.length > 1 ? info.screens : [];
+  const HOTKEYS = [['toggle', 'Basculer étirée ou native'], ['native', 'Revenir en native']];
 
   content.innerHTML = `
     <div class="page-head">
@@ -2477,14 +2497,25 @@ PAGES.stretch = async () => {
           ? `<label class="switch"><input type="checkbox" id="st-monitors" ${c.monitors ? 'checked' : ''}><span></span></label>`
           : '<button class="btn" id="st-install">Autoriser</button>'}
       </div>
+      ${screens.length && info.monitorsOutdated ? `
+      <div class="setting-row st-screen">
+        <div class="label"><div>Choix des écrans</div><div>Une nouvelle autorisation administrateur permet de laisser certains écrans actifs. En attendant, tous sont désactivés.</div></div>
+        <button class="btn" id="st-install">Mettre à jour</button>
+      </div>` : ''}
+      ${screens.map((m) => `
+      <div class="setting-row st-screen">
+        <div class="label"><div>${esc(screenName(m.name))}</div><div>${m.primary ? 'Écran du jeu. Le laisser actif peut empêcher la résolution étirée.' : 'Écran secondaire.'}</div></div>
+        <label class="switch" title="Désactivé pendant le jeu"><input type="checkbox" data-screen="${esc(m.id)}" ${keep.includes(m.id) ? '' : 'checked'} ${info.monitorsOutdated ? 'disabled' : ''}><span></span></label>
+      </div>`).join('')}
       <div class="setting-row">
         <div class="label"><div>Verrouiller la configuration du jeu</div><div>Plein écran fenêtré et format Remplir, puis fichier en lecture seule pour que VALORANT ne les modifie pas.</div></div>
         <label class="switch"><input type="checkbox" id="st-lock" ${info.configLocked ? 'checked' : ''} ${info.configLocked === null ? 'disabled title="Lancez VALORANT une fois"' : ''}><span></span></label>
       </div>
+      ${HOTKEYS.map(([k, label]) => `
       <div class="setting-row">
-        <div class="label"><div>Raccourcis</div></div>
-        <div class="st-keys"><span><kbd>Ctrl</kbd><kbd>F8</kbd></span><span>Étirée ou native</span><span><kbd>Ctrl</kbd><kbd>F9</kbd></span><span>Native</span></div>
-      </div>
+        <div class="label"><div>${label}</div><div id="st-hk-${k}-note">${info.hotkeysFailed?.includes(k) ? 'Déjà utilisé par une autre application.' : 'Actif partout, jeu compris, quand la fonction est activée.'}</div></div>
+        <button class="btn st-hotkey" data-hotkey="${k}" title="Modifier">${hotkeyHtml(info.hotkeys[k])}</button>
+      </div>`).join('')}
     </div>
 
     <p class="muted st-note">Réglez aussi la mise à l'échelle de la carte graphique sur plein écran. AMD Adrenalin : Mise à l'échelle GPU. NVIDIA : Ajuster la taille et la position du bureau, Plein écran, effectuée sur le GPU.</p>`;
@@ -2500,7 +2531,46 @@ PAGES.stretch = async () => {
     return save({ width: w, height: h });
   };
   $('#st-delay').onchange = (e) => save({ delayMs: Number(e.target.value) });
-  if ($('#st-monitors')) $('#st-monitors').onchange = (e) => save({ monitors: e.target.checked });
+  if ($('#st-monitors')) $('#st-monitors').onchange = async (e) => {
+    await save({ monitors: e.target.checked });
+    navigate('stretch'); // affiche ou masque le choix des écrans
+  };
+  content.querySelectorAll('[data-screen]').forEach((input) => {
+    input.onchange = () => {
+      const id = input.dataset.screen;
+      const ids = (state.settings.stretch.monitorsKeep || []).filter((x) => x !== id);
+      return save({ monitorsKeep: input.checked ? ids : [...ids, id] });
+    };
+  });
+  content.querySelectorAll('[data-hotkey]').forEach((btn) => {
+    btn.onclick = () => {
+      const name = btn.dataset.hotkey;
+      const current = () => ({ toggle: 'Control+F8', native: 'Control+F9', ...state.settings.stretch.hotkeys });
+      btn.textContent = 'Appuyez sur les touches';
+      const stop = () => {
+        document.removeEventListener('keydown', onKey, true);
+        btn.removeEventListener('blur', stop);
+        btn.innerHTML = hotkeyHtml(current()[name]);
+      };
+      const onKey = async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.key === 'Escape') return stop();
+        if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return; // on attend la touche principale
+        const accel = accelFromEvent(e);
+        const keys = current();
+        if (!accel) return toast('Combinaison non prise en charge : ajoutez Ctrl, Alt ou Maj, ou choisissez une touche F.', 'error');
+        if (Object.entries(keys).some(([k, v]) => k !== name && v === accel)) return toast('Déjà utilisé pour l\'autre raccourci.', 'error');
+        stop();
+        await save({ hotkeys: { ...keys, [name]: accel } });
+        btn.innerHTML = hotkeyHtml(accel);
+        const failed = state.stretch?.hotkeysFailed?.includes(name);
+        $(`#st-hk-${name}-note`).textContent = failed ? 'Déjà utilisé par une autre application.' : 'Actif partout, jeu compris, quand la fonction est activée.';
+      };
+      document.addEventListener('keydown', onKey, true);
+      btn.addEventListener('blur', stop);
+    };
+  });
   if ($('#st-install')) $('#st-install').onclick = async (e) => {
     e.target.disabled = true;
     try {

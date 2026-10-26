@@ -1,8 +1,8 @@
 // Résolution étirée automatique, même fonctionnement que ValStretch :
 // 1. dès le lanceur VALORANT.exe (avant la fenêtre du jeu), les écrans sont désactivés dans le
 //    Gestionnaire de périphériques : sans pilote d'écran, le jeu accepte la résolution du bureau ;
-// 2. quand le serveur de jeu signale une partie (core-game), on attend la fin du chargement
-//    (30 s par défaut) puis on passe en résolution étirée ;
+// 2. quand le serveur de jeu signale une partie (core-game, ou la présence du client Riot s'il ne
+//    répond pas), on attend la fin du chargement (30 s par défaut) puis on passe en résolution étirée ;
 // 3. retour au menu : résolution native. Fermeture du jeu : résolution native + écrans réactivés.
 // Rien ne touche au processus du jeu : liste des processus et titre de fenêtre (comme le Gestionnaire
 // des tâches), réglages d'affichage Windows et lecture de l'état de partie, déjà utilisée par l'app.
@@ -11,20 +11,21 @@ const fs = require('fs');
 const path = require('path');
 const { spawn, execFile } = require('child_process');
 const { globalShortcut } = require('electron');
+const { decodePresence } = require('./services');
 
 const LAUNCHER = 'valorant.exe';
 const GAME = 'valorant-win64-shipping.exe';
 const TICK_MS = 250;
 const SESSION_MS = 2000; // une requête core-game toutes les 2 s au plus, uniquement jeu lancé
 const TEST_MS = 3000;
-const HOTKEY_TOGGLE = 'Control+F8';
-const HOTKEY_NATIVE = 'Control+F9';
+const DEFAULT_HOTKEYS = { toggle: 'Control+F8', native: 'Control+F9' };
 
 // Tâches planifiées (droits administrateur) qui désactivent / réactivent les écrans.
 const TASK = (mode) => `\\Precise Gunplay\\Ecrans ${mode}`;
 const SHARED_DIR = path.join(process.env.ProgramData || 'C:\\ProgramData', 'Precise Gunplay');
 const MONITORS_STATE = path.join(SHARED_DIR, 'monitors-state.json');
 const MONITORS_RESULT = path.join(SHARED_DIR, 'monitors-result.json');
+const MONITORS_KEEP = path.join(SHARED_DIR, 'monitors-keep.json'); // écrans à laisser actifs, modifiable par le compte
 
 const VALORANT_CONFIG = path.join(process.env.LOCALAPPDATA || '', 'VALORANT', 'Saved', 'Config');
 
@@ -209,17 +210,24 @@ function monitorsDisabledByUs() {
   return (readJson(MONITORS_STATE)?.ids || []).some(Boolean);
 }
 
+const bundledMonitorsScript = () => fs.readFileSync(path.join(__dirname, 'stretch-monitors.ps1'), 'utf8');
+const normalize = (text) => text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
+
+// 'ready' : tâches en place et script à jour ; 'outdated' : tâches utilisables, script d'une ancienne
+// version (à réautoriser pour le choix des écrans) ; null : rien d'installé.
 async function monitorsInstalled() {
-  if (!fs.existsSync(path.join(SHARED_DIR, 'monitors.ps1'))) return false;
+  let installed;
+  try { installed = fs.readFileSync(path.join(SHARED_DIR, 'monitors.ps1'), 'utf8'); } catch { return null; }
   const [off, on] = await Promise.all([run('schtasks.exe', ['/query', '/tn', TASK('off')]), run('schtasks.exe', ['/query', '/tn', TASK('on')])]);
-  return off.code === 0 && on.code === 0;
+  if (off.code !== 0 || on.code !== 0) return null;
+  return normalize(installed) === normalize(bundledMonitorsScript()) && fs.existsSync(MONITORS_KEEP) ? 'ready' : 'outdated';
 }
 
 // Une seule fenêtre UAC : copie le script dans un dossier que seul un administrateur peut modifier,
 // puis crée les deux tâches planifiées « avec les privilèges les plus élevés ». Les déclencher ensuite
 // (schtasks /run) ne demande plus d'autorisation.
 async function installMonitors() {
-  const script = fs.readFileSync(path.join(__dirname, 'stretch-monitors.ps1'), 'utf8');
+  const script = bundledMonitorsScript();
   const elevated = `
 $ErrorActionPreference = 'Stop'
 $dir = Join-Path $env:ProgramData 'Precise Gunplay'
@@ -228,6 +236,10 @@ New-Item -ItemType Directory -Force -Path $dir | Out-Null
 $file = Join-Path $dir 'monitors.ps1'
 [IO.File]::WriteAllText($file, [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${Buffer.from(script, 'utf8').toString('base64')}')), [Text.UTF8Encoding]::new($true))
 $me = [Security.Principal.WindowsIdentity]::GetCurrent()
+# Liste des écrans à garder : seul fichier que le compte peut modifier.
+$keep = Join-Path $dir 'monitors-keep.json'
+if (-not (Test-Path $keep)) { [IO.File]::WriteAllText($keep, '{"ids":[]}') }
+& icacls.exe $keep /grant "*$($me.User.Value):M" | Out-Null
 $principal = New-ScheduledTaskPrincipal -UserId $me.Name -LogonType S4U -RunLevel Highest
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 2) -MultipleInstances Queue
 $svc = New-Object -ComObject Schedule.Service
@@ -250,7 +262,7 @@ foreach ($mode in 'off', 'on') {
     `try { $p = Start-Process powershell.exe -Verb RunAs -Wait -PassThru -WindowStyle Hidden -ArgumentList '-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-EncodedCommand','${encoded}'; exit $p.ExitCode } catch { exit 1223 }`,
   ]);
   if (res.code === 1223) throw new Error('Autorisation refusée.');
-  if (res.code !== 0 || !(await monitorsInstalled())) throw new Error(`Installation impossible (code ${res.code}).`);
+  if (res.code !== 0 || (await monitorsInstalled()) !== 'ready') throw new Error(`Installation impossible (code ${res.code}).`);
 }
 
 async function runMonitorsTask(mode) {
@@ -285,6 +297,9 @@ class Stretch extends EventEmitter {
     this.chain = Promise.resolve();
     this.timer = null;
     this.monitorsReady = false;
+    this.monitorsOutdated = false;
+    this.hotkeysOn = []; // raccourcis enregistrés
+    this.hotkeysFailed = [];
     this.resetGame();
     this.res = null; // 'native' | 'stretched' | null (inconnu)
     this.phase = 'off';
@@ -292,6 +307,10 @@ class Stretch extends EventEmitter {
 
   get cfg() {
     return this.settings.get().stretch;
+  }
+
+  get hotkeys() {
+    return { ...DEFAULT_HOTKEYS, ...(this.cfg.hotkeys || {}) };
   }
 
   resetGame() {
@@ -302,6 +321,8 @@ class Stretch extends EventEmitter {
     this.ignoreUntilExit = false;
     this.armedAt = 0;
     this.nextSession = 0;
+    this.lastInMatch = null;
+    this.manual = false; // résolution choisie au raccourci, gardée jusqu'au prochain changement d'état
   }
 
   // Les actions (boucle, raccourcis, boutons) passent l'une après l'autre.
@@ -323,6 +344,9 @@ class Stretch extends EventEmitter {
       native: c.native,
       monitors: c.monitors && this.monitorsReady,
       monitorsReady: this.monitorsReady,
+      monitorsOutdated: this.monitorsOutdated,
+      hotkeys: this.hotkeys,
+      hotkeysFailed: this.hotkeysFailed,
     };
   }
 
@@ -339,11 +363,13 @@ class Stretch extends EventEmitter {
   async info() {
     let display = null;
     try { display = await this.display.call('display'); } catch (e) { display = { error: e.message }; }
+    let screens = [];
+    try { screens = (await this.display.call('monitors')).list || []; } catch { /* liste indisponible : pas de choix */ }
     let configLocked = null;
     try { configLocked = gameConfigLocked(); } catch { /* fichier illisible */ }
-    this.monitorsReady = await monitorsInstalled();
+    await this.checkMonitors();
     this.releaseDisplay();
-    return { ...this.status(), display, configLocked, hotkeys: { toggle: 'Ctrl+F8', native: 'Ctrl+F9' } };
+    return { ...this.status(), display, screens, configLocked };
   }
 
   // Fonction coupée : l'assistant d'affichage n'a pas à rester en mémoire (il se relance à la demande).
@@ -351,8 +377,14 @@ class Stretch extends EventEmitter {
     this.exclusive(() => { if (!this.timer) this.display.stop(); }).catch(() => {});
   }
 
+  async checkMonitors() {
+    const state = await monitorsInstalled();
+    this.monitorsReady = !!state;
+    this.monitorsOutdated = state === 'outdated';
+  }
+
   async start() {
-    this.monitorsReady = await monitorsInstalled();
+    await this.checkMonitors();
     // Récupération après un arrêt brutal : écrans restés désactivés ou résolution étirée résiduelle.
     if (this.cfg.enabled || monitorsDisabledByUs()) await this.exclusive(() => this.recover()).catch((e) => this.notify(e.message, 'error'));
     this.configure();
@@ -365,21 +397,45 @@ class Stretch extends EventEmitter {
       this.resetGame();
       this.exclusive(() => this.captureNative()).catch(() => {});
       this.timer = setInterval(() => this.tick(), TICK_MS);
-      globalShortcut.register(HOTKEY_TOGGLE, () => this.toggle().catch((e) => this.notify(e.message, 'error')));
-      globalShortcut.register(HOTKEY_NATIVE, () => this.forceNative().catch((e) => this.notify(e.message, 'error')));
+      this.registerHotkeys();
       this.setPhase('idle');
     } else if (!on && this.timer) {
       clearInterval(this.timer);
       this.timer = null;
-      globalShortcut.unregister(HOTKEY_TOGGLE);
-      globalShortcut.unregister(HOTKEY_NATIVE);
+      this.unregisterHotkeys();
       this.exclusive(() => this.restore()).catch((e) => this.notify(e.message, 'error'));
       this.releaseDisplay();
       this.resetGame();
       this.setPhase('off');
     } else {
+      if (on && Object.values(this.hotkeys).join() !== this.hotkeysWanted) this.registerHotkeys();
       this.emit('status', this.status());
     }
+  }
+
+  // Raccourcis globaux, actifs tant que la fonction est activée. Un raccourci déjà pris par une autre
+  // application est signalé une fois.
+  registerHotkeys() {
+    this.unregisterHotkeys();
+    const actions = { toggle: () => this.toggle(), native: () => this.forceNative() };
+    const keys = this.hotkeys;
+    for (const [name, accel] of Object.entries(keys)) {
+      let ok = false;
+      try { ok = globalShortcut.register(accel, () => actions[name]().catch((e) => this.notify(e.message, 'error'))); } catch { /* combinaison invalide */ }
+      if (ok) this.hotkeysOn.push(accel);
+      else this.hotkeysFailed.push(name);
+    }
+    this.hotkeysWanted = Object.values(keys).join();
+    if (this.hotkeysFailed.length) this.notify('Raccourci déjà utilisé par une autre application : choisissez-en un autre.', 'error');
+  }
+
+  unregisterHotkeys() {
+    for (const accel of this.hotkeysOn) {
+      try { globalShortcut.unregister(accel); } catch { /* déjà libéré */ }
+    }
+    this.hotkeysOn = [];
+    this.hotkeysFailed = [];
+    this.hotkeysWanted = '';
   }
 
   async recover() {
@@ -463,32 +519,54 @@ class Stretch extends EventEmitter {
     }
   }
 
-  // GET core-game : MatchID = en partie (tous les modes), 404 = pas en partie. Sans réponse : on n'agit pas.
+  // GET core-game : MatchID = en partie (tous les modes), 404 = pas en partie. S'il ne répond pas
+  // (limite Riot, réseau), la présence du client Riot prend le relais. Sans aucune réponse : on n'agit pas.
   async pollSession() {
-    if (this.sessionPending || !this.client.connected || this.client.rateLimitedUntil('/core-game')) return;
-    // Une requête freinée par Riot (429, nouvelles tentatives) ne doit pas bloquer la boucle :
-    // au-delà de 5 s on passe, la requête finit seule et aucune autre n'est lancée entre-temps.
-    this.sessionPending = true;
-    const req = this.client.getCoregamePlayer().finally(() => { this.sessionPending = false; });
-    req.catch(() => {});
-    let core;
-    try {
-      core = await Promise.race([req, sleep(5000).then(() => { throw new Error('Délai dépassé (core-game).'); })]);
-    } catch {
-      return;
+    if (!this.client.connected) return;
+    let inMatch = null;
+    if (!this.sessionPending && !this.client.rateLimitedUntil('/core-game')) {
+      // Une requête freinée par Riot (429, nouvelles tentatives) ne doit pas bloquer la boucle :
+      // au-delà de 5 s on passe, la requête finit seule et aucune autre n'est lancée entre-temps.
+      this.sessionPending = true;
+      const req = this.client.getCoregamePlayer().finally(() => { this.sessionPending = false; });
+      req.catch(() => {});
+      try {
+        const core = await Promise.race([req, sleep(5000).then(() => { throw new Error('Délai dépassé (core-game).'); })]);
+        inMatch = !!core?.MatchID;
+      } catch { /* secours ci-dessous */ }
     }
-    if (core?.MatchID) {
+    if (inMatch === null) inMatch = await this.presenceInMatch();
+    if (inMatch === null) return;
+    if (inMatch !== this.lastInMatch) {
+      this.lastInMatch = inMatch;
+      this.manual = false;
+    }
+    if (inMatch) {
       if (!this.armedAt) {
         this.armedAt = Date.now();
         this.setPhase('armed');
-      } else if (this.res !== 'stretched' && Date.now() - this.armedAt >= this.cfg.delayMs) {
+      } else if (!this.manual && this.res !== 'stretched' && Date.now() - this.armedAt >= this.cfg.delayMs) {
         await this.applyStretched();
       }
       return;
     }
     if (this.armedAt) this.armedAt = 0;
-    if (this.res === 'stretched') await this.applyNative();
+    if (this.res === 'stretched' && !this.manual) await this.applyNative();
     if (this.phase !== 'game') this.setPhase('game');
+  }
+
+  // Présence de notre compte dans le client Riot (API locale, sans limite) : MENUS, PREGAME ou INGAME.
+  async presenceInMatch() {
+    let pr = null;
+    try {
+      pr = await Promise.race([this.client.getPresences(), sleep(3000).then(() => null)]);
+    } catch {
+      return null;
+    }
+    const me = (pr?.presences || []).find((p) => p.puuid === this.client.puuid && p.product === 'valorant');
+    const d = me && decodePresence(me);
+    const loop = d?.sessionLoopState || d?.matchPresenceData?.sessionLoopState;
+    return loop ? loop === 'INGAME' : null;
   }
 
   // Fréquence demandée si elle existe pour cette résolution, sinon la plus élevée disponible.
@@ -526,6 +604,9 @@ class Stretch extends EventEmitter {
 
   async disableMonitors() {
     if (!this.cfg.monitors || !this.monitorsReady) return;
+    try {
+      fs.writeFileSync(MONITORS_KEEP, JSON.stringify({ ids: this.cfg.monitorsKeep || [] }));
+    } catch { /* ancienne autorisation : tous les écrans sont désactivés */ }
     const r = await runMonitorsTask('off');
     if (r.failed?.length) this.notify(`Écran non désactivé : ${r.failed.join(', ')}.`, 'error');
     // Garde-fou : plus aucun écran actif, on réactive tout de suite.
@@ -564,13 +645,19 @@ class Stretch extends EventEmitter {
   }
 
   // ---- Actions de l'interface et raccourcis ----
+  // Jeu lancé : le choix fait au raccourci n'est pas annulé par la boucle au sondage suivant.
   toggle() {
-    return this.exclusive(() => (this.res === 'stretched' ? this.applyNative() : this.applyStretched()));
+    return this.exclusive(async () => {
+      if (this.res === 'stretched') await this.applyNative();
+      else await this.applyStretched();
+      if (this.gameRunning) this.manual = true;
+    });
   }
 
   forceNative() {
     return this.exclusive(async () => {
       await this.applyNative();
+      if (this.gameRunning) this.manual = true;
       if (!this.gameRunning) await this.enableMonitors();
     });
   }
@@ -598,6 +685,7 @@ class Stretch extends EventEmitter {
   async installMonitors() {
     await installMonitors();
     this.monitorsReady = true;
+    this.monitorsOutdated = false;
     this.emit('status', this.status());
   }
 
@@ -613,7 +701,7 @@ class Stretch extends EventEmitter {
   async shutdown() {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
-    globalShortcut.unregisterAll();
+    this.unregisterHotkeys();
     await this.exclusive(() => this.restore()).catch(() => {});
     this.display.stop();
   }

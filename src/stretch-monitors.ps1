@@ -2,16 +2,22 @@
 # clic droit > Désactiver l'appareil. Exécuté avec les droits administrateur par deux tâches planifiées
 # créées une seule fois (une seule fenêtre UAC) ; le script est copié dans un dossier que seul un
 # administrateur peut modifier.
-#   -Mode off : désactive les écrans actifs et retient lesquels
+#   -Mode off : désactive les écrans actifs, sauf ceux à garder (monitors-keep.json, écrit par l'app),
+#               et retient lesquels
 #   -Mode on  : réactive ceux que l'app a désactivés
 param([ValidateSet('off', 'on')][string]$Mode = 'on')
 
 $dir = Join-Path $env:ProgramData 'Precise Gunplay'
 $stateFile = Join-Path $dir 'monitors-state.json'
 $resultFile = Join-Path $dir 'monitors-result.json'
+$keepFile = Join-Path $dir 'monitors-keep.json'
 
 function Read-State {
   try { return @((Get-Content $stateFile -Raw | ConvertFrom-Json).ids | Where-Object { $_ }) } catch { return @() }
+}
+# Seul fichier modifiable par le compte : il ne peut que retirer des écrans de la désactivation.
+function Read-Keep {
+  try { return @((Get-Content $keepFile -Raw | ConvertFrom-Json).ids | Where-Object { $_ }) } catch { return @() }
 }
 function Write-State($ids) {
   @{ ids = @($ids | Where-Object { $_ }) } | ConvertTo-Json | Set-Content -Path $stateFile -Encoding UTF8
@@ -35,7 +41,8 @@ try {
   foreach ($d in $devices) { $names[$d.InstanceId] = $d.FriendlyName }
 
   if ($Mode -eq 'off') {
-    $targets = @($devices | Where-Object { $_.Status -eq 'OK' } | ForEach-Object { $_.InstanceId })
+    $keep = @(Read-Keep)
+    $targets = @($devices | Where-Object { $_.Status -eq 'OK' -and $keep -notcontains $_.InstanceId } | ForEach-Object { $_.InstanceId })
     if ($targets.Count) {
       Invoke-PnpUtil '/disable-device' $targets
       # Récalcitrants (encore actifs) : cmdlet PnP, 3 tentatives avec vérification de l'état réel.
