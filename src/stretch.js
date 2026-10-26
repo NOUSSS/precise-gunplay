@@ -152,12 +152,17 @@ function gameSettingsPath() {
   return candidates.sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs)[0];
 }
 
-// Mode d'affichage de VALORANT : 0 plein écran, 1 plein écran fenêtré, 2 fenêtré ; null si inconnu.
-function gameWindowMode() {
+// Réglages d'affichage de VALORANT. « mode » : 0 plein écran, 1 plein écran fenêtré, 2 fenêtré ; sans
+// FullscreenMode (jeu jamais réglé), le dernier mode confirmé fait foi. « letterbox » : format Boîte aux
+// lettres (bandes noires au lieu de l'étirement). null si inconnu.
+function gameDisplayConfig() {
   const file = gameSettingsPath();
   if (!file) return null;
-  const m = /^\s*FullscreenMode\s*=\s*(\d+)/im.exec(fs.readFileSync(file, 'utf8'));
-  return m ? Number(m[1]) : null;
+  const ini = fs.readFileSync(file, 'utf8');
+  const get = (key) => new RegExp(`^\\s*${key}\\s*=\\s*(\\S+)`, 'im').exec(ini)?.[1];
+  const mode = get('FullscreenMode') ?? get('LastConfirmedFullscreenMode');
+  const letterbox = get('bShouldLetterbox');
+  return { mode: mode == null ? null : Number(mode), letterbox: letterbox == null ? null : letterbox.toLowerCase() === 'true' };
 }
 
 function gameConfigLocked() {
@@ -389,9 +394,10 @@ class Stretch extends EventEmitter {
     if (!c.monitors) list.push({ text: "Écrans en mode générique désactivés. VALORANT risque de garder sa résolution et de n'afficher qu'une partie de l'image.", action: 'monitors', label: 'Réactiver' });
     if (this.screensFailed.length) list.push({ text: `Écran pas passé en mode générique : ${this.screensFailed.join(', ')}. Fermez VALORANT et relancez-le.` });
     if (this.gameRunning && this.joinedLate && c.monitors) list.push({ text: "VALORANT a été lancé avant Precise Gunplay. Fermez le jeu et relancez-le, l'app restant ouverte." });
-    let mode = null;
-    try { mode = gameWindowMode(); } catch { /* fichier illisible */ }
-    if (mode !== null && mode !== 1) list.push({ text: `VALORANT est en mode ${mode === 0 ? 'plein écran' : 'fenêtré'}. La résolution étirée demande le plein écran fenêtré.`, action: 'lock', label: 'Régler VALORANT' });
+    let game = null;
+    try { game = gameDisplayConfig(); } catch { /* fichier illisible */ }
+    if (game?.mode != null && game.mode !== 1) list.push({ text: `VALORANT est en mode ${game.mode === 0 ? 'plein écran' : 'fenêtré'} : il garde sa propre résolution et n'affiche qu'une partie de l'image. La résolution étirée demande le plein écran fenêtré.`, action: 'lock', label: 'Régler VALORANT' });
+    else if (game?.letterbox) list.push({ text: "Format d'image de VALORANT en Boîte aux lettres : l'image garde des bandes noires au lieu d'être étirée.", action: 'lock', label: 'Régler VALORANT' });
     if (c.screen && this.gameScreen && c.screen.gdi !== this.gameScreen) list.push({ text: "VALORANT s'affiche sur un autre écran que celui choisi.", action: 'screen-auto', label: "Viser l'écran du jeu" });
     if (this.windowIssue) list.push({ text: this.windowIssue });
     return list;
