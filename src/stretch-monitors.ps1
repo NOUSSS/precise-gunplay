@@ -2,7 +2,7 @@
 # clic droit > Désactiver l'appareil. Exécuté avec les droits administrateur par deux tâches planifiées
 # créées une seule fois (une seule fenêtre UAC) ; le script est copié dans un dossier que seul un
 # administrateur peut modifier.
-#   -Mode off : désactive les écrans actifs, sauf ceux à garder (monitors-keep.json, écrit par l'app),
+#   -Mode off : désactive l'écran du jeu (monitors-target.json, écrit par l'app ; vide = tous les écrans)
 #               et retient lesquels
 #   -Mode on  : réactive ceux que l'app a désactivés
 param([ValidateSet('off', 'on')][string]$Mode = 'on')
@@ -10,14 +10,14 @@ param([ValidateSet('off', 'on')][string]$Mode = 'on')
 $dir = Join-Path $env:ProgramData 'Precise Gunplay'
 $stateFile = Join-Path $dir 'monitors-state.json'
 $resultFile = Join-Path $dir 'monitors-result.json'
-$keepFile = Join-Path $dir 'monitors-keep.json'
+$targetFile = Join-Path $dir 'monitors-target.json'
 
 function Read-State {
   try { return @((Get-Content $stateFile -Raw | ConvertFrom-Json).ids | Where-Object { $_ }) } catch { return @() }
 }
-# Seul fichier modifiable par le compte : il ne peut que retirer des écrans de la désactivation.
-function Read-Keep {
-  try { return @((Get-Content $keepFile -Raw | ConvertFrom-Json).ids | Where-Object { $_ }) } catch { return @() }
+# Seul fichier modifiable par le compte : il ne peut que restreindre les écrans concernés.
+function Read-Target {
+  try { return @((Get-Content $targetFile -Raw | ConvertFrom-Json).ids | Where-Object { $_ }) } catch { return @() }
 }
 function Write-State($ids) {
   @{ ids = @($ids | Where-Object { $_ }) } | ConvertTo-Json | Set-Content -Path $stateFile -Encoding UTF8
@@ -41,8 +41,8 @@ try {
   foreach ($d in $devices) { $names[$d.InstanceId] = $d.FriendlyName }
 
   if ($Mode -eq 'off') {
-    $keep = @(Read-Keep)
-    $targets = @($devices | Where-Object { $_.Status -eq 'OK' -and $keep -notcontains $_.InstanceId } | ForEach-Object { $_.InstanceId })
+    $only = @(Read-Target)
+    $targets = @($devices | Where-Object { $_.Status -eq 'OK' -and (-not $only.Count -or $only -contains $_.InstanceId) } | ForEach-Object { $_.InstanceId })
     if ($targets.Count) {
       Invoke-PnpUtil '/disable-device' $targets
       # Récalcitrants (encore actifs) : cmdlet PnP, 3 tentatives avec vérification de l'état réel.

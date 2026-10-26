@@ -1,6 +1,6 @@
 // Résolution étirée automatique, même fonctionnement que ValStretch :
-// 1. dès le lanceur VALORANT.exe (avant la fenêtre du jeu), les écrans sont désactivés dans le
-//    Gestionnaire de périphériques : sans pilote d'écran, le jeu accepte la résolution du bureau ;
+// 1. dès le lanceur VALORANT.exe (avant la fenêtre du jeu), l'écran du jeu est désactivé dans le
+//    Gestionnaire de périphériques (pilote générique) : le jeu accepte alors la résolution du bureau ;
 // 2. quand le serveur de jeu signale une partie (core-game, ou la présence du client Riot s'il ne
 //    répond pas), on attend la fin du chargement (30 s par défaut) puis on passe en résolution étirée ;
 // 3. retour au menu : résolution native. Fermeture du jeu : résolution native + écrans réactivés.
@@ -25,7 +25,7 @@ const TASK = (mode) => `\\Precise Gunplay\\Ecrans ${mode}`;
 const SHARED_DIR = path.join(process.env.ProgramData || 'C:\\ProgramData', 'Precise Gunplay');
 const MONITORS_STATE = path.join(SHARED_DIR, 'monitors-state.json');
 const MONITORS_RESULT = path.join(SHARED_DIR, 'monitors-result.json');
-const MONITORS_KEEP = path.join(SHARED_DIR, 'monitors-keep.json'); // écrans à laisser actifs, modifiable par le compte
+const MONITORS_TARGET = path.join(SHARED_DIR, 'monitors-target.json'); // écrans à préparer, modifiable par le compte
 
 const VALORANT_CONFIG = path.join(process.env.LOCALAPPDATA || '', 'VALORANT', 'Saved', 'Config');
 
@@ -220,7 +220,7 @@ async function monitorsInstalled() {
   try { installed = fs.readFileSync(path.join(SHARED_DIR, 'monitors.ps1'), 'utf8'); } catch { return null; }
   const [off, on] = await Promise.all([run('schtasks.exe', ['/query', '/tn', TASK('off')]), run('schtasks.exe', ['/query', '/tn', TASK('on')])]);
   if (off.code !== 0 || on.code !== 0) return null;
-  return normalize(installed) === normalize(bundledMonitorsScript()) && fs.existsSync(MONITORS_KEEP) ? 'ready' : 'outdated';
+  return normalize(installed) === normalize(bundledMonitorsScript()) && fs.existsSync(MONITORS_TARGET) ? 'ready' : 'outdated';
 }
 
 // Une seule fenêtre UAC : copie le script dans un dossier que seul un administrateur peut modifier,
@@ -236,10 +236,10 @@ New-Item -ItemType Directory -Force -Path $dir | Out-Null
 $file = Join-Path $dir 'monitors.ps1'
 [IO.File]::WriteAllText($file, [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${Buffer.from(script, 'utf8').toString('base64')}')), [Text.UTF8Encoding]::new($true))
 $me = [Security.Principal.WindowsIdentity]::GetCurrent()
-# Liste des écrans à garder : seul fichier que le compte peut modifier.
-$keep = Join-Path $dir 'monitors-keep.json'
-if (-not (Test-Path $keep)) { [IO.File]::WriteAllText($keep, '{"ids":[]}') }
-& icacls.exe $keep /grant:r "*$($me.User.Value):(W)" | Out-Null
+# Écran à préparer (celui du jeu) : seul fichier que le compte peut modifier.
+$target = Join-Path $dir 'monitors-target.json'
+if (-not (Test-Path $target)) { [IO.File]::WriteAllText($target, '{"ids":[]}') }
+& icacls.exe $target /grant:r "*$($me.User.Value):(W)" | Out-Null
 $principal = New-ScheduledTaskPrincipal -UserId $me.Name -LogonType S4U -RunLevel Highest
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 2) -MultipleInstances Queue
 $svc = New-Object -ComObject Schedule.Service
@@ -301,7 +301,6 @@ class Stretch extends EventEmitter {
     this.hotkeysOn = []; // raccourcis enregistrés
     this.hotkeysFailed = [];
     this.hotkeysPaused = false; // saisie d'un nouveau raccourci en cours
-    this.screens = []; // écrans du Gestionnaire de périphériques, relevés hors partie
     this.screensOff = 0; // écrans désactivés par la dernière tâche « off »
     this.resetGame();
     this.res = null; // 'native' | 'stretched' | null (inconnu)
@@ -368,16 +367,11 @@ class Stretch extends EventEmitter {
   async info() {
     let display = null;
     try { display = await this.display.call('display'); } catch (e) { display = { error: e.message }; }
-    // Get-PnpDevice est lent : pas pendant le jeu, où l'assistant sert à la boucle (liste gardée).
-    if (!this.gameRunning && !this.launcherSeen) {
-      try { this.screens = (await this.display.call('monitors', 60000)).list || []; } catch { /* liste indisponible : pas de choix */ }
-    }
-    const screens = this.screens;
     let configLocked = null;
     try { configLocked = gameConfigLocked(); } catch { /* fichier illisible */ }
     await this.checkMonitors();
     this.releaseDisplay();
-    return { ...this.status(), display, screens, configLocked };
+    return { ...this.status(), display, configLocked };
   }
 
   // Fonction coupée : l'assistant d'affichage n'a pas à rester en mémoire (il se relance à la demande).
@@ -626,18 +620,21 @@ class Stretch extends EventEmitter {
   async disableMonitors() {
     if (!this.cfg.monitors || !this.monitorsReady) return;
     try {
-      fs.writeFileSync(MONITORS_KEEP, JSON.stringify({ ids: this.cfg.monitorsKeep || [] }));
-    } catch { /* ancienne autorisation : tous les écrans sont désactivés */ }
+      // Seul l'écran du jeu compte pour la résolution étirée ; les autres restent tels quels.
+      // Écran introuvable : liste vide, tous les écrans sont concernés (méthode d'origine).
+      const { id } = await this.display.call('primary');
+      fs.writeFileSync(MONITORS_TARGET, JSON.stringify({ ids: id ? [id] : [] }));
+    } catch { /* ancienne autorisation : tous les écrans sont concernés */ }
     const r = await runMonitorsTask('off');
     this.screensOff = r.disabled?.length || 0;
     this.emit('status', this.status());
-    if (r.failed?.length) this.notify(`Écran non désactivé : ${r.failed.join(', ')}.`, 'error');
+    if (r.failed?.length) this.notify(`Écran non préparé pour la résolution étirée : ${r.failed.join(', ')}.`, 'error');
     // Garde-fou : plus aucun écran actif, on réactive tout de suite.
     try {
       await this.display.call('display');
     } catch {
       await this.enableMonitors();
-      throw new Error('Plus aucun écran actif après la désactivation : écrans réactivés.');
+      throw new Error('Plus aucun écran actif : écrans remis comme avant.');
     }
     await sleep(400); // laisser Windows finir la reconfiguration
   }
@@ -646,7 +643,7 @@ class Stretch extends EventEmitter {
     if (!monitorsDisabledByUs()) return;
     const r = await runMonitorsTask('on');
     this.screensOff = 0;
-    if (r.failed?.length) this.notify(`Écran toujours désactivé : ${r.failed.join(', ')}. Réactivez-le dans le Gestionnaire de périphériques.`, 'error');
+    if (r.failed?.length) this.notify(`Écran pas remis comme avant : ${r.failed.join(', ')}. Réactivez-le dans le Gestionnaire de périphériques, rubrique Moniteurs.`, 'error');
     await sleep(300);
   }
 
