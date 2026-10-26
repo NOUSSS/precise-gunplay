@@ -13,6 +13,14 @@ const DEFAULTS = {
     delayMs: 2500, // attente avant de survoler l'agent
     lockDelayMs: 250, // mode 'lock' : attente entre le survol et le verrouillage
   },
+  stretch: {
+    enabled: false,
+    width: 0, // résolution étirée (0 = pas encore choisie)
+    height: 0,
+    delayMs: 30000, // le jeu se dit en partie dès l'écran de chargement : on attend avant de basculer
+    monitors: true, // désactiver les écrans dans le Gestionnaire de périphériques pendant le jeu
+    native: null, // { w, h, hz } relevée automatiquement
+  },
 };
 
 class Settings {
@@ -23,7 +31,12 @@ class Settings {
       const saved = JSON.parse(fs.readFileSync(this.file, 'utf8'));
       // Anciens réglages (avant lockDelayMs) : le délai valait 0 par défaut, on passe au nouveau défaut anti-ban.
       if (saved.autolock && saved.autolock.lockDelayMs == null && !saved.autolock.delayMs) delete saved.autolock.delayMs;
-      this.value = { ...this.value, ...saved, autolock: { ...DEFAULTS.autolock, ...(saved.autolock || {}) } };
+      this.value = {
+        ...this.value,
+        ...saved,
+        autolock: { ...DEFAULTS.autolock, ...(saved.autolock || {}) },
+        stretch: { ...DEFAULTS.stretch, ...(saved.stretch || {}) },
+      };
     } catch { /* premier lancement */ }
   }
 
@@ -36,6 +49,7 @@ class Settings {
       ...this.value,
       ...patch,
       autolock: { ...this.value.autolock, ...(patch.autolock || {}) },
+      stretch: { ...this.value.stretch, ...(patch.stretch || {}) },
     };
     fs.mkdirSync(path.dirname(this.file), { recursive: true });
     fs.writeFileSync(this.file, JSON.stringify(this.value, null, 2));

@@ -452,6 +452,23 @@ body:has(.connect) .acc-btn { display: none; }
 .scope-head h2 { margin: 0 0 6px; }
 .scope-head .muted { font-size: 13px; line-height: 1.45; }
 
+/* ---------- Résolution étirée ---------- */
+.st-status { display: flex; align-items: center; gap: 10px; }
+.st-state { flex: 1; display: flex; align-items: center; gap: 12px; min-width: 0; }
+.st-state b { font-weight: 600; }
+.st-state .muted { font-size: 13px; margin-top: 2px; }
+.st-state .muted b { color: var(--text); font-variant-numeric: tabular-nums; }
+.st-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; background: var(--muted); }
+.st-dot.on { background: var(--teal); }
+.st-dot.warn { background: var(--gold); }
+.st-dot.live { background: var(--win); }
+.st-gap { margin-top: 14px; }
+.st-keys { display: grid; grid-template-columns: auto auto; align-items: center; justify-items: start; gap: 6px 10px; font-size: 13px; color: var(--muted); }
+.st-keys span:nth-child(odd) { justify-self: end; }
+kbd { display: inline-block; font: 600 11px var(--font); color: var(--text); background: var(--panel-2); border: 1px solid var(--line); border-radius: 5px; padding: 2px 6px; }
+kbd + kbd { margin-left: 4px; }
+.st-note { font-size: 12px; line-height: 1.5; margin: 14px 2px 0; }
+
 /* ---------- Partie en direct ---------- */
 .match-head { position: relative; border-radius: var(--radius); overflow: hidden; background: var(--panel) center/cover; min-height: 120px; display: flex; align-items: flex-end; border: 1px solid #ffffff14; margin-bottom: 16px; }
 .match-head::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, #0a0d16f0, #0a0d1640); }
