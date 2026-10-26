@@ -2485,9 +2485,9 @@ PAGES.stretch = async () => {
         <div class="label"><div>Résolution en partie</div><div>La fréquence reste à ${hz ? `${hz} Hz` : 'sa valeur actuelle'}.</div></div>
         <select id="st-res" ${modes.length ? '' : 'disabled'}>${options || '<option>Aucune résolution disponible</option>'}</select>
       </div>
-      ${!info.monitorsReady || info.monitorsOutdated ? `
+      ${c.enabled && (!info.monitorsReady || info.monitorsOutdated) ? `
       <div class="setting-row">
-        <div class="label"><div>Autorisation Windows</div><div>${info.monitorsReady ? 'À renouveler une fois après cette mise à jour de l\'app.' : 'Nécessaire une seule fois pour que la résolution étirée tienne en jeu.'}</div></div>
+        <div class="label"><div>Autorisation Windows</div><div>${info.monitorsReady ? 'Une nouvelle version est à installer une fois. En attendant, l\'ancienne continue de fonctionner.' : 'Nécessaire une seule fois pour que la résolution étirée tienne en jeu.'}</div></div>
         <button class="btn primary" id="st-install">${info.monitorsReady ? 'Renouveler' : 'Autoriser'}</button>
       </div>` : ''}
     </div>
@@ -2522,7 +2522,27 @@ PAGES.stretch = async () => {
   };
 
   $('#st-advanced').ontoggle = (e) => { stretchAdvanced = e.target.open; };
-  $('#st-enabled').onchange = (e) => save({ enabled: e.target.checked });
+  // L'autorisation Windows (une fenêtre, une seule fois) est demandée en activant la fonction.
+  // Sans elle, la fonction reste coupée : réactiver l'interrupteur la redemande.
+  // Ancienne autorisation : elle fonctionne encore, un refus de la renouveler n'empêche rien.
+  $('#st-enabled').onchange = async (e) => {
+    const on = e.target.checked;
+    const s = state.stretch;
+    e.target.disabled = true;
+    if (on && state.settings.stretch.monitors && (!s.monitorsReady || s.monitorsOutdated)) {
+      try {
+        await call('stretch-install');
+      } catch (err) {
+        if (!s.monitorsReady) {
+          toast(`${err.message} La résolution étirée reste désactivée.`, 'error');
+          navigate('stretch');
+          return;
+        }
+      }
+    }
+    await save({ enabled: on });
+    navigate('stretch');
+  };
   $('#st-res').onchange = (e) => {
     const [w, h] = e.target.value.split('x').map(Number);
     return save({ width: w, height: h });
