@@ -19,6 +19,7 @@ const DEFAULTS = {
     height: 0,
     delayMs: 30000, // le jeu se dit en partie dès l'écran de chargement : on attend avant de basculer
     monitors: true, // désactiver les écrans dans le Gestionnaire de périphériques pendant le jeu
+    gameConfig: true, // régler VALORANT (plein écran fenêtré, Remplir) et verrouiller ses fichiers
     hotkeys: { toggle: 'Control+F8', native: 'Control+F9' },
     native: null, // { w, h, hz } relevée automatiquement
   },

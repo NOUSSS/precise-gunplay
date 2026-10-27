@@ -2537,8 +2537,8 @@ PAGES.stretch = async () => {
         <label class="switch"><input type="checkbox" id="st-monitors" ${c.monitors ? 'checked' : ''}><span></span></label>
       </div>` : ''}
       <div class="setting-row">
-        <div class="label"><div>Régler VALORANT automatiquement</div><div>Plein écran fenêtré et format Remplir, nécessaires à l'étirement. Le fichier de configuration passe en lecture seule pour que le jeu ne les change pas.</div></div>
-        <label class="switch"><input type="checkbox" id="st-lock" ${info.configLocked ? 'checked' : ''} ${info.configLocked === null ? 'disabled title="Lancez VALORANT une fois"' : ''}><span></span></label>
+        <div class="label"><div>Régler VALORANT automatiquement</div><div>Plein écran fenêtré et format Remplir, nécessaires à l'étirement. Ses fichiers de réglages passent en lecture seule : les changements de qualité graphique faits en jeu ne sont plus enregistrés.</div></div>
+        <label class="switch"><input type="checkbox" id="st-lock" ${c.gameConfig && info.configLocked !== null ? 'checked' : ''} ${info.configLocked === null ? 'disabled title="Lancez VALORANT une fois"' : ''}><span></span></label>
       </div>
       ${HOTKEYS.map(([k, label, note]) => `
       <div class="setting-row">
@@ -2664,6 +2664,7 @@ PAGES.stretch = async () => {
   $('#st-lock').onchange = async (e) => {
     try {
       const r = await call('stretch-lock', e.target.checked);
+      state.settings.stretch.gameConfig = e.target.checked;
       toast(r?.restart ? 'Réglages de VALORANT appliqués. Relancez le jeu pour qu\'il les prenne en compte.' : e.target.checked ? 'Réglages de VALORANT appliqués et verrouillés.' : 'Réglages de VALORANT déverrouillés.');
     } catch (err) {
       e.target.checked = !e.target.checked;

@@ -204,7 +204,6 @@ function gameConfigState() {
   return {
     effective: main.find(bad) || main[0] || files[0],
     locked: files.every((f) => f.locked && f.ok),
-    someLocked: files.some((f) => f.locked),
   };
 }
 
@@ -527,6 +526,7 @@ class Stretch extends EventEmitter {
     if (on && !this.timer) {
       this.resetGame();
       this.gameAbsentSeen = false; // jeu pas encore vu absent depuis le début de la surveillance
+      this.maintainGameConfig();
       this.exclusive(() => this.captureNative()).catch(() => {});
       this.timer = setInterval(() => this.tick(), TICK_MS);
       if (!this.hotkeysPaused) this.registerHotkeys();
@@ -538,6 +538,8 @@ class Stretch extends EventEmitter {
       this.exclusive(() => this.restore()).catch((e) => this.notify(e.message, 'error'));
       this.releaseDisplay();
       this.resetGame();
+      // Fonction coupée : le jeu peut de nouveau enregistrer ses réglages.
+      if (this.cfg.gameConfig) try { setGameConfigLock(false); } catch { /* VALORANT jamais lancé */ }
       this.setPhase('off');
     } else {
       if (!this.hotkeysPaused && Object.values(this.hotkeys).join() !== this.hotkeysWanted) this.registerHotkeys();
@@ -699,12 +701,13 @@ class Stretch extends EventEmitter {
     }
   }
 
-  // Réglages déjà verrouillés une fois : un fichier apparu depuis (autre compte) ou réécrit est remis
-  // en ordre, sans attendre de clic.
+  // Réglage automatique de VALORANT : à l'activation, au lancement du jeu et après lui, un fichier
+  // apparu depuis (autre compte) ou réécrit est remis en ordre, sans attendre de clic.
   maintainGameConfig() {
+    if (!this.cfg.enabled || !this.cfg.gameConfig) return;
     try {
       const cfg = gameConfigState();
-      if (cfg?.someLocked && !cfg.locked && setGameConfigLock(true)) this.emit('status', this.status());
+      if (cfg && !cfg.locked && setGameConfigLock(true)) this.emit('status', this.status());
     } catch { /* fichier occupé : la page le signale */ }
   }
 
@@ -1004,6 +1007,7 @@ class Stretch extends EventEmitter {
   // « restart » : valeurs changées pendant que le jeu tourne, il ne les prendra qu'au prochain lancement.
   setGameConfigLock(lock) {
     const restart = setGameConfigLock(lock) && lock && this.gameRunning;
+    this.settings.update({ stretch: { gameConfig: !!lock } });
     if (restart) this.configWrittenInGame = true;
     this.emit('status', this.status());
     return { restart };
