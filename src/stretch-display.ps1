@@ -20,9 +20,9 @@ using System.Text;
 
 public static class PgStretch
 {
-    const int ENUM_CURRENT_SETTINGS = -1;
+    const int ENUM_CURRENT_SETTINGS = -1, ENUM_REGISTRY_SETTINGS = -2;
     const uint CDS_TEST = 0x2;
-    const int DM_PELSWIDTH = 0x80000, DM_PELSHEIGHT = 0x100000, DM_DISPLAYFREQUENCY = 0x400000;
+    const int DM_BITSPERPEL = 0x40000, DM_PELSWIDTH = 0x80000, DM_PELSHEIGHT = 0x100000, DM_DISPLAYFREQUENCY = 0x400000;
     const int DISPLAY_DEVICE_ACTIVE = 0x1, DISPLAY_DEVICE_PRIMARY_DEVICE = 0x4;
     const int EDD_GET_DEVICE_INTERFACE_NAME = 0x1;
     const uint TH32CS_SNAPPROCESS = 0x2;
@@ -280,21 +280,46 @@ public static class PgStretch
 
     // CDS_TEST d'abord : un mode refusé par le pilote n'est jamais appliqué (pas d'écran noir).
     // Sans CDS_UPDATEREGISTRY : changement dynamique, Windows revient au mode enregistré au redémarrage.
+    // Le mode est décrit de trois façons, essayées dans l'ordre : le mode actuel modifié, le mode
+    // enregistré s'il est celui demandé (le natif en général), puis taille et fréquence seules.
+    // Certains pilotes refusent la première en revenant en native : elle garde des réglages du mode
+    // étiré (mise à l'échelle, indicateurs) qui ne valent pas pour la résolution native.
     static string ApplyOn(string gdi, int w, int h, int hz, bool testOnly)
     {
         DEVMODE cur = NewDevMode();
         bool haveCur = EnumDisplaySettings(gdi, ENUM_CURRENT_SETTINGS, ref cur);
-        DEVMODE dm = haveCur ? cur : NewDevMode();
-        dm.dmPelsWidth = w;
-        dm.dmPelsHeight = h;
-        dm.dmDisplayFrequency = hz > 0 ? hz : (haveCur ? cur.dmDisplayFrequency : 60);
-        dm.dmFields = (haveCur ? cur.dmFields : 0) | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY;
-        int r = ChangeDisplaySettingsEx(gdi, ref dm, IntPtr.Zero, CDS_TEST, IntPtr.Zero);
-        if (r != 0) return "Mode " + w + "x" + h + " @ " + dm.dmDisplayFrequency + " Hz refusé par le pilote (code " + r + ").";
-        if (testOnly) return null;
-        r = ChangeDisplaySettingsEx(gdi, ref dm, IntPtr.Zero, 0, IntPtr.Zero);
-        if (r != 0) return "Échec du changement de résolution (code " + r + ").";
-        return null;
+        int freq = hz > 0 ? hz : (haveCur ? cur.dmDisplayFrequency : 60);
+        List<DEVMODE> tries = new List<DEVMODE>();
+        if (haveCur)
+        {
+            DEVMODE dm = cur;
+            dm.dmPelsWidth = w;
+            dm.dmPelsHeight = h;
+            dm.dmDisplayFrequency = freq;
+            dm.dmFields |= DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY;
+            tries.Add(dm);
+        }
+        DEVMODE reg = NewDevMode();
+        if (EnumDisplaySettings(gdi, ENUM_REGISTRY_SETTINGS, ref reg) && reg.dmPelsWidth == w && reg.dmPelsHeight == h && reg.dmDisplayFrequency == freq)
+            tries.Add(reg);
+        DEVMODE bare = NewDevMode();
+        bare.dmBitsPerPel = haveCur && cur.dmBitsPerPel > 0 ? cur.dmBitsPerPel : 32;
+        bare.dmPelsWidth = w;
+        bare.dmPelsHeight = h;
+        bare.dmDisplayFrequency = freq;
+        bare.dmFields = DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY;
+        tries.Add(bare);
+        int refused = 0;
+        foreach (DEVMODE t in tries)
+        {
+            DEVMODE dm = t;
+            int r = ChangeDisplaySettingsEx(gdi, ref dm, IntPtr.Zero, CDS_TEST, IntPtr.Zero);
+            if (r != 0) { if (refused == 0) refused = r; continue; }
+            if (testOnly) return null;
+            r = ChangeDisplaySettingsEx(gdi, ref dm, IntPtr.Zero, 0, IntPtr.Zero);
+            return r == 0 ? null : "Échec du changement de résolution (code " + r + ").";
+        }
+        return "Mode " + w + "x" + h + " @ " + freq + " Hz refusé par le pilote (code " + refused + ").";
     }
 
     public static string Apply(string gdi, int w, int h, int hz, bool testOnly)

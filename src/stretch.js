@@ -992,7 +992,16 @@ class Stretch extends EventEmitter {
       if (ours) await this.enableMonitors();
       else if (await this.listsMode(n) === 'exact') throw e; // mode connu mais refusé : réessayer n'y changerait rien
       if (!(await this.waitForMode(n))) throw new Error(`L'écran ne propose plus ${n.w} × ${n.h} : il est sans doute resté en mode générique. Réactivez-le dans le Gestionnaire de périphériques, rubrique Moniteurs.`);
-      await this.applyMode(n.w, n.h, n.hz);
+      // Liste des modes revenue avant que le pilote ne les accepte : quelques essais de plus (2 s).
+      for (let i = 0; ; i++) {
+        try {
+          await this.applyMode(n.w, n.h, n.hz);
+          break;
+        } catch (e2) {
+          if (i >= 3) throw e2;
+          await sleep(500);
+        }
+      }
       if (regeneric) await this.disableMonitors();
     }
     this.res = 'native';
