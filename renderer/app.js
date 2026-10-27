@@ -2402,8 +2402,6 @@ function stretchModes(d) {
     .sort((a, b) => b[0] * b[1] - a[0] * a[1]);
 }
 
-const STRETCH_DELAYS = [15000, 30000, 45000, 60000];
-
 // Raccourcis : accélérateurs Electron (« Control+F8 ») affichés en touches.
 const KEY_LABELS = { Control: 'Ctrl', Alt: 'Alt', Shift: 'Maj' };
 const hotkeyHtml = (accel) => accel.split('+').map((k) => `<kbd>${esc(KEY_LABELS[k] || k.replace(/^num/, 'Pavé '))}</kbd>`).join('');
@@ -2426,13 +2424,16 @@ let stretchAdvanced = false; // « Réglages avancés » ouvert
 function stretchStatusHtml(s) {
   const n = s.native || stretchDisplay;
   const target = resLabel(s.width, s.height);
-  const offline = !state.status.connected && ['game', 'armed'].includes(s.phase);
+  // Le journal du jeu suffit à suivre la partie ; sans lui, il faut le compte Riot.
+  const offline = !state.status.connected && !s.fromLog && ['game', 'armed'].includes(s.phase);
   const [title, detail, tone] = {
     off: ['Désactivée', n ? `Écran en ${resLabel(n.w, n.h)} à ${n.hz} Hz.` : '', ''],
     idle: ['En attente de VALORANT', `Passage en ${target} quand une partie commence.`, 'on'],
     launching: ['Lancement du jeu', s.screensOff ? `${s.screensOff > 1 ? 'Écrans préparés' : 'Écran préparé'} pour la résolution étirée.` : '', 'on'],
     game: ['Au menu', offline ? 'Compte non connecté : la partie ne peut pas être détectée.' : `Résolution ${s.res === 'stretched' ? target : 'native'}.`, offline ? 'warn' : 'on'],
-    armed: ['Partie trouvée', `Passage en ${target} dans <b data-ends="${s.switchAt}">${fmtDuration(s.switchAt - Date.now())}</b>.`, 'warn'],
+    armed: s.switchAt
+      ? ['Partie trouvée', `Passage en ${target} dans <b data-ends="${s.switchAt}">${fmtDuration(s.switchAt - Date.now())}</b>.`, 'warn']
+      : ['Chargement de la partie', `Passage en ${target} à la fin du chargement.`, 'warn'],
     stretched: ['En partie', s.res === 'native' ? 'Résolution native, choisie au raccourci.' : `Résolution étirée ${target}.`, 'live'],
   }[s.phase] || ['', '', ''];
   return `<span class="st-dot ${tone}"></span><div><b>${title}</b><div class="muted">${detail}</div></div>`;
@@ -2527,10 +2528,6 @@ PAGES.stretch = async () => {
 
     <details class="panel st-gap st-advanced" id="st-advanced" ${stretchAdvanced ? 'open' : ''}>
       <summary>Réglages avancés</summary>
-      <div class="setting-row">
-        <div class="label"><div>Délai avant le passage</div><div>VALORANT signale la partie dès l'écran de chargement. Augmentez-le si la résolution change avant l'apparition.</div></div>
-        <select id="st-delay">${STRETCH_DELAYS.map((ms) => `<option value="${ms}" ${c.delayMs === ms ? 'selected' : ''}>${ms / 1000} s</option>`).join('')}</select>
-      </div>
       ${info.monitorsReady ? `
       <div class="setting-row">
         <div class="label"><div>Écrans en mode générique pendant le jeu</div><div>Du lancement à la fermeture du jeu, Windows utilise son pilote d'écran standard pour tous les écrans. C'est ce qui permet à la résolution étirée de tenir. L'image ne change pas.</div></div>
@@ -2622,7 +2619,6 @@ PAGES.stretch = async () => {
       btn.disabled = false;
     }
   };
-  $('#st-delay').onchange = (e) => save({ delayMs: Number(e.target.value) });
   if ($('#st-monitors')) $('#st-monitors').onchange = (e) => save({ monitors: e.target.checked });
   content.querySelectorAll('[data-hotkey]').forEach((btn) => {
     btn.onclick = () => {
