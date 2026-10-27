@@ -1,11 +1,13 @@
 // Résolution étirée automatique, même fonctionnement que ValStretch :
 // 1. dès le lanceur VALORANT.exe (avant la fenêtre du jeu), les écrans sont désactivés dans le
 //    Gestionnaire de périphériques (pilote générique) : le jeu accepte alors la résolution du bureau ;
-// 2. quand le serveur de jeu signale une partie (core-game, ou la présence du client Riot s'il ne
-//    répond pas), on attend la fin du chargement (30 s par défaut) puis on passe en résolution étirée ;
-// 3. retour au menu : résolution native. Fermeture du jeu : résolution native + écrans réactivés.
+// 2. le journal du jeu (ShooterGame.log) dit quand l'écran de chargement se termine : passage en
+//    résolution étirée à ce moment-là, retour en native à la fin de la partie ou en la quittant.
+//    Journal illisible : le serveur de jeu (core-game, ou la présence du client Riot) prend le relais,
+//    avec 30 s d'attente pour le chargement ;
+// 3. fermeture du jeu : résolution native + écrans réactivés.
 // Rien ne touche au processus du jeu : liste des processus et titre de fenêtre (comme le Gestionnaire
-// des tâches), réglages d'affichage Windows et lecture de l'état de partie, déjà utilisée par l'app.
+// des tâches), réglages d'affichage Windows, fichier journal lu comme un texte et état de partie.
 const { EventEmitter } = require('events');
 const fs = require('fs');
 const path = require('path');
@@ -19,6 +21,7 @@ const TICK_MS = 250;
 const SESSION_MS = 2000; // une requête core-game toutes les 2 s au plus, uniquement jeu lancé
 const TEST_MS = 3000;
 const PRESENCE_TRUST_MS = 10000; // la présence suit core-game avec du retard : elle ne le contredit pas aussitôt
+const FALLBACK_DELAY_MS = 30000; // sans journal : core-game se dit en partie dès l'écran de chargement
 
 // Tâches planifiées (droits administrateur) qui désactivent / réactivent les écrans.
 const TASK = (mode) => `\\Precise Gunplay\\Ecrans ${mode}`;
@@ -341,6 +344,78 @@ async function runMonitorsTask(mode) {
   throw new Error('Les écrans ne répondent pas (délai dépassé).');
 }
 
+// ---------------------------------------------------------------- Journal du jeu (ShooterGame.log)
+// VALORANT y écrit chaque changement d'écran : « TransitionToInGame » à l'écran de chargement,
+// « InGame » quand il se termine (même milliseconde que « Match Load Times »), « Match Ended » à la
+// fin de la partie, « TransitionToMainMenu » en la quittant. Les lignes sont horodatées en UTC.
+const GAME_LOG = path.join(process.env.LOCALAPPDATA || '', 'VALORANT', 'Saved', 'Logs', 'ShooterGame.log');
+const LOG_CHUNK = 4 * 1024 * 1024; // un long journal (app lancée en cours de session) se rattrape en quelques ticks
+const LOG_LINE = /^\[(\d{4})\.(\d\d)\.(\d\d)-(\d\d)\.(\d\d)\.(\d\d):(\d{3})\]\[[^\]]*\](?:LogGameFlowStateManager: .*Broadcasting state changed to (\w+)|LogShooterGameState: Match Ended)/gm;
+
+class GameLog {
+  // « since » : lignes plus anciennes ignorées (journal d'une session précédente pas encore remplacé).
+  constructor(since = 0) {
+    this.since = since;
+    this.reset(null);
+  }
+
+  reset(head) {
+    this.head = head; // première ligne (« Log file open, <date> ») : elle change avec le fichier
+    this.offset = 0;
+    this.rest = Buffer.alloc(0); // ligne pas encore terminée
+    this.flow = null; // dernier état diffusé par le jeu
+    this.ended = false; // « Match Ended » depuis le dernier changement d'état
+    this.caughtUp = false; // tout le fichier a été lu
+  }
+
+  // 'loading' | 'playing' | 'menu', null : aucun état lu (journal absent, illisible ou format changé).
+  get state() {
+    if (this.flow === 'InGame') return this.ended ? 'menu' : 'playing';
+    if (this.flow === 'TransitionToInGame') return 'loading';
+    return this.flow ? 'menu' : null;
+  }
+
+  async read() {
+    let fh;
+    try {
+      fh = await fs.promises.open(GAME_LOG, 'r');
+      const { size } = await fh.stat();
+      const first = Buffer.alloc(80);
+      const { bytesRead } = await fh.read(first, 0, first.length, 0);
+      const head = first.toString('utf8', 0, bytesRead).split('\n')[0];
+      // Au lancement, le jeu renomme l'ancien journal en sauvegarde et en crée un nouveau.
+      if (head !== this.head || size < this.offset) this.reset(head);
+      const len = Math.min(size - this.offset, LOG_CHUNK);
+      if (len > 0) {
+        const buf = Buffer.alloc(len);
+        const r = await fh.read(buf, 0, len, this.offset);
+        this.offset += r.bytesRead;
+        const data = Buffer.concat([this.rest, buf.subarray(0, r.bytesRead)]);
+        const end = data.lastIndexOf(0x0a) + 1;
+        this.rest = data.subarray(end);
+        this.parse(data.toString('utf8', 0, end));
+      }
+      this.caughtUp = this.offset >= size;
+    } catch {
+      this.caughtUp = true; // journal absent : le serveur de jeu prend le relais
+    } finally {
+      await fh?.close().catch(() => {});
+    }
+  }
+
+  parse(text) {
+    for (const m of text.matchAll(LOG_LINE)) {
+      if (Date.UTC(+m[1], m[2] - 1, +m[3], +m[4], +m[5], +m[6], +m[7]) < this.since) continue;
+      if (m[8]) {
+        this.flow = m[8];
+        this.ended = false;
+      } else {
+        this.ended = true;
+      }
+    }
+  }
+}
+
 // ---------------------------------------------------------------- Gestionnaire
 class Stretch extends EventEmitter {
   constructor(client, settings, dataDir) {
@@ -386,6 +461,10 @@ class Stretch extends EventEmitter {
   resetGame() {
     this.gameRunning = false;
     this.launcherSeen = false;
+    this.launcherAt = 0;
+    this.log = new GameLog();
+    this.logState = null; // dernier état de partie lu dans le journal
+    this.retryAt = 0; // changement de résolution raté : nouvel essai à ce moment
     this.windowSeen = false;
     this.windowGone = 0;
     this.ignoreUntilExit = false;
@@ -414,7 +493,9 @@ class Stretch extends EventEmitter {
     return {
       enabled: c.enabled,
       phase: this.phase,
-      switchAt: this.phase === 'armed' ? this.armedAt + c.delayMs : null,
+      // Partie suivie par le journal : passage à la fin du chargement, sans compte à rebours.
+      switchAt: this.phase === 'armed' && this.armedAt ? this.armedAt + FALLBACK_DELAY_MS : null,
+      fromLog: !!this.log.state,
       res: this.res,
       width: c.width,
       height: c.height,
@@ -652,11 +733,14 @@ class Stretch extends EventEmitter {
         }
       } else if (!this.ignoreUntilExit) {
         const prepared = this.launcherSeen; // lanceur déjà vu : résolution native déjà relevée
+        const startedAt = (this.launcherAt || Date.now()) - 10000;
         this.resetGame();
         this.gameRunning = true;
         // Lancé avant l'app seulement s'il était déjà là au premier relevé : le lanceur démarre le jeu
         // en une fraction de seconde, il peut ne jamais être vu seul.
         this.joinedLate = !this.gameAbsentSeen;
+        // Jeu lancé sous nos yeux : le journal d'avant son lancement ne compte pas (arrêt brutal en partie).
+        this.log = new GameLog(this.joinedLate ? 0 : startedAt);
         this.setPhase('game');
         if (!prepared) await this.captureNative();
         await this.disableMonitors();
@@ -667,6 +751,7 @@ class Stretch extends EventEmitter {
       if (launcher) {
         if (!this.launcherSeen && !this.gameRunning && !this.ignoreUntilExit) {
           this.launcherSeen = true;
+          this.launcherAt = Date.now();
           this.setPhase('launching');
           this.maintainGameConfig(); // avant que le jeu ne lise ses réglages
           await this.captureNative();
@@ -684,10 +769,40 @@ class Stretch extends EventEmitter {
     if (this.gameRunning && this.res === 'stretched') await this.checkGameWindow(p);
     else this.oversized = 0;
 
-    if (this.gameRunning && Date.now() >= this.nextSession) {
+    if (!this.gameRunning) return;
+    await this.log.read();
+    if (!this.log.caughtUp) return; // journal en cours de rattrapage : son état n'est pas encore le dernier
+    const state = this.log.state;
+    if (state) await this.followLog(state);
+    else if (Date.now() >= this.nextSession) {
       this.nextSession = Date.now() + SESSION_MS;
       await this.pollSession();
     }
+  }
+
+  // État lu dans le journal à chaque tick : étirée dès la fin de l'écran de chargement, native dès la
+  // fin de la partie ou en la quittant. Ni délai ni requête à Riot.
+  async followLog(state) {
+    if (state !== this.logState) {
+      // Premier état lu : un choix fait au raccourci avant est gardé.
+      if (this.logState !== null) this.manual = false;
+      this.logState = state;
+      this.armedAt = 0;
+      this.retryAt = 0;
+    }
+    if (Date.now() < this.retryAt) return;
+    try {
+      if (state === 'playing') {
+        if (!this.manual && this.res !== 'stretched') await this.applyStretched();
+      } else if (!this.manual && this.res === 'stretched') {
+        await this.applyNative();
+      }
+    } catch (e) {
+      this.retryAt = Date.now() + SESSION_MS; // pas un essai par tick
+      throw e;
+    }
+    const phase = state === 'playing' ? 'stretched' : state === 'loading' ? 'armed' : 'game';
+    if (this.phase !== phase) this.setPhase(phase);
   }
 
   // Mode retenu quand il reste le même 2 s : au démarrage, la fenêtre du jeu change de style.
@@ -737,6 +852,7 @@ class Stretch extends EventEmitter {
     this.emit('status', this.status());
   }
 
+  // Journal illisible seulement.
   // GET core-game : MatchID = en partie (tous les modes), 404 = pas en partie. S'il ne répond pas
   // (limite Riot, réseau), la présence du client Riot prend le relais. Sans aucune réponse : on n'agit pas.
   async pollSession() {
@@ -770,10 +886,10 @@ class Stretch extends EventEmitter {
       if (!this.armedAt) {
         // Jeu déjà lancé quand l'app l'a vu (app lancée ou relancée en cours de route) et déjà en
         // partie au premier état connu : le chargement est passé depuis longtemps, pas de délai.
-        this.armedAt = firstState && this.joinedLate ? Date.now() - this.cfg.delayMs : Date.now();
+        this.armedAt = firstState && this.joinedLate ? Date.now() - FALLBACK_DELAY_MS : Date.now();
         this.setPhase('armed');
       }
-      if (!this.manual && this.res !== 'stretched' && Date.now() - this.armedAt >= this.cfg.delayMs) {
+      if (!this.manual && this.res !== 'stretched' && Date.now() - this.armedAt >= FALLBACK_DELAY_MS) {
         await this.applyStretched();
       }
       return;
