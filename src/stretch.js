@@ -846,7 +846,7 @@ class Stretch extends EventEmitter {
       ? "Il n'est pas en plein écran fenêtré : réglez-le puis relancez le jeu."
       : this.joinedLate || !this.screensOff
       ? (this.cfg.monitors && this.monitorsReady ? 'Fermez-le puis relancez-le avec Precise Gunplay ouvert.' : 'Activez « Écrans en mode générique pendant le jeu » dans les réglages avancés, puis relancez le jeu.')
-      : 'Relancez le jeu. Si cela se reproduit, réglez la mise à l\'échelle de la carte graphique sur plein écran.';
+      : 'Relancez le jeu. Si cela se reproduit, activez la mise à l\'échelle de la carte graphique en plein écran (« Plein panneau » chez AMD).';
     this.windowIssue = `VALORANT n'a pas suivi la résolution étirée à la dernière partie. ${cause}`;
     this.notify(`VALORANT n'a pas suivi la résolution étirée : retour en native. ${cause}`, 'error');
     this.emit('status', this.status());
@@ -937,6 +937,13 @@ class Stretch extends EventEmitter {
       const d = await step(this.displayCmd());
       const n = this.cfg.native || d;
       const accepted = () => step(`test ${d.gdi} ${w} ${h} ${n.hz}`).then(() => true, () => false);
+      // Carte AMD : mise à l'échelle GPU d'abord. Le pilote propose alors la résolution en mode agrandi
+      // (l'écran garde sa native) : une résolution personnalisée, envoyée telle quelle à l'écran, n'est
+      // créée que s'il ne la propose toujours pas. Beaucoup d'écrans restent noirs avec ce signal.
+      if (/amd|radeon/i.test(d.gpu)) {
+        const r = await step(`amdscale ${d.gdi}`).catch(() => ({}));
+        if (r.changed) await sleep(1500); // le pilote réinitialise l'affichage
+      }
       if (await accepted()) return;
       if (w > n.w || h > n.h) throw new Error(`Choisissez une résolution jusqu'à ${n.w} × ${n.h}.`);
       // La nouvelle résolution reprend le mode actuel de l'écran : il doit être le mode natif.

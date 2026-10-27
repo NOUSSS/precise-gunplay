@@ -194,6 +194,7 @@ public static class PgStretch
                 if (p.Length > 2 && !p[1].Equals("Default_Monitor", StringComparison.OrdinalIgnoreCase))
                 {
                     s.model = p[1].ToUpperInvariant();
+                    knownModels[s.gdi] = s.model;
                     s.id = ("DISPLAY\\" + p[1] + "\\" + p[2]).ToUpperInvariant();
                 }
             }
@@ -364,13 +365,23 @@ public static class PgStretch
     static void Ok(int r, string step) { if (r != 0) throw new Exception("Carte AMD : " + step + " impossible (code " + r + ")."); }
 
     // « AUS2405 » : fabricant et produit, tels que Windows les nomme (DISPLAY\AUS2405\...).
+    // Écran en mode générique (pendant le jeu) : Windows le nomme Default_Monitor, on reprend le
+    // dernier modèle lu pour cet écran avant sa désactivation.
+    static Dictionary<string, string> knownModels = new Dictionary<string, string>();
     static string MonitorModel(string gdi)
     {
         DISPLAY_DEVICE mon = new DISPLAY_DEVICE();
         mon.cb = Marshal.SizeOf(typeof(DISPLAY_DEVICE));
         if (!EnumDisplayDevices(gdi, 0, ref mon, EDD_GET_DEVICE_INTERFACE_NAME)) return null;
         string[] parts = (mon.DeviceID ?? "").Split('#');
-        return parts.Length > 1 ? parts[1].ToUpperInvariant() : null;
+        string model = parts.Length > 1 ? parts[1].ToUpperInvariant() : null;
+        if (model == "DEFAULT_MONITOR")
+        {
+            string known;
+            return knownModels.TryGetValue(gdi, out known) ? known : "";
+        }
+        if (model != null) knownModels[gdi] = model;
+        return model;
     }
     // Même nom calculé depuis l'EDID (texte hexadécimal) : octets 8-9 fabricant, 10-11 produit.
     static string EdidModel(string edid)
@@ -420,7 +431,7 @@ public static class PgStretch
                 Ok(Vt<AtFn>(list, 11)(list, i, out display), "lecture de l'écran");
                 IntPtr edid;
                 Vt<GetPtrFn>(display, 7)(display, out edid);
-                if (model == null ? count == 1 : EdidModel(Marshal.PtrToStringAnsi(edid)) == model) { target = (int)i; matches++; }
+                if (string.IsNullOrEmpty(model) ? count == 1 : EdidModel(Marshal.PtrToStringAnsi(edid)) == model) { target = (int)i; matches++; }
             }
             finally { Release(display); }
         }
