@@ -1,7 +1,7 @@
 # Assistant d'affichage pour la résolution étirée : lancé une fois par l'app, il répond ligne par ligne
 # sur stdin/stdout. Aucun accès au jeu : liste des processus par instantané Toolhelp (comme le
 # Gestionnaire des tâches), recherche de fenêtre par titre, réglages d'affichage Windows standard.
-#   procs <nom1> <nom2>          -> {"run":[true,false],"window":true,"ww":1920,"wh":1080}
+#   procs <nom1> <nom2>          -> {"run":[true,false],"window":true,"ww":1920,"wh":1080,"mode":1}
 #   display <écran> <gdi>        -> écran visé (« auto » : celui du jeu, sinon le principal ; sinon
 #                                   identifiant choisi), mode actuel et modes disponibles
 #   screens                      -> écrans actifs avec leur nom, et celui qui affiche le jeu
@@ -71,6 +71,9 @@ public static class PgStretch
     [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr hwnd);
     [StructLayout(LayoutKind.Sequential)] struct RECT { public int Left, Top, Right, Bottom; }
     [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
+    [DllImport("user32.dll")] static extern int GetWindowLong(IntPtr hwnd, int index);
+    [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+    [DllImport("shell32.dll")] static extern int SHQueryUserNotificationState(out int state);
     // Tailles en pixels réels, comme les modes d'affichage, quelle que soit la mise à l'échelle Windows.
     [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
     [DllImport("kernel32.dll")] static extern IntPtr CreateToolhelp32Snapshot(uint flags, uint pid);
@@ -116,20 +119,23 @@ public static class PgStretch
         return found;
     }
 
-    // Fenêtre visible du processus du jeu, ni par titre (« VALORANT  ») ni par classe
-    // (« VALORANTUnrealWindow ») : ils varient selon les versions.
+    // Plus grande fenêtre visible du processus du jeu (pas une fenêtre technique de 1 × 1), ni par
+    // titre (« VALORANT  ») ni par classe (« VALORANTUnrealWindow ») : ils varient selon les versions.
     static IntPtr GameWindow(Dictionary<string, List<uint>> procs)
     {
         List<uint> pids;
         if (!procs.TryGetValue(GAME_EXE, out pids)) return IntPtr.Zero;
         IntPtr hwnd = IntPtr.Zero;
+        long best = -1;
         EnumWindows((h, l) =>
         {
             uint owner;
             GetWindowThreadProcessId(h, out owner);
-            if (!IsWindowVisible(h) || !pids.Contains(owner)) return true;
-            hwnd = h;
-            return false;
+            RECT r;
+            if (!IsWindowVisible(h) || !pids.Contains(owner) || !GetWindowRect(h, out r)) return true;
+            long area = (long)(r.Right - r.Left) * (r.Bottom - r.Top);
+            if (area > best) { best = area; hwnd = h; }
+            return true;
         }, IntPtr.Zero);
         return hwnd;
     }
@@ -148,7 +154,22 @@ public static class PgStretch
         RECT r;
         if (hwnd != IntPtr.Zero && GetWindowRect(hwnd, out r))
             sb.Append(",\"ww\":").Append(r.Right - r.Left).Append(",\"wh\":").Append(r.Bottom - r.Top).Append(",\"screen\":").Append(Str(WindowScreen(hwnd)));
+        int mode = hwnd != IntPtr.Zero ? WindowMode(hwnd) : -1;
+        if (mode >= 0) sb.Append(",\"mode\":").Append(mode);
         return sb.Append("}").ToString();
+    }
+
+    // Mode d'affichage réel du jeu, vu de Windows (lecture seule) : 2 fenêtré (barre de titre),
+    // 0 plein écran exclusif (signalé par Windows tant que le jeu est au premier plan), 1 plein écran
+    // fenêtré. -1 : indéterminable (jeu en arrière-plan).
+    const int GWL_STYLE = -16, WS_CAPTION = 0x00C00000, QUNS_RUNNING_D3D_FULL_SCREEN = 3;
+    static int WindowMode(IntPtr hwnd)
+    {
+        if ((GetWindowLong(hwnd, GWL_STYLE) & WS_CAPTION) == WS_CAPTION) return 2;
+        if (GetForegroundWindow() != hwnd) return -1;
+        int state;
+        if (SHQueryUserNotificationState(out state) != 0) return -1;
+        return state == QUNS_RUNNING_D3D_FULL_SCREEN ? 0 : 1;
     }
 
     // Écrans actifs du bureau. « id » : identifiant Windows de l'écran branché (DISPLAY\AUS2405\...),

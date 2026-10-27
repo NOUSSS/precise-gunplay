@@ -124,8 +124,9 @@ class DisplayHelper {
 }
 
 // ---------------------------------------------------------------- Config du jeu (GameUserSettings.ini)
-// « True stretch » : plein écran fenêtré, sans bandes noires, puis fichier en lecture seule pour que le
-// jeu ne réécrive pas ces réglages. Le dossier actif est <LastKnownUser>-<région>.
+// « True stretch » : plein écran fenêtré, sans bandes noires, puis fichiers en lecture seule pour que le
+// jeu ne réécrive pas ces réglages. Le jeu lit le fichier global (Config\WindowsClient, au démarrage)
+// et celui du compte (<id>-<région>\WindowsClient) : tous sont réglés, ceux des autres comptes compris.
 const GAME_VALUES = {
   bShouldLetterbox: 'False',
   bLastConfirmedShouldLetterbox: 'False',
@@ -133,51 +134,101 @@ const GAME_VALUES = {
   PreferredFullscreenMode: '1',
   FullscreenMode: '1',
 };
+const GAME_SECTION = 'shootergameusersettings';
+const isSection = (t) => t.startsWith('[') && t.endsWith(']');
 
-function gameSettingsPath() {
+// Fichiers lus par le jeu, le plus important d'abord : compte actif (LastKnownUser, sinon le dernier
+// modifié), fichier global, puis les autres comptes.
+function gameSettingsFiles() {
   let lastUser = null;
   try {
     const m = /^\s*LastKnownUser=(.+)$/im.exec(fs.readFileSync(path.join(VALORANT_CONFIG, 'WindowsClient', 'RiotLocalMachine.ini'), 'utf8'));
     if (m) lastUser = m[1].trim().toLowerCase();
   } catch { /* fichier absent */ }
-  let candidates = [];
+  let accounts = [];
   try {
-    candidates = fs.readdirSync(VALORANT_CONFIG)
-      .map((d) => path.join(VALORANT_CONFIG, d, 'WindowsClient', 'GameUserSettings.ini'))
-      .filter((f) => fs.existsSync(f));
+    accounts = fs.readdirSync(VALORANT_CONFIG)
+      .filter((d) => d.toLowerCase() !== 'windowsclient')
+      .map((d) => ({ dir: d.toLowerCase(), file: path.join(VALORANT_CONFIG, d, 'WindowsClient', 'GameUserSettings.ini') }))
+      .filter((a) => fs.existsSync(a.file))
+      .map((a) => ({ ...a, mtime: fs.statSync(a.file).mtimeMs }))
+      .sort((a, b) => b.mtime - a.mtime);
   } catch { /* VALORANT jamais lancé */ }
-  if (candidates.length <= 1) return candidates[0] || null;
-  const mine = lastUser && candidates.find((f) => path.basename(path.dirname(path.dirname(f))).toLowerCase().startsWith(lastUser));
-  if (mine) return mine;
-  return candidates.sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs)[0];
+  const active = (lastUser && accounts.find((a) => a.dir.startsWith(lastUser))) || accounts[0];
+  const global = path.join(VALORANT_CONFIG, 'WindowsClient', 'GameUserSettings.ini');
+  return [
+    ...(active ? [{ file: active.file, active: true }] : []),
+    ...(fs.existsSync(global) ? [{ file: global, global: true }] : []),
+    ...accounts.filter((a) => a !== active).map((a) => ({ file: a.file })),
+  ];
 }
 
-// Réglages d'affichage de VALORANT. « mode » : 0 plein écran, 1 plein écran fenêtré, 2 fenêtré ; sans
-// FullscreenMode (jeu jamais réglé), le dernier mode confirmé fait foi. « letterbox » : format Boîte aux
-// lettres (bandes noires au lieu de l'étirement). null si inconnu.
-function gameDisplayConfig() {
-  const file = gameSettingsPath();
-  if (!file) return null;
-  const ini = fs.readFileSync(file, 'utf8');
-  const get = (key) => new RegExp(`^\\s*${key}\\s*=\\s*(\\S+)`, 'im').exec(ini)?.[1];
-  const mode = get('FullscreenMode') ?? get('LastConfirmedFullscreenMode');
-  const letterbox = get('bShouldLetterbox');
-  return { mode: mode == null ? null : Number(mode), letterbox: letterbox == null ? null : letterbox.toLowerCase() === 'true' };
+// Valeurs de la section du jeu seulement : une clé posée dans une autre section est ignorée par le jeu.
+function readGameSection(file) {
+  const values = {};
+  let inTarget = false;
+  for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
+    const t = line.trim();
+    if (isSection(t)) { inTarget = t.toLowerCase().includes(GAME_SECTION); continue; }
+    const eq = t.indexOf('=');
+    if (inTarget && eq > 0) values[t.slice(0, eq).trim().toLowerCase()] = t.slice(eq + 1).trim();
+  }
+  return values;
 }
 
-function gameConfigLocked() {
-  const file = gameSettingsPath();
-  if (!file) return null;
-  return (fs.statSync(file).mode & 0o200) === 0;
+// Réglages d'affichage d'un fichier. « mode » : 0 plein écran, 1 plein écran fenêtré, 2 fenêtré ; au
+// démarrage le jeu reprend le dernier mode confirmé, un écart entre les deux compte. « letterbox » :
+// format Boîte aux lettres (bandes noires au lieu de l'étirement). « ok » : toutes les valeurs voulues.
+function gameFileState(entry) {
+  const v = readGameSection(entry.file);
+  const modes = [v.lastconfirmedfullscreenmode, v.fullscreenmode].filter((m) => m != null).map(Number);
+  return {
+    ...entry,
+    mode: modes.find((m) => m !== 1) ?? modes[0] ?? null,
+    letterbox: [v.bshouldletterbox, v.blastconfirmedshouldletterbox].some((b) => b?.toLowerCase() === 'true'),
+    ok: Object.entries(GAME_VALUES).every(([k, want]) => v[k.toLowerCase()]?.toLowerCase() === want.toLowerCase()),
+    locked: (fs.statSync(entry.file).mode & 0o200) === 0,
+  };
 }
 
+// État de tous les fichiers. « effective » : celui qui décide de l'affichage, le premier en défaut
+// parmi le compte actif et le fichier global. null : VALORANT jamais lancé.
+function gameConfigState() {
+  const files = [];
+  for (const entry of gameSettingsFiles()) {
+    try { files.push(gameFileState(entry)); } catch { /* fichier illisible */ }
+  }
+  if (!files.length) return null;
+  const main = files.filter((f) => f.active || f.global);
+  const bad = (f) => (f.mode != null && f.mode !== 1) || f.letterbox;
+  return {
+    effective: main.find(bad) || main[0] || files[0],
+    locked: files.every((f) => f.locked && f.ok),
+    someLocked: files.some((f) => f.locked),
+  };
+}
+
+// Écrit les valeurs voulues et verrouille (lock) ou retire la lecture seule. Renvoie true si un
+// fichier a vraiment changé : jeu lancé, il ne le relit qu'au prochain démarrage.
 function setGameConfigLock(lock) {
-  const file = gameSettingsPath();
-  if (!file) throw new Error('Configuration de VALORANT introuvable : lancez le jeu une fois.');
-  fs.chmodSync(file, 0o666);
-  if (!lock) return false;
+  const files = gameSettingsFiles();
+  if (!files.length) throw new Error('Configuration de VALORANT introuvable : lancez le jeu une fois.');
+  let changed = false;
+  for (const { file } of files) {
+    fs.chmodSync(file, 0o666);
+    if (!lock) continue;
+    const raw = fs.readFileSync(file, 'utf8');
+    const next = withGameValues(raw);
+    if (next !== raw) {
+      fs.writeFileSync(file, next);
+      changed = true;
+    }
+    fs.chmodSync(file, 0o444);
+  }
+  return changed;
+}
 
-  const raw = fs.readFileSync(file, 'utf8');
+function withGameValues(raw) {
   const eol = raw.includes('\r\n') ? '\r\n' : '\n';
   const lines = raw.split(/\r?\n/);
   if (lines[lines.length - 1] === '') lines.pop();
@@ -191,9 +242,9 @@ function setGameConfigLock(lock) {
   let insertAt = -1;
   for (const line of lines) {
     const t = line.trim();
-    if (t.startsWith('[') && t.endsWith(']')) {
+    if (isSection(t)) {
       if (inTarget && insertAt === -1) insertAt = out.length;
-      inTarget = t.toLowerCase().includes('shootergameusersettings');
+      inTarget = t.toLowerCase().includes(GAME_SECTION);
       if (inTarget) headerFound = true;
       out.push(line);
       continue;
@@ -210,12 +261,9 @@ function setGameConfigLock(lock) {
   }
   if (inTarget && insertAt === -1) insertAt = out.length;
   const added = [...wanted].filter(([k]) => !seen.has(k)).map(([, kv]) => kv.join('='));
-  if (headerFound && insertAt >= 0) out.splice(insertAt, 0, ...added);
-  else out.push(...added);
-
-  fs.writeFileSync(file, out.join(eol) + eol);
-  fs.chmodSync(file, 0o444);
-  return true;
+  if (headerFound) out.splice(insertAt, 0, ...added);
+  else out.unshift('[/Script/ShooterGame.ShooterGameUserSettings]', ...added, ''); // section absente : créée en tête
+  return out.join(eol) + eol;
 }
 
 // ---------------------------------------------------------------- Écrans (Gestionnaire de périphériques)
@@ -350,6 +398,9 @@ class Stretch extends EventEmitter {
     this.joinedLate = false; // jeu déjà lancé quand l'app l'a vu (lanceur jamais vu)
     this.oversized = 0; // ticks où la fenêtre du jeu dépasse l'écran étiré
     this.gameScreen = null; // nom GDI de l'écran qui affiche le jeu
+    this.liveMode = null; // mode d'affichage réel de la fenêtre du jeu (0, 1, 2), null si inconnu
+    this.liveModeSeen = { mode: null, n: 0 };
+    this.configWrittenInGame = false; // réglages du jeu modifiés pendant qu'il tourne : à relancer
   }
 
   // Les actions (boucle, raccourcis, boutons) passent l'une après l'autre.
@@ -394,13 +445,28 @@ class Stretch extends EventEmitter {
     if (!c.monitors) list.push({ text: "Écrans en mode générique désactivés. VALORANT risque de garder sa résolution et de n'afficher qu'une partie de l'image.", action: 'monitors', label: 'Réactiver' });
     if (this.screensFailed.length) list.push({ text: `Écran pas passé en mode générique : ${this.screensFailed.join(', ')}. Fermez VALORANT et relancez-le.` });
     if (this.gameRunning && this.joinedLate && c.monitors) list.push({ text: "VALORANT a été lancé avant Precise Gunplay. Fermez le jeu et relancez-le, l'app restant ouverte." });
-    let game = null;
-    try { game = gameDisplayConfig(); } catch { /* fichier illisible */ }
-    if (game?.mode != null && game.mode !== 1) list.push({ text: `VALORANT est en mode ${game.mode === 0 ? 'plein écran' : 'fenêtré'} : il garde sa propre résolution et n'affiche qu'une partie de l'image. La résolution étirée demande le plein écran fenêtré.`, action: 'lock', label: 'Régler VALORANT' });
-    else if (game?.letterbox) list.push({ text: "Format d'image de VALORANT en Boîte aux lettres : l'image garde des bandes noires au lieu d'être étirée.", action: 'lock', label: 'Régler VALORANT' });
+    const game = this.gameConfigProblem();
+    if (game) list.push(game);
     if (c.screen && this.gameScreen && c.screen.gdi !== this.gameScreen) list.push({ text: "VALORANT s'affiche sur un autre écran que celui choisi.", action: 'screen-auto', label: "Viser l'écran du jeu" });
     if (this.windowIssue) list.push({ text: this.windowIssue });
     return list;
+  }
+
+  // Réglages de VALORANT : ceux de ses fichiers et, jeu lancé, le mode réel de sa fenêtre. Le jeu ne
+  // relit ses fichiers qu'au démarrage : corrigés pendant qu'il tourne, il faut le relancer.
+  gameConfigProblem() {
+    let cfg = null;
+    try { cfg = gameConfigState(); } catch { /* dossier illisible */ }
+    const f = cfg?.effective;
+    const modeName = (m) => (m === 0 ? 'plein écran' : 'fenêtré');
+    const then = this.gameRunning ? ' Après correction, relancez le jeu.' : '';
+    const fix = { action: 'lock', label: 'Régler VALORANT' };
+    if (f?.mode != null && f.mode !== 1) return { text: `VALORANT est réglé en mode ${modeName(f.mode)} : il garde sa propre résolution et n'affiche qu'une partie de l'image. La résolution étirée demande le plein écran fenêtré.${then}`, ...fix };
+    if (f?.letterbox) return { text: `Format d'image de VALORANT en Boîte aux lettres : l'image garde des bandes noires au lieu d'être étirée.${then}`, ...fix };
+    if (!this.gameRunning) return null;
+    if (this.liveMode != null && this.liveMode !== 1) return { text: `VALORANT tourne en mode ${modeName(this.liveMode)} alors que ses réglages demandent le plein écran fenêtré. Relancez le jeu pour qu'il les reprenne.` };
+    if (this.configWrittenInGame) return { text: "Réglages de VALORANT corrigés pendant que le jeu tournait. Relancez-le pour qu'il les applique." };
+    return null;
   }
 
   setPhase(phase) {
@@ -424,7 +490,7 @@ class Stretch extends EventEmitter {
     let screens = null;
     try { screens = (await this.display.call('screens')).list; } catch { /* liste indisponible */ }
     let configLocked = null;
-    try { configLocked = gameConfigLocked(); } catch { /* fichier illisible */ }
+    try { configLocked = gameConfigState()?.locked ?? null; } catch { /* dossier illisible */ }
     await this.checkMonitors();
     this.releaseDisplay();
     return { ...this.status(), display, screens, configLocked };
@@ -568,6 +634,7 @@ class Stretch extends EventEmitter {
           this.gameScreen = p.screen;
           this.emit('status', this.status());
         }
+        if (p.mode != null) this.trackLiveMode(p.mode);
       }
       if (this.gameRunning) {
         // La fenêtre se ferme avant le processus (qui reste ~15-20 s) : on restaure sans l'attendre.
@@ -595,6 +662,7 @@ class Stretch extends EventEmitter {
         if (!this.launcherSeen && !this.gameRunning && !this.ignoreUntilExit) {
           this.launcherSeen = true;
           this.setPhase('launching');
+          this.maintainGameConfig(); // avant que le jeu ne lise ses réglages
           await this.captureNative();
           await this.disableMonitors();
         }
@@ -616,6 +684,26 @@ class Stretch extends EventEmitter {
     }
   }
 
+  // Mode retenu quand il reste le même 2 s : au démarrage, la fenêtre du jeu change de style.
+  trackLiveMode(mode) {
+    const seen = this.liveModeSeen;
+    if (seen.mode === mode) seen.n++;
+    else Object.assign(seen, { mode, n: 1 });
+    if (seen.n >= 2000 / TICK_MS && this.liveMode !== mode) {
+      this.liveMode = mode;
+      this.emit('status', this.status());
+    }
+  }
+
+  // Réglages déjà verrouillés une fois : un fichier apparu depuis (autre compte) ou réécrit est remis
+  // en ordre, sans attendre de clic.
+  maintainGameConfig() {
+    try {
+      const cfg = gameConfigState();
+      if (cfg?.someLocked && !cfg.locked && setGameConfigLock(true)) this.emit('status', this.status());
+    } catch { /* fichier occupé : la page le signale */ }
+  }
+
   // Fenêtre du jeu restée plus grande que l'écran étiré : on ne voit qu'une partie de l'image (écran
   // pas en mode générique, jeu lancé avant l'app). Après 3 s sans qu'elle suive, retour en native.
   async checkGameWindow(p) {
@@ -632,7 +720,9 @@ class Stretch extends EventEmitter {
     this.oversized = 0;
     await this.applyNative();
     this.manual = true; // pas de nouvel essai avant le prochain changement d'état
-    const cause = this.joinedLate || !this.screensOff
+    const cause = this.liveMode != null && this.liveMode !== 1
+      ? "Il n'est pas en plein écran fenêtré : réglez-le puis relancez le jeu."
+      : this.joinedLate || !this.screensOff
       ? (this.cfg.monitors && this.monitorsReady ? 'Fermez-le puis relancez-le avec Precise Gunplay ouvert.' : 'Activez « Écrans en mode générique pendant le jeu » dans les réglages avancés, puis relancez le jeu.')
       : 'Relancez le jeu. Si cela se reproduit, réglez la mise à l\'échelle de la carte graphique sur plein écran.';
     this.windowIssue = `VALORANT n'a pas suivi la résolution étirée à la dernière partie. ${cause}`;
@@ -847,6 +937,7 @@ class Stretch extends EventEmitter {
     try {
       await this.restore();
     } finally {
+      this.maintainGameConfig();
       this.setPhase('idle');
     }
   }
@@ -906,8 +997,12 @@ class Stretch extends EventEmitter {
     this.emit('status', this.status());
   }
 
+  // « restart » : valeurs changées pendant que le jeu tourne, il ne les prendra qu'au prochain lancement.
   setGameConfigLock(lock) {
-    return setGameConfigLock(lock);
+    const restart = setGameConfigLock(lock) && lock && this.gameRunning;
+    if (restart) this.configWrittenInGame = true;
+    this.emit('status', this.status());
+    return { restart };
   }
 
   // À la fermeture de l'app : rien ne doit rester étiré ni désactivé.
