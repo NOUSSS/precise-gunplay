@@ -407,7 +407,7 @@ function renderUpdate() {
     el.innerHTML = `<div class="update-card"><b>Mise à jour v${esc(u.latest)}</b>Téléchargement… ${u.progress || 0}%<div class="update-bar"><div style="width:${u.progress || 0}%"></div></div></div>`;
   } else {
     el.innerHTML = `<div class="update-card"><b>Mise à jour v${esc(u.latest)} ${u.status === 'ready' ? 'prête' : 'disponible'}</b>
-      ${u.status === 'ready' ? "Redémarrez l'app pour passer à la nouvelle version." : 'Téléchargez la nouvelle version sur GitHub.'}
+      ${u.status !== 'ready' ? 'Téléchargez la nouvelle version sur GitHub.' : u.retry ? "La dernière installation n'a pas abouti. L'installeur va s'ouvrir pour la terminer." : "Redémarrez l'app pour passer à la nouvelle version."}
       <button class="btn primary" id="update-btn">${u.status === 'ready' ? 'Redémarrer' : 'Télécharger'}</button></div>`;
     $('#update-btn').onclick = (e) => {
       if (u.status === 'ready') {
