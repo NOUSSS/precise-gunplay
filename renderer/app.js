@@ -2663,8 +2663,8 @@ PAGES.stretch = async () => {
 
   $('#st-lock').onchange = async (e) => {
     try {
-      await call('stretch-lock', e.target.checked);
-      toast(e.target.checked ? 'Configuration du jeu verrouillée.' : 'Configuration du jeu déverrouillée.');
+      const r = await call('stretch-lock', e.target.checked);
+      toast(r?.restart ? 'Réglages de VALORANT appliqués. Relancez le jeu pour qu\'il les prenne en compte.' : e.target.checked ? 'Réglages de VALORANT appliqués et verrouillés.' : 'Réglages de VALORANT déverrouillés.');
     } catch (err) {
       e.target.checked = !e.target.checked;
       toast(err.message, 'error');
