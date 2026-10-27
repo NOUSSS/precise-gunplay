@@ -395,7 +395,7 @@ class Stretch extends EventEmitter {
     this.lastInMatch = null;
     this.coreAt = 0; // dernière réponse de core-game
     this.manual = false; // résolution choisie au raccourci, gardée jusqu'au prochain changement d'état
-    this.joinedLate = false; // jeu déjà lancé quand l'app l'a vu (lanceur jamais vu)
+    this.joinedLate = false; // jeu déjà là au premier coup d'œil de la surveillance
     this.oversized = 0; // ticks où la fenêtre du jeu dépasse l'écran étiré
     this.gameScreen = null; // nom GDI de l'écran qui affiche le jeu
     this.liveMode = null; // mode d'affichage réel de la fenêtre du jeu (0, 1, 2), null si inconnu
@@ -526,6 +526,7 @@ class Stretch extends EventEmitter {
     this.screenKey = screenKey;
     if (on && !this.timer) {
       this.resetGame();
+      this.gameAbsentSeen = false; // jeu pas encore vu absent depuis le début de la surveillance
       this.exclusive(() => this.captureNative()).catch(() => {});
       this.timer = setInterval(() => this.tick(), TICK_MS);
       if (!this.hotkeysPaused) this.registerHotkeys();
@@ -625,6 +626,7 @@ class Stretch extends EventEmitter {
     if (!this.timer) return;
     const p = await this.display.call(`procs ${LAUNCHER} ${GAME}`);
     const [launcher, game] = p.run;
+    if (!game) this.gameAbsentSeen = true;
 
     if (game) {
       if (p.window) {
@@ -650,7 +652,9 @@ class Stretch extends EventEmitter {
         const prepared = this.launcherSeen; // lanceur déjà vu : résolution native déjà relevée
         this.resetGame();
         this.gameRunning = true;
-        this.joinedLate = !prepared;
+        // Lancé avant l'app seulement s'il était déjà là au premier relevé : le lanceur démarre le jeu
+        // en une fraction de seconde, il peut ne jamais être vu seul.
+        this.joinedLate = !this.gameAbsentSeen;
         this.setPhase('game');
         if (!prepared) await this.captureNative();
         await this.disableMonitors();
