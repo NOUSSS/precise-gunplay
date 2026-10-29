@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Precise Gunplay, le compagnon VALORANT pour Windows</title>
+<meta name="description" content="Application Windows gratuite qui tourne à côté de VALORANT : boutique du jour, partie en direct, historique et statistiques, résolution étirée automatique, amis et collection.">
+<meta name="theme-color" content="#f1f3f2">
+<link rel="icon" type="image/png" href="img/favicon.png">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+<link rel="preload" href="fonts/archivo.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/caveat.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="styles.css">
+<script>document.documentElement.classList.add('js')</script>
+</head>
+<body>
+<div class="enamel" aria-hidden="true"><div class="sheen"></div></div>
+<div class="frame" aria-hidden="true"></div>
+
+<header class="top">
+  <a class="brand" href="#"><img src="img/icon.webp" alt="" width="32" height="32">Precise Gunplay</a>
+  <nav class="links" aria-label="Sections">
+    <a href="#boutique">Boutique</a>
+    <a href="#partie">Partie en direct</a>
+    <a href="#stats">Statistiques</a>
+    <a href="#etiree">Résolution étirée</a>
+    <a href="#amis">Amis et collection</a>
+    <a href="#installation">Installation</a>
+  </nav>
+</header>
+
+<main>
+  <!-- Le tableau de la partie : titre, téléchargement, carte et fiches -->
+  <section class="hero" aria-labelledby="titre">
+    <div class="lead" data-depth="4">
+      <h1 id="titre"><span class="w" style="--i:0">Le</span> <span class="w" style="--i:1">compagnon</span> <span class="w" style="--i:2">VALORANT</span> <span class="w" style="--i:3">qui</span> <span class="w" style="--i:4">tourne</span> <span class="u"><span class="w" style="--i:5">à</span> <span class="w" style="--i:6">côté</span> <span class="w" style="--i:7">du</span> <span class="w" style="--i:8">jeu</span><svg viewBox="0 0 300 24" preserveAspectRatio="none" aria-hidden="true"><path class="draw" data-step="1" d="M4 14 C 80 6, 180 20, 296 9" stroke="var(--red)" stroke-width="7"/></svg></span></h1>
+      <div class="cta">
+        <a class="magnet" data-dl="setup" href="https://github.com/NOUSSS/precise-gunplay/releases/latest">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11"/><path d="m7 11 5 5 5-5"/><path d="M5 20h14"/></svg>
+          Télécharger pour Windows
+        </a>
+        <p class="hand-note">gratuit, <span data-size="setup">79 Mo</span><br>ou la <a data-dl="portable" href="https://github.com/NOUSSS/precise-gunplay/releases/latest">version portable</a></p>
+      </div>
+    </div>
+
+    <div class="board-map">
+      <div class="sheet map" data-depth="10" role="img" aria-label="Partie en direct sur Ascent, données fictives : trois alliés avancent, trois adversaires repérés">
+        <div class="tape" style="--x:42%;--y:-12px;--r:2deg"></div>
+        <div class="stage" data-stage>
+          <div class="map-head"><b>Ascent</b><span class="live"><i></i>Partie en direct</span><span class="num">8–5</span></div>
+          <div class="print"></div>
+          <svg class="ink" viewBox="0 0 600 600" aria-hidden="true">
+            <ellipse class="draw" data-step="4" cx="168" cy="292" rx="70" ry="54" stroke="var(--red)" stroke-width="5" transform="rotate(-8 168 292)"/>
+            <path class="draw" data-step="2" d="M292 528 C 262 470, 196 446, 172 330" stroke="var(--blue)" stroke-width="5"/>
+            <path class="draw" data-step="2" d="M326 530 C 380 470, 432 430, 446 330" stroke="var(--blue)" stroke-width="5"/>
+            <path class="draw" data-step="2" d="M310 532 C 300 470, 306 420, 300 352" stroke="var(--blue)" stroke-width="5"/>
+          </svg>
+          <span class="token us move" style="offset-path:path('M292 528 C 262 470, 196 446, 172 330')" data-d="1700"><img src="https://media.valorant-api.com/agents/add6443a-41bd-e414-f6ad-e58d267f4e95/displayicon.png" alt=""></span>
+          <span class="token us move" style="offset-path:path('M326 530 C 380 470, 432 430, 446 330')" data-d="1900"><img src="https://media.valorant-api.com/agents/320b2a48-4d9b-a075-30f1-1f93a9b638fa/displayicon.png" alt=""></span>
+          <span class="token us move" style="offset-path:path('M310 532 C 300 470, 306 420, 300 352')" data-d="1500"><img src="https://media.valorant-api.com/agents/8e253930-4c05-31dd-1b6c-968525494517/displayicon.png" alt=""></span>
+          <span class="token them" style="left:176px;top:150px"><img src="https://media.valorant-api.com/agents/a3bfb853-43b2-7238-a4f1-ad90e9e46bcc/displayicon.png" alt=""></span>
+          <span class="token them" style="left:300px;top:118px"><img src="https://media.valorant-api.com/agents/eb93336a-449b-9c1b-0a54-a891f7921d69/displayicon.png" alt=""></span>
+          <span class="token them" style="left:438px;top:168px"><img src="https://media.valorant-api.com/agents/707eab51-4836-f488-046a-cda6bf494859/displayicon.png" alt=""></span>
+          <p class="marker blue" data-step="4" style="left:22px;top:424px">Nova #0721<small>Ascendant 1, 18 / 9 / 4</small></p>
+          <p class="marker red" data-step="4" style="left:350px;top:88px">Vex #KR2<small>Immortel 1, groupe de 2</small></p>
+          <span class="fict">Données fictives</span>
+        </div>
+      </div>
+
+      <div class="sheet card shop-mini" data-depth="16" aria-label="Boutique du jour, données fictives">
+        <span class="pin" aria-hidden="true"></span>
+        <div class="sheet-head"><p class="card-title">Boutique du jour</p><span class="fict">Données fictives</span></div>
+        <p class="meta">Nouvelles offres dans <b class="num" data-reset>…</b></p>
+        <ul>
+          <li><img src="https://media.valorant-api.com/weaponskinlevels/636c1f83-44f7-6bc4-0b24-88a1beb66c2d/displayicon.png" alt=""><span>Vandal Kuronami</span><b class="num">2 175</b></li>
+          <li><img src="https://media.valorant-api.com/weaponskinlevels/c00e786e-4e6f-0ef7-0ce3-32ba9918ba41/displayicon.png" alt=""><span>Phantom Oni</span><b class="num">1 775</b></li>
+          <li><img src="https://media.valorant-api.com/weaponskinlevels/d92a6ee6-4073-8b7f-e944-f1a55606a28a/displayicon.png" alt=""><span>Operator Glitchpop</span><b class="num">2 175</b></li>
+          <li><img src="https://media.valorant-api.com/weaponskinlevels/31ae0595-4ee7-57c8-f61c-2e808a6b77ed/displayicon.png" alt=""><span>Sheriff RGX</span><b class="num">1 775</b></li>
+        </ul>
+      </div>
+
+      <div class="sheet card stretch-mini" data-depth="9" aria-label="Résolution étirée">
+        <div class="tape" style="--x:calc(100% - 56px);--y:-10px;--r:34deg"></div>
+        <div>
+          <p class="card-title">Résolution étirée</p>
+          <p class="meta">Passe en <b class="nw">1440 × 1080</b> quand la partie charge, revient en <b class="nw">1920 × 1080</b> à la fin.</p>
+        </div>
+        <div class="mini-screen" aria-hidden="true"><i></i></div>
+      </div>
+    </div>
+
+    <div class="sheet card stats-mini" data-depth="12" aria-label="Statistiques, données fictives">
+      <div class="tape" style="--x:-26px;--y:-8px;--r:-28deg"></div>
+      <div class="tape" style="--x:calc(100% - 40px);--y:calc(100% - 10px);--r:-28deg"></div>
+      <div class="sheet-head"><p class="card-title">Vos 20 derniers matchs</p><span class="fict">Données fictives</span></div>
+      <p class="meta">Compétitif, épisode en cours</p>
+      <dl class="figures">
+        <div><dt>K/D</dt><dd>1,34</dd></div>
+        <div><dt>ADR</dt><dd>158</dd></div>
+        <div><dt>HS</dt><dd>28,4 %</dd></div>
+        <div class="circled"><dt>RR</dt><dd>+102</dd><svg viewBox="0 0 110 64" aria-hidden="true"><ellipse class="draw" data-step="5" cx="52" cy="34" rx="48" ry="26" stroke="var(--red)" stroke-width="4" transform="rotate(-6 52 34)"/></svg></div>
+      </dl>
+    </div>
+  </section>
+
+  <!-- Boutique -->
+  <section class="zone" id="boutique" aria-labelledby="h-boutique">
+    <svg class="ghost" viewBox="0 0 1300 220" preserveAspectRatio="none" aria-hidden="true"><path d="M40 120 C 220 70, 380 170, 560 100"/></svg>
+    <h2 id="h-boutique">La boutique du jour, sans lancer le jeu</h2>
+    <div class="zone-board shop-board">
+      <div class="sheet store" data-depth="8">
+        <div class="tape" style="--x:30px;--y:-12px;--r:-4deg"></div>
+        <div class="tape" style="--x:calc(100% - 116px);--y:-12px;--r:5deg"></div>
+        <div class="sheet-head">
+          <p>Nouvelles offres dans <b class="num steps-num" data-reset-steps>…</b></p>
+          <span class="fict">Données fictives</span>
+        </div>
+        <ul class="offers">
+          <li>
+            <img class="skin-img" src="https://media.valorant-api.com/weaponskinlevels/636c1f83-44f7-6bc4-0b24-88a1beb66c2d/displayicon.png" alt="" loading="lazy">
+            <h3>Vandal Kuronami</h3>
+            <p class="ed"><img src="https://media.valorant-api.com/contenttiers/e046854e-406c-37f4-6607-19a9ba8426fc/displayicon.png" alt="">Édition Exclusive</p>
+            <b class="price num"><img src="https://media.valorant-api.com/currencies/85ad13f7-3d1b-5128-9eb2-7cd8ee0b5741/displayicon.png" alt="VP">2 175</b>
+          </li>
+          <li>
+            <img class="skin-img" src="https://media.valorant-api.com/weaponskinlevels/c00e786e-4e6f-0ef7-0ce3-32ba9918ba41/displayicon.png" alt="" loading="lazy">
+            <h3>Phantom Oni</h3>
+            <p class="ed"><img src="https://media.valorant-api.com/contenttiers/60bca009-4182-7998-dee7-b8a2558dc369/displayicon.png" alt="">Édition Premium</p>
+            <b class="price num"><img src="https://media.valorant-api.com/currencies/85ad13f7-3d1b-5128-9eb2-7cd8ee0b5741/displayicon.png" alt="VP">1 775</b>
+          </li>
+          <li>
+            <img class="skin-img" src="https://media.valorant-api.com/weaponskinlevels/d92a6ee6-4073-8b7f-e944-f1a55606a28a/displayicon.png" alt="" loading="lazy">
+            <h3>Operator Glitchpop</h3>
+            <p class="ed"><img src="https://media.valorant-api.com/contenttiers/e046854e-406c-37f4-6607-19a9ba8426fc/displayicon.png" alt="">Édition Exclusive</p>
+            <b class="price num"><img src="https://media.valorant-api.com/currencies/85ad13f7-3d1b-5128-9eb2-7cd8ee0b5741/displayicon.png" alt="VP">2 175</b>
+          </li>
+          <li>
+            <img class="skin-img" src="https://media.valorant-api.com/weaponskinlevels/31ae0595-4ee7-57c8-f61c-2e808a6b77ed/displayicon.png" alt="" loading="lazy">
+            <h3>Sheriff RGX</h3>
+            <p class="ed"><img src="https://media.valorant-api.com/contenttiers/60bca009-4182-7998-dee7-b8a2558dc369/displayicon.png" alt="">Édition Premium</p>
+            <b class="price num"><img src="https://media.valorant-api.com/currencies/85ad13f7-3d1b-5128-9eb2-7cd8ee0b5741/displayicon.png" alt="VP">1 775</b>
+          </li>
+        </ul>
+        <p class="marker blue reset-note"><svg viewBox="0 0 80 40" aria-hidden="true"><path class="draw" d="M74 34 C 50 34, 24 26, 8 6 M8 6 l 2 12 M8 6 l 11 4" stroke="var(--blue)" stroke-width="3.5"/></svg>chaque jour à <span data-reset-hour>1 h</span></p>
+      </div>
+
+      <div class="sheet note-paper night" data-depth="14">
+        <span class="pin" aria-hidden="true"></span>
+        <h3>Marché nocturne</h3>
+        <p>Quand il est ouvert, vos six offres et leur remise.</p>
+        <div class="deal">
+          <img src="https://media.valorant-api.com/weaponskinlevels/b8bb264c-4578-2410-8dfa-6aacfeb318b0/displayicon.png" alt="" loading="lazy">
+          <div><span>Phantom Ion</span><s class="num">1 775</s> <b class="num">1 207</b></div>
+          <em class="num">−32 %</em>
+        </div>
+        <p class="also">Packs et accessoires du moment dans le même onglet.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Partie en direct -->
+  <section class="zone" id="partie" aria-labelledby="h-partie">
+    <svg class="ghost" viewBox="0 0 1300 220" preserveAspectRatio="none" aria-hidden="true"><path d="M900 40 c 90 -30 180 10 230 80"/></svg>
+    <h2 id="h-partie">Les dix joueurs de la partie, dès le chargement</h2>
+    <div class="zone-board">
+      <div class="sheet roster" data-depth="6">
+        <div class="tape" style="--x:46%;--y:-12px;--r:-2deg"></div>
+        <div class="sheet-head">
+          <p class="where"><img src="https://media.valorant-api.com/maps/7eaecc1b-4337-bbf6-6ab9-04b8f06b3319/listviewicon.png" alt="" loading="lazy"><b>Ascent</b>Compétitif, manche 14</p>
+          <span class="score num"><span class="c-us">8</span>–<span class="c-them">5</span></span>
+          <span class="fict">Données fictives</span>
+        </div>
+        <div class="teams">
+          <table class="team">
+            <caption>Votre équipe</caption>
+            <thead><tr><th scope="col">Joueur</th><th scope="col">Rang</th><th scope="col" class="opt">Niveau</th><th scope="col" class="opt">K/D</th></tr></thead>
+            <tbody>
+              <tr data-grp="a"><th scope="row"><span class="token us sm"><img src="https://media.valorant-api.com/agents/add6443a-41bd-e414-f6ad-e58d267f4e95/displayicon.png" alt="Jett"></span>Nova #0721</th><td><img class="rank" src="https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/21/smallicon.png" alt="">Ascendant 1</td><td class="opt num">214</td><td class="opt num">1,34</td></tr>
+              <tr data-grp="a"><th scope="row"><span class="token us sm"><img src="https://media.valorant-api.com/agents/8e253930-4c05-31dd-1b6c-968525494517/displayicon.png" alt="Omen"></span>Zephyr #EUW</th><td><img class="rank" src="https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/20/smallicon.png" alt="">Diamant 3</td><td class="opt num">97</td><td class="opt num">1,08</td></tr>
+              <tr><th scope="row"><span class="token us sm"><img src="https://media.valorant-api.com/agents/320b2a48-4d9b-a075-30f1-1f93a9b638fa/displayicon.png" alt="Sova"></span>Kaito #777</th><td><img class="rank" src="https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/19/smallicon.png" alt="">Diamant 2</td><td class="opt num">341</td><td class="opt num">0,96</td></tr>
+              <tr><th scope="row"><span class="token us sm"><img src="https://media.valorant-api.com/agents/1e58de9c-4950-5125-93e9-a0aee9f98746/displayicon.png" alt="Killjoy"></span>Mira #FR1</th><td><img class="rank" src="https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/21/smallicon.png" alt="">Ascendant 1</td><td class="opt num">158</td><td class="opt num">1,12</td></tr>
+              <tr><th scope="row"><span class="token us sm"><img src="https://media.valorant-api.com/agents/f94c3b30-42be-e959-889c-5aa313dba261/displayicon.png" alt="Raze"></span>Solen #4242</th><td><img class="rank" src="https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/16/smallicon.png" alt="">Platine 2</td><td class="opt num">63</td><td class="opt num">0,88</td></tr>
+            </tbody>
+          </table>
+          <table class="team">
+            <caption>Équipe adverse</caption>
+            <thead><tr><th scope="col">Joueur</th><th scope="col">Rang</th><th scope="col" class="opt">Niveau</th><th scope="col" class="opt">K/D</th></tr></thead>
+            <tbody>
+              <tr data-grp="b"><th scope="row"><span class="token them sm"><img src="https://media.valorant-api.com/agents/a3bfb853-43b2-7238-a4f1-ad90e9e46bcc/displayicon.png" alt="Reyna"></span>Vex #KR2</th><td><img class="rank" src="https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/24/smallicon.png" alt="">Immortel 1</td><td class="opt num">402</td><td class="opt num">1,41</td></tr>
+              <tr data-grp="b"><th scope="row"><span class="token them sm"><img src="https://media.valorant-api.com/agents/707eab51-4836-f488-046a-cda6bf494859/displayicon.png" alt="Viper"></span>Lys #FR</th><td><img class="rank" src="https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/22/smallicon.png" alt="">Ascendant 2</td><td class="opt num">188</td><td class="opt num">1,05</td></tr>
+              <tr><th scope="row"><span class="token them sm"><img src="https://media.valorant-api.com/agents/eb93336a-449b-9c1b-0a54-a891f7921d69/displayicon.png" alt="Phoenix"></span>Ardent #000</th><td><img class="rank" src="https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/16/smallicon.png" alt="">Platine 2</td><td class="opt num">45</td><td class="opt num">0,91</td></tr>
+              <tr><th scope="row"><span class="token them sm"><img src="https://media.valorant-api.com/agents/1dbf2edd-4729-0984-3115-daa5eed44993/displayicon.png" alt="Clove"></span>Moka #31</th><td><img class="rank" src="https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/20/smallicon.png" alt="">Diamant 3</td><td class="opt num">230</td><td class="opt num">1,17</td></tr>
+              <tr><th scope="row"><span class="token them sm"><img src="https://media.valorant-api.com/agents/569fdd95-4d10-43ab-ca70-79becc718b46/displayicon.png" alt="Sage"></span>Tide #EU9</th><td><img class="rank" src="https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/19/smallicon.png" alt="">Diamant 2</td><td class="opt num">129</td><td class="opt num">0,84</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <svg class="brackets" aria-hidden="true"></svg>
+        <p class="marker blue grp-note" data-for="a">votre groupe</p>
+        <p class="marker red grp-note" data-for="b">groupe repéré</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Historique et statistiques -->
+  <section class="zone" id="stats" aria-labelledby="h-stats">
+    <svg class="ghost" viewBox="0 0 1300 220" preserveAspectRatio="none" aria-hidden="true"><path d="M120 60 C 260 20, 330 120, 470 70"/></svg>
+    <h2 id="h-stats">Vos matchs et votre progression</h2>
+    <div class="zone-board stats-board">
+      <div class="sheet graph" data-depth="8">
+        <div class="tape" style="--x:24px;--y:-12px;--r:-6deg"></div>
+        <div class="sheet-head"><h3>Évolution du RR</h3><span class="fict">Données fictives</span></div>
+        <div class="chart-wrap">
+          <svg class="chart" viewBox="0 0 560 240" role="img" aria-label="RR cumulé sur les 20 derniers matchs, de 0 à plus 102">
+            <g class="grid"></g>
+            <path class="draw line" stroke="var(--blue)" stroke-width="4"/>
+          </svg>
+          <p class="marker red chart-note">+102 RR<small>en 20 matchs</small></p>
+        </div>
+        <dl class="figures">
+          <div><dt>K/D</dt><dd>1,34</dd></div>
+          <div><dt>ADR</dt><dd>158</dd></div>
+          <div><dt>HS</dt><dd>28,4 %</dd></div>
+          <div><dt>KAST</dt><dd>74 %</dd></div>
+          <div><dt>Premiers frags</dt><dd>63</dd></div>
+        </dl>
+        <p class="meta">Le tout filtrable par mode, par agent et par carte.</p>
+      </div>
+
+      <div class="sheet history" data-depth="12">
+        <div class="tape" style="--x:calc(100% - 100px);--y:-12px;--r:4deg"></div>
+        <div class="sheet-head"><h3>Historique</h3><span class="fict">Données fictives</span></div>
+        <ol>
+          <li class="loss"><img class="mapthumb" src="https://media.valorant-api.com/maps/2bee0dc9-4ffe-519b-1cbd-7fbe763a6047/listviewicon.png" alt="" loading="lazy"><span class="where"><b>Haven</b>Défaite <span class="num">9–13</span></span><img class="ag" src="https://media.valorant-api.com/agents/8e253930-4c05-31dd-1b6c-968525494517/displayicon.png" alt="Omen"><span class="num kda">12 / 16 / 9</span><b class="num rr">−20</b></li>
+          <li class="win"><img class="mapthumb" src="https://media.valorant-api.com/maps/7eaecc1b-4337-bbf6-6ab9-04b8f06b3319/listviewicon.png" alt="" loading="lazy"><span class="where"><b>Ascent</b>Victoire <span class="num">13–9</span></span><img class="ag" src="https://media.valorant-api.com/agents/add6443a-41bd-e414-f6ad-e58d267f4e95/displayicon.png" alt="Jett"><span class="num kda">21 / 14 / 5</span><b class="num rr">+18</b></li>
+          <li class="win"><img class="mapthumb" src="https://media.valorant-api.com/maps/2c9d57ec-4431-9c5e-2939-8f9ef6dd5cba/listviewicon.png" alt="" loading="lazy"><span class="where"><b>Bind</b>Victoire <span class="num">13–6</span></span><img class="ag" src="https://media.valorant-api.com/agents/f94c3b30-42be-e959-889c-5aa313dba261/displayicon.png" alt="Raze"><span class="num kda">24 / 11 / 3</span><b class="num rr">+22</b></li>
+          <li class="loss"><img class="mapthumb" src="https://media.valorant-api.com/maps/2fe4ed3a-450a-948b-6d6b-e89a78e680a9/listviewicon.png" alt="" loading="lazy"><span class="where"><b>Lotus</b>Défaite <span class="num">10–13</span></span><img class="ag" src="https://media.valorant-api.com/agents/add6443a-41bd-e414-f6ad-e58d267f4e95/displayicon.png" alt="Jett"><span class="num kda">17 / 16 / 8</span><b class="num rr">−16</b></li>
+          <li class="win"><img class="mapthumb" src="https://media.valorant-api.com/maps/92584fbe-486a-b1b2-9faa-39b0f486b498/listviewicon.png" alt="" loading="lazy"><span class="where"><b>Sunset</b>Victoire <span class="num">13–11</span></span><img class="ag" src="https://media.valorant-api.com/agents/add6443a-41bd-e414-f6ad-e58d267f4e95/displayicon.png" alt="Jett"><span class="num kda">19 / 15 / 6</span><b class="num rr">+19</b></li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <!-- Résolution étirée -->
+  <section class="zone" id="etiree" aria-labelledby="h-etiree">
+    <svg class="ghost" viewBox="0 0 1300 220" preserveAspectRatio="none" aria-hidden="true"><path d="M760 90 c 120 -40 220 0 300 60"/></svg>
+    <h2 id="h-etiree">La résolution étirée, toute seule</h2>
+    <div class="zone-board stretch-board">
+      <div class="sheet monitor" data-depth="8">
+        <div class="tape" style="--x:38%;--y:-12px;--r:-3deg"></div>
+        <div class="screen-wrap"><div class="screen" id="screen"></div></div>
+        <div class="monitor-foot">
+          <label class="switch">
+            <input type="checkbox" role="switch" id="stretch-toggle">
+            <span class="track" aria-hidden="true"><span class="knob"></span></span>
+            Résolution étirée
+          </label>
+          <b class="num res" id="res">1920 × 1080</b>
+        </div>
+      </div>
+      <div class="steps-col">
+        <ol class="steps">
+          <li><b>Le jeu se lance</b>L’écran passe sur le pilote d’écran générique.</li>
+          <li><b>Fin de l’écran de chargement</b>La résolution étirée s’applique.</li>
+          <li><b>Fin de la partie</b>Retour à la résolution native.</li>
+        </ol>
+        <svg class="steps-arrow" viewBox="0 0 40 300" preserveAspectRatio="none" aria-hidden="true"><path class="draw" d="M20 6 C 30 80, 8 160, 22 286 M22 286 l -9 -12 M22 286 l 8 -13" stroke="var(--blue)" stroke-width="3.5"/></svg>
+        <p class="meta">L’app ne touche jamais au processus du jeu.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Amis et collection -->
+  <section class="zone" id="amis" aria-labelledby="h-amis">
+    <svg class="ghost" viewBox="0 0 1300 220" preserveAspectRatio="none" aria-hidden="true"><path d="M60 140 C 200 90, 300 180, 440 120"/></svg>
+    <h2 id="h-amis">Vos amis et votre collection</h2>
+    <div class="zone-board friends-board">
+      <div class="sheet friends" data-depth="8">
+        <div class="tape" style="--x:30%;--y:-12px;--r:3deg"></div>
+        <div class="sheet-head"><h3>Amis</h3><span class="fict">Données fictives</span></div>
+        <ul>
+          <li><i class="st play"></i><b>Zephyr #EUW</b><span>En partie, Ascent 8–5</span></li>
+          <li><i class="st play"></i><b>Iris #3301</b><span>En partie, Lotus 3–1</span></li>
+          <li><i class="st idle"></i><b>Kaito #777</b><span>En file, compétitif</span></li>
+          <li><i class="st idle"></i><b>Mira #FR1</b><span>Dans le menu</span></li>
+          <li><i class="st off"></i><b>Solen #4242</b><span>Hors ligne</span></li>
+        </ul>
+      </div>
+      <div class="loadout">
+        <p class="marker blue loadout-note">votre équipement actuel</p>
+        <figure class="sheet skin" data-depth="12" style="--r:-3deg"><span class="pin" aria-hidden="true"></span><img src="https://media.valorant-api.com/weaponskinlevels/a3dba920-44ee-d7c5-5227-99a80aee3bd9/displayicon.png" alt="" loading="lazy"><figcaption>Vandal Araxys</figcaption></figure>
+        <figure class="sheet skin" data-depth="16" style="--r:2deg"><span class="pin" aria-hidden="true"></span><img src="https://media.valorant-api.com/weaponskinlevels/b8bb264c-4578-2410-8dfa-6aacfeb318b0/displayicon.png" alt="" loading="lazy"><figcaption>Phantom Ion</figcaption></figure>
+        <figure class="sheet skin" data-depth="10" style="--r:1.5deg"><span class="pin" aria-hidden="true"></span><img src="https://media.valorant-api.com/weaponskinlevels/4aa902b8-4418-9b72-74f5-e59464691b40/displayicon.png" alt="" loading="lazy"><figcaption>Spectre Kuronami</figcaption></figure>
+        <figure class="sheet skin" data-depth="14" style="--r:-2deg"><span class="pin" aria-hidden="true"></span><img src="https://media.valorant-api.com/weaponskinlevels/2b555f97-46bb-5949-3531-979f5bc817f0/displayicon.png" alt="" loading="lazy"><figcaption>Sheriff Ion</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- Installation -->
+  <section class="zone" id="installation" aria-labelledby="h-install">
+    <svg class="ghost" viewBox="0 0 1300 220" preserveAspectRatio="none" aria-hidden="true"><path d="M980 70 c 70 -20 150 20 190 70"/></svg>
+    <h2 id="h-install">Installer Precise Gunplay</h2>
+    <ol class="install">
+      <li class="sheet" data-depth="6" style="--r:-1deg">
+        <span class="digit" aria-hidden="true">1</span><svg class="seq" viewBox="0 0 56 30" aria-hidden="true"><path class="draw" d="M4 18 C 18 8, 34 24, 50 14 M50 14 l -11 -3 M50 14 l -6 10" stroke="var(--blue)" stroke-width="3.5"/></svg>
+        <h3>Télécharger</h3>
+        <a class="magnet" data-dl="setup" href="https://github.com/NOUSSS/precise-gunplay/releases/latest">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11"/><path d="m7 11 5 5 5-5"/><path d="M5 20h14"/></svg>
+          Télécharger pour Windows
+        </a>
+        <p>Installeur <span data-version>v1.15.15</span>, <span data-size="setup">79 Mo</span>, avec mises à jour automatiques.</p>
+        <p>Sans installation : <a class="link" data-dl="portable" href="https://github.com/NOUSSS/precise-gunplay/releases/latest">version portable</a>, sans mise à jour automatique.</p>
+      </li>
+      <li class="sheet" data-depth="9" style="--r:1.2deg">
+        <span class="digit" aria-hidden="true">2</span><svg class="seq" viewBox="0 0 56 30" aria-hidden="true"><path class="draw" d="M4 18 C 18 8, 34 24, 50 14 M50 14 l -11 -3 M50 14 l -6 10" stroke="var(--blue)" stroke-width="3.5"/></svg>
+        <h3>Passer SmartScreen</h3>
+        <p>L’app n’est pas signée. Au premier lancement, Windows affiche «&nbsp;Windows a protégé votre ordinateur&nbsp;».</p>
+        <p>Cliquez sur <b>Informations complémentaires</b>, puis sur <b>Exécuter quand même</b>.</p>
+      </li>
+      <li class="sheet" data-depth="7" style="--r:-.8deg">
+        <span class="digit" aria-hidden="true">3</span>
+        <h3>Autoriser une fois</h3>
+        <p>Pour la résolution étirée, Windows demande une autorisation administrateur. L’app crée deux tâches planifiées, puis ne la redemande plus.</p>
+      </li>
+    </ol>
+    <p class="reqs">Windows 10 ou 11, 64 bits. Gratuit et open source, sous licence MIT.</p>
+  </section>
+</main>
+
+<footer class="foot-zone">
+  <div class="foot">
+    <a class="brand" href="#"><img src="img/icon.webp" alt="" width="32" height="32">Precise Gunplay</a>
+    <p>Projet non officiel, ni approuvé ni affilié à Riot Games. VALORANT est une marque de Riot Games. Images et noms : valorant-api.com.</p>
+    <nav aria-label="Liens"><a href="https://github.com/NOUSSS/precise-gunplay">Code source</a><a href="https://github.com/NOUSSS/precise-gunplay/releases">Versions</a><a href="https://github.com/NOUSSS/precise-gunplay/blob/main/LICENSE">Licence MIT</a></nav>
+  </div>
+  <div class="tray" aria-hidden="true">
+    <svg class="pen" style="--c:var(--blue);--r:-1.5deg" viewBox="0 0 180 30"><use href="#marker"/></svg>
+    <svg class="pen" style="--c:var(--red);--r:2deg" viewBox="0 0 180 30"><use href="#marker"/></svg>
+    <svg class="pen" style="--c:var(--ink);--r:-.5deg" viewBox="0 0 180 30"><use href="#marker"/></svg>
+    <svg class="eraser" viewBox="0 0 124 44"><use href="#eraser"/></svg>
+  </div>
+  <svg class="defs" width="0" height="0" aria-hidden="true">
+    <defs>
+      <linearGradient id="barrel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset=".45" stop-color="#eceef0"/><stop offset="1" stop-color="#b9bdc3"/></linearGradient>
+      <linearGradient id="shade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".5"/><stop offset=".35" stop-color="#fff" stop-opacity=".06"/><stop offset=".7" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".3"/></linearGradient>
+      <linearGradient id="felt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e4dfd2"/><stop offset="1" stop-color="#c7c1b2"/></linearGradient>
+      <symbol id="marker" viewBox="0 0 180 30">
+        <rect x="5" y="7" width="14" height="16" rx="4" fill="currentColor"/>
+        <rect x="5" y="7" width="14" height="16" rx="4" fill="url(#shade)"/>
+        <rect x="14" y="5" width="120" height="20" rx="3" fill="url(#barrel)"/>
+        <rect x="98" y="5" width="12" height="20" fill="currentColor"/>
+        <rect x="98" y="5" width="12" height="20" fill="url(#shade)"/>
+        <rect x="128" y="3.5" width="48" height="23" rx="9" fill="currentColor"/>
+        <rect x="128" y="3.5" width="48" height="23" rx="9" fill="url(#shade)"/>
+        <rect x="134" y="1" width="34" height="5" rx="2.5" fill="currentColor"/>
+        <rect x="134" y="1" width="34" height="5" rx="2.5" fill="url(#shade)"/>
+      </symbol>
+      <symbol id="eraser" viewBox="0 0 124 44">
+        <rect x="4" y="2" width="116" height="26" rx="12" fill="#2b2f36"/>
+        <rect x="4" y="2" width="116" height="26" rx="12" fill="url(#shade)"/>
+        <rect x="7" y="25" width="110" height="15" rx="2" fill="url(#felt)"/>
+        <path d="M14 34 C 40 30, 70 37, 108 32" stroke="#9aa6c4" stroke-width="3" fill="none" stroke-linecap="round" opacity=".55"/>
+      </symbol>
+    </defs>
+  </svg>
+</footer>
+
+<a class="magnet float" data-dl="setup" href="https://github.com/NOUSSS/precise-gunplay/releases/latest" tabindex="-1" aria-hidden="true">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11"/><path d="m7 11 5 5 5-5"/><path d="M5 20h14"/></svg>
+  Télécharger
+</a>
+
+<script src="main.js"></script>
+</body>
+</html>
