@@ -73,7 +73,7 @@ class DisplayHelper {
     let started = false;
     let onReady, onFail;
     p.ready = new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { reject(new Error('L\'assistant d\'affichage ne répond pas.')); this.stop(p); }, 30000);
+      const timer = setTimeout(() => { reject(new Error('L’assistant d’affichage ne répond pas.')); this.stop(p); }, 30000);
       onReady = () => { started = true; clearTimeout(timer); resolve(); };
       onFail = (e) => { clearTimeout(timer); reject(e); };
     });
@@ -96,11 +96,11 @@ class DisplayHelper {
     });
     const fail = (e) => {
       if (this.proc === p) this.proc = null;
-      if (!started) onFail(new Error(`Assistant d'affichage indisponible${stderr ? ` : ${stderr.trim().split('\n')[0]}` : ''}.`));
+      if (!started) onFail(new Error(`Assistant d’affichage indisponible${stderr ? ` : ${stderr.trim().split('\n')[0]}` : ''}.`));
       for (const q of p.queue.splice(0)) { clearTimeout(q.timer); q.reject(e); }
     };
     p.on('error', fail);
-    p.on('exit', () => fail(new Error('Assistant d\'affichage arrêté.')));
+    p.on('exit', () => fail(new Error('Assistant d’affichage arrêté.')));
     return p.ready.then(() => p);
   }
 
@@ -108,7 +108,7 @@ class DisplayHelper {
     const p = await this.ensure();
     if (p.exitCode !== null || !p.stdin.writable) {
       if (this.proc === p) this.proc = null;
-      throw new Error('Assistant d\'affichage arrêté.');
+      throw new Error('Assistant d’affichage arrêté.');
     }
     const res = await new Promise((resolve, reject) => {
       const q = { resolve, reject, timer: setTimeout(() => { reject(new Error('Délai dépassé (affichage).')); this.stop(p); }, timeoutMs) };
@@ -214,7 +214,7 @@ function gameConfigState() {
 // fichier a vraiment changé : jeu lancé, il ne le relit qu'au prochain démarrage.
 function setGameConfigLock(lock) {
   const files = gameSettingsFiles();
-  if (!files.length) throw new Error('Configuration de VALORANT introuvable : lancez le jeu une fois.');
+  if (!files.length) throw new Error('Configuration de VALORANT introuvable : lancez le jeu une fois.');
   let changed = false;
   for (const { file } of files) {
     fs.chmodSync(file, 0o666);
@@ -332,7 +332,7 @@ async function runMonitorsTask(mode) {
   // Seul un résultat écrit après celui déjà présent compte : le précédent peut dater d'une seconde.
   const previous = readJson(MONITORS_RESULT)?.at || 0;
   const res = await run('schtasks.exe', ['/run', '/tn', TASK(mode)]);
-  if (res.code !== 0) throw new Error(`Tâche « Ecrans ${mode} » introuvable : réautorisez la désactivation des écrans.`);
+  if (res.code !== 0) throw new Error(`Tâche « Ecrans ${mode} » introuvable : réautorisez la désactivation des écrans.`);
   for (let waited = 0; waited < 60000; waited += 250) {
     await sleep(250);
     const r = readJson(MONITORS_RESULT);
@@ -518,16 +518,16 @@ class Stretch extends EventEmitter {
     if (!c.enabled) return [];
     const list = [];
     if (c.monitors && !this.monitorsReady) {
-      list.push({ text: "Autorisation Windows manquante. Sans elle, VALORANT garde sa résolution et n'affiche qu'une partie de l'image.", action: 'install', label: 'Autoriser' });
+      list.push({ text: "Autorisation Windows manquante. Sans elle, VALORANT garde sa résolution et n’affiche qu’une partie de l’image.", action: 'install', label: 'Autoriser' });
     } else if (c.monitors && this.monitorsOutdated) {
-      list.push({ text: "Autorisation Windows à renouveler pour cette version. L'ancienne fonctionne encore.", action: 'install', label: 'Renouveler' });
+      list.push({ text: "Autorisation Windows à renouveler pour cette version. L’ancienne fonctionne encore.", action: 'install', label: 'Renouveler' });
     }
-    if (!c.monitors) list.push({ text: "Écrans en mode générique désactivés. VALORANT risque de garder sa résolution et de n'afficher qu'une partie de l'image.", action: 'monitors', label: 'Réactiver' });
+    if (!c.monitors) list.push({ text: "Écrans en mode générique désactivés. VALORANT risque de garder sa résolution et de n’afficher qu’une partie de l’image.", action: 'monitors', label: 'Réactiver' });
     if (this.screensFailed.length) list.push({ text: `Écran pas passé en mode générique : ${this.screensFailed.join(', ')}. Fermez VALORANT et relancez-le.` });
-    if (this.gameRunning && this.joinedLate && c.monitors) list.push({ text: "VALORANT a été lancé avant Precise Gunplay. Fermez le jeu et relancez-le, l'app restant ouverte." });
+    if (this.gameRunning && this.joinedLate && c.monitors) list.push({ text: "VALORANT a été lancé avant Precise Gunplay. Fermez le jeu et relancez-le, l’app restant ouverte." });
     const game = this.gameConfigProblem();
     if (game) list.push(game);
-    if (c.screen && this.gameScreen && c.screen.gdi !== this.gameScreen) list.push({ text: "VALORANT s'affiche sur un autre écran que celui choisi.", action: 'screen-auto', label: "Viser l'écran du jeu" });
+    if (c.screen && this.gameScreen && c.screen.gdi !== this.gameScreen) list.push({ text: "VALORANT s’affiche sur un autre écran que celui choisi.", action: 'screen-auto', label: "Viser l’écran du jeu" });
     if (this.windowIssue) list.push({ text: this.windowIssue });
     return list;
   }
@@ -541,11 +541,11 @@ class Stretch extends EventEmitter {
     const modeName = (m) => (m === 0 ? 'plein écran' : 'fenêtré');
     const then = this.gameRunning ? ' Après correction, relancez le jeu.' : '';
     const fix = { action: 'lock', label: 'Régler VALORANT' };
-    if (f?.mode != null && f.mode !== 1) return { text: `VALORANT est réglé en mode ${modeName(f.mode)} : il garde sa propre résolution et n'affiche qu'une partie de l'image. La résolution étirée demande le plein écran fenêtré.${then}`, ...fix };
-    if (f?.letterbox) return { text: `Format d'image de VALORANT en Boîte aux lettres : l'image garde des bandes noires au lieu d'être étirée.${then}`, ...fix };
+    if (f?.mode != null && f.mode !== 1) return { text: `VALORANT est réglé en mode ${modeName(f.mode)} : il garde sa propre résolution et n’affiche qu’une partie de l’image. La résolution étirée demande le plein écran fenêtré.${then}`, ...fix };
+    if (f?.letterbox) return { text: `Format d’image de VALORANT en Boîte aux lettres : l’image garde des bandes noires au lieu d’être étirée.${then}`, ...fix };
     if (!this.gameRunning) return null;
-    if (this.liveMode != null && this.liveMode !== 1) return { text: `VALORANT tourne en mode ${modeName(this.liveMode)} alors que ses réglages demandent le plein écran fenêtré. Relancez le jeu pour qu'il les reprenne.` };
-    if (this.configWrittenInGame) return { text: "Réglages de VALORANT corrigés pendant que le jeu tournait. Relancez-le pour qu'il les applique." };
+    if (this.liveMode != null && this.liveMode !== 1) return { text: `VALORANT tourne en mode ${modeName(this.liveMode)} alors que ses réglages demandent le plein écran fenêtré. Relancez le jeu pour qu’il les reprenne.` };
+    if (this.configWrittenInGame) return { text: "Réglages de VALORANT corrigés pendant que le jeu tournait. Relancez-le pour qu’il les applique." };
     return null;
   }
 
@@ -843,12 +843,12 @@ class Stretch extends EventEmitter {
     await this.applyNative();
     this.manual = true; // pas de nouvel essai avant le prochain changement d'état
     const cause = this.liveMode != null && this.liveMode !== 1
-      ? "Il n'est pas en plein écran fenêtré : réglez-le puis relancez le jeu."
+      ? "Il n’est pas en plein écran fenêtré : réglez-le puis relancez le jeu."
       : this.joinedLate || !this.screensOff
-      ? (this.cfg.monitors && this.monitorsReady ? 'Fermez-le puis relancez-le avec Precise Gunplay ouvert.' : 'Activez « Écrans en mode générique pendant le jeu » dans les réglages avancés, puis relancez le jeu.')
-      : 'Relancez le jeu. Si cela se reproduit, activez la mise à l\'échelle de la carte graphique en plein écran (« Plein panneau » chez AMD).';
-    this.windowIssue = `VALORANT n'a pas suivi la résolution étirée à la dernière partie. ${cause}`;
-    this.notify(`VALORANT n'a pas suivi la résolution étirée : retour en native. ${cause}`, 'error');
+      ? (this.cfg.monitors && this.monitorsReady ? 'Fermez-le puis relancez-le avec Precise Gunplay ouvert.' : 'Activez « Écrans en mode générique pendant le jeu » dans les réglages avancés, puis relancez le jeu.')
+      : 'Relancez le jeu. Si cela se reproduit, activez la mise à l’échelle de la carte graphique en plein écran (« Plein panneau » chez AMD).';
+    this.windowIssue = `VALORANT n’a pas suivi la résolution étirée à la dernière partie. ${cause}`;
+    this.notify(`VALORANT n’a pas suivi la résolution étirée : retour en native. ${cause}`, 'error');
     this.emit('status', this.status());
   }
 
@@ -945,9 +945,9 @@ class Stretch extends EventEmitter {
         if (r.changed) await sleep(1500); // le pilote réinitialise l'affichage
       }
       if (await accepted()) return;
-      if (w > n.w || h > n.h) throw new Error(`Choisissez une résolution jusqu'à ${n.w} × ${n.h}.`);
+      if (w > n.w || h > n.h) throw new Error(`Choisissez une résolution jusqu’à ${n.w} × ${n.h}.`);
       // La nouvelle résolution reprend le mode actuel de l'écran : il doit être le mode natif.
-      if (d.w !== n.w || d.h !== n.h || d.hz !== n.hz) throw new Error(`Repassez l'écran en ${n.w} × ${n.h} à ${n.hz} Hz (Tout restaurer), puis validez de nouveau.`);
+      if (d.w !== n.w || d.h !== n.h || d.hz !== n.hz) throw new Error(`Repassez l’écran en ${n.w} × ${n.h} à ${n.hz} Hz (Tout restaurer), puis validez de nouveau.`);
       const amd = await step(`amdmode ${d.gdi} ${w} ${h}`).catch((e) => ({ failed: e.message }));
       if (amd.ok) {
         for (let i = 0; i < 10; i++) {
@@ -957,8 +957,8 @@ class Stretch extends EventEmitter {
       }
       if (amd.failed) throw new Error(amd.failed);
       throw new Error(/nvidia/i.test(d.gpu)
-        ? `${w} × ${h} n'existe pas pour cet écran. Créez-la dans le Panneau de configuration NVIDIA : Modifier la résolution, Personnaliser, Créer une résolution personnalisée. Validez-la ensuite ici.`
-        : `${w} × ${h} n'existe pas pour cet écran. Créez-la comme résolution personnalisée dans le logiciel de la carte graphique, puis validez-la ici.`);
+        ? `${w} × ${h} n’existe pas pour cet écran. Créez-la dans le Panneau de configuration NVIDIA : Modifier la résolution, Personnaliser, Créer une résolution personnalisée. Validez-la ensuite ici.`
+        : `${w} × ${h} n’existe pas pour cet écran. Créez-la comme résolution personnalisée dans le logiciel de la carte graphique, puis validez-la ici.`);
     })();
     done.finally(() => this.releaseDisplay()).catch(() => {});
     return done;
@@ -981,7 +981,7 @@ class Stretch extends EventEmitter {
     const d = await this.display.call(this.displayCmd());
     if (!/amd|radeon/i.test(d.gpu)) return;
     const r = await this.display.call(`amdscale ${d.gdi}`).catch((e) => ({ failed: e.message }));
-    if (r.failed) this.notify(`Mise à l'échelle GPU non activée : ${r.failed}`, 'error');
+    if (r.failed) this.notify(`Mise à l’échelle GPU non activée : ${r.failed}`, 'error');
     if (r.changed) await sleep(1500); // le pilote réinitialise l'affichage
   }
 
@@ -998,7 +998,7 @@ class Stretch extends EventEmitter {
       const ours = monitorsDisabledByUs();
       if (ours) await this.enableMonitors();
       else if (await this.listsMode(n) === 'exact') throw e; // mode connu mais refusé : réessayer n'y changerait rien
-      if (!(await this.waitForMode(n))) throw new Error(`L'écran ne propose plus ${n.w} × ${n.h} : il est sans doute resté en mode générique. Réactivez-le dans le Gestionnaire de périphériques, rubrique Moniteurs.`);
+      if (!(await this.waitForMode(n))) throw new Error(`L’écran ne propose plus ${n.w} × ${n.h} : il est sans doute resté en mode générique. Réactivez-le dans le Gestionnaire de périphériques, rubrique Moniteurs.`);
       // Liste des modes revenue avant que le pilote ne les accepte : quelques essais de plus (2 s).
       for (let i = 0; ; i++) {
         try {
@@ -1040,7 +1040,7 @@ class Stretch extends EventEmitter {
       try {
         fs.writeFileSync(MONITORS_TARGET, JSON.stringify({ ids: [] }));
       } catch {
-        throw new Error('Écrans non préparés : renouvelez l\'autorisation.');
+        throw new Error('Écrans non préparés : renouvelez l’autorisation.');
       }
     }
     const r = await runMonitorsTask('off');
