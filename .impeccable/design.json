@@ -1,0 +1,531 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-29T15:48:53.995Z",
+  "title": "Design System: Precise Gunplay, le site",
+  "extensions": {
+    "colorMeta": {
+      "marker-blue": {
+        "role": "primary",
+        "displayName": "Feutre bleu",
+        "canonical": "oklch(50.3% 0.204 264.1)",
+        "tonalRamp": [
+          "#01003e",
+          "#01166e",
+          "#0f37a2",
+          "#2658d8",
+          "#5182f2",
+          "#7dabff",
+          "#a8d0ff",
+          "#cbeeff"
+        ]
+      },
+      "marker-red": {
+        "role": "secondary",
+        "displayName": "Feutre rouge",
+        "canonical": "oklch(60.1% 0.203 24.4)",
+        "tonalRamp": [
+          "#290000",
+          "#550000",
+          "#850314",
+          "#b8242c",
+          "#e84849",
+          "#ff7d77",
+          "#ffa9a1",
+          "#ffcdc5"
+        ]
+      },
+      "red-ink": {
+        "role": "secondary",
+        "displayName": "Encre rouge",
+        "canonical": "oklch(53.4% 0.188 24.9)",
+        "tonalRamp": [
+          "#2b0000",
+          "#560000",
+          "#860012",
+          "#b8242a",
+          "#dc5753",
+          "#fc877f",
+          "#ffb1a9",
+          "#ffd4cc"
+        ]
+      },
+      "tape": {
+        "role": "tertiary",
+        "displayName": "Scotch jaune",
+        "canonical": "rgba(242, 194, 48, 0.55)",
+        "tonalRamp": [
+          "#120a00",
+          "#322400",
+          "#564200",
+          "#7e6207",
+          "#a78416",
+          "#d3a825",
+          "#facb44",
+          "#ffea7a"
+        ]
+      },
+      "note": {
+        "role": "tertiary",
+        "displayName": "Note jaune",
+        "canonical": "oklch(92.8% 0.091 94.1)",
+        "tonalRamp": [
+          "#0e0b02",
+          "#2a2618",
+          "#4b452e",
+          "#6f6645",
+          "#95895e",
+          "#bdae78",
+          "#e3d191",
+          "#ffeeaa"
+        ]
+      },
+      "note-ink": {
+        "role": "tertiary",
+        "displayName": "Encre de note",
+        "canonical": "oklch(37.1% 0.054 92.2)",
+        "tonalRamp": [
+          "#110a00",
+          "#2f2606",
+          "#4f4422",
+          "#6f6648",
+          "#91896f",
+          "#b5ae98",
+          "#d7d1bf",
+          "#f3eee0"
+        ]
+      },
+      "board": {
+        "role": "neutral",
+        "displayName": "Émail",
+        "canonical": "oklch(96.2% 0.003 165.1)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#262626",
+          "#444545",
+          "#656666",
+          "#888989",
+          "#adaead",
+          "#d0d1d0",
+          "#edefee"
+        ]
+      },
+      "board-deep": {
+        "role": "neutral",
+        "displayName": "Émail profond",
+        "canonical": "oklch(91.6% 0.004 157.2)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#262726",
+          "#444545",
+          "#656665",
+          "#888a88",
+          "#acaead",
+          "#cfd2d0",
+          "#ecefed"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Papier",
+        "canonical": "oklch(99.7% 0.005 95.1)",
+        "tonalRamp": [
+          "#0b0b0a",
+          "#272626",
+          "#454544",
+          "#666664",
+          "#8a8987",
+          "#aeaeab",
+          "#d2d1ce",
+          "#efeeeb"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Encre",
+        "canonical": "oklch(23.8% 0.011 260.7)",
+        "tonalRamp": [
+          "#090b0f",
+          "#24272c",
+          "#42454a",
+          "#64666a",
+          "#87898d",
+          "#acaeb1",
+          "#d0d1d3",
+          "#edeef0"
+        ]
+      },
+      "ink-2": {
+        "role": "neutral",
+        "displayName": "Encre atténuée",
+        "canonical": "oklch(43.0% 0.015 259.8)",
+        "tonalRamp": [
+          "#090b10",
+          "#23272c",
+          "#41454d",
+          "#62666e",
+          "#858990",
+          "#aaaeb4",
+          "#ced1d6",
+          "#eceff3"
+        ]
+      },
+      "ink-3": {
+        "role": "neutral",
+        "displayName": "Encre pâle",
+        "canonical": "oklch(55.0% 0.014 259.8)",
+        "tonalRamp": [
+          "#090b0e",
+          "#24272b",
+          "#41454b",
+          "#62666e",
+          "#858991",
+          "#aaaeb5",
+          "#cdd1d7",
+          "#ebeff4"
+        ]
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "Filet",
+        "canonical": "oklch(90.6% 0.011 95.2)",
+        "tonalRamp": [
+          "#0b0b0a",
+          "#272625",
+          "#464542",
+          "#676662",
+          "#8a8984",
+          "#afaea8",
+          "#d3d1c9",
+          "#f0efe7"
+        ]
+      },
+      "alu-hi": {
+        "role": "neutral",
+        "displayName": "Aluminium clair",
+        "canonical": "oklch(92.4% 0.006 255.5)",
+        "tonalRamp": [
+          "#0b0b0c",
+          "#262627",
+          "#444546",
+          "#656668",
+          "#87898c",
+          "#acaeb1",
+          "#ced1d5",
+          "#eceff3"
+        ]
+      },
+      "alu": {
+        "role": "neutral",
+        "displayName": "Aluminium",
+        "canonical": "oklch(82.8% 0.009 258.3)",
+        "tonalRamp": [
+          "#0a0b0c",
+          "#252628",
+          "#434548",
+          "#64666a",
+          "#86898e",
+          "#abaeb3",
+          "#cdd1d7",
+          "#ebeff4"
+        ]
+      },
+      "alu-lo": {
+        "role": "neutral",
+        "displayName": "Aluminium sombre",
+        "canonical": "oklch(71.4% 0.012 256.7)",
+        "tonalRamp": [
+          "#0a0b0d",
+          "#252729",
+          "#424549",
+          "#63666b",
+          "#858990",
+          "#a9aeb5",
+          "#cdd1d7",
+          "#ebeff4"
+        ]
+      },
+      "magnet-core": {
+        "role": "neutral",
+        "displayName": "Cœur d’aimant",
+        "canonical": "oklch(30.0% 0.014 261.7)",
+        "tonalRamp": [
+          "#090b10",
+          "#23272d",
+          "#41454c",
+          "#63666c",
+          "#86898f",
+          "#abaeb2",
+          "#cfd1d4",
+          "#edeef1"
+        ]
+      },
+      "magnet-label": {
+        "role": "neutral",
+        "displayName": "Libellé d’aimant",
+        "canonical": "oklch(100.0% 0.000 89.9)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#262626",
+          "#454545",
+          "#666666",
+          "#898989",
+          "#aeaeae",
+          "#d1d1d1",
+          "#eeeeee"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Titre de page",
+        "purpose": "Le seul titre de la page, souligné au feutre rouge."
+      },
+      "headline": {
+        "displayName": "Titre de planche",
+        "purpose": "Le titre de chaque planche de fonction, 20 caractères de large au plus."
+      },
+      "title": {
+        "displayName": "Titre de feuille",
+        "purpose": "Titres des feuilles et des étapes, noms dans les listes."
+      },
+      "figure": {
+        "displayName": "Chiffre",
+        "purpose": "Valeurs des fiches (K/D, RR, prix), chiffres tabulaires."
+      },
+      "body": {
+        "displayName": "Texte",
+        "purpose": "Texte courant ; 15px dans les feuilles, 16px sur téléphone."
+      },
+      "meta": {
+        "displayName": "Contexte",
+        "purpose": "Ligne de contexte sous un titre de feuille, pied de page."
+      },
+      "small": {
+        "displayName": "Mention",
+        "purpose": "« Données fictives », en-têtes de colonnes, intitulés des chiffres."
+      },
+      "button": {
+        "displayName": "Libellé d’aimant",
+        "purpose": "Le libellé du bouton de téléchargement."
+      },
+      "hand": {
+        "displayName": "Feutre",
+        "purpose": "Annotations écrites à la main sur le tableau, jamais pour l’interface."
+      }
+    },
+    "shadows": [
+      {
+        "name": "shadow-near",
+        "value": "0 1px 2px rgba(28,31,36,.20),0 8px 16px rgba(28,31,36,.12)",
+        "purpose": "Aimants, punaises, bouton au repos, curseur de l’interrupteur, plumier."
+      },
+      {
+        "name": "shadow-far",
+        "value": "0 2px 4px rgba(28,31,36,.10),0 22px 40px rgba(28,31,36,.15)",
+        "purpose": "Toutes les feuilles de papier."
+      },
+      {
+        "name": "shadow-lift",
+        "value": "0 3px 6px rgba(28,31,36,.12),0 30px 54px rgba(28,31,36,.18)",
+        "purpose": "L’aimant de téléchargement au survol, décollé de 3px."
+      },
+      {
+        "name": "cutout",
+        "value": "drop-shadow(0 8px 8px rgba(28,31,36,.18))",
+        "purpose": "Filtre pour les armes et objets sans fond posés sur une feuille."
+      },
+      {
+        "name": "magnet-highlight",
+        "value": "inset 0 1px 0 rgba(255,255,255,.25)",
+        "purpose": "Liseré clair en haut de l’aimant bleu, ajouté à son ombre."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(.22,1,.36,1)",
+        "purpose": "Survols, fondus des annotations, interrupteur, aimant flottant (200 à 300ms)."
+      },
+      {
+        "name": "ease-draw",
+        "value": "cubic-bezier(.45,0,.25,1)",
+        "purpose": "Tracés au feutre qui se dessinent (700 à 1800ms), aimants d’agents qui avancent, écran qui s’étire (1,1s)."
+      },
+      {
+        "name": "step",
+        "value": "420ms cubic-bezier(.22,1,.36,1)",
+        "purpose": "Les chiffres du minuteur passent par crans : chaque chiffre qui change tombe en place."
+      },
+      {
+        "name": "parallax",
+        "value": "translate de 4 à 16px selon la hauteur de la feuille",
+        "purpose": "Les feuilles suivent le pointeur selon leur hauteur, le reflet glisse sur l’émail. Coupé quand les animations sont réduites."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "tablet",
+        "value": "1180px"
+      },
+      {
+        "name": "phone",
+        "value": "640px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Aimant de téléchargement",
+      "kind": "button",
+      "refersTo": "button-magnet",
+      "description": "Le seul bouton du site, pour télécharger l’installeur.",
+      "html": "<a class=\"ds-magnet\" href=\"#\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 4v11\"/><path d=\"m7 11 5 5 5-5\"/><path d=\"M5 20h14\"/></svg>Télécharger pour Windows</a>",
+      "css": ".ds-magnet{display:inline-flex;align-items:center;gap:12px;padding:18px 26px 18px 20px;border-radius:12px;background:var(--blue,#2456d6);color:#fff;font-family:var(--sans,Archivo, system-ui, sans-serif);font-weight:700;font-size:19px;line-height:1.1;text-decoration:none;box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 1px 2px rgba(28,31,36,.20),0 8px 16px rgba(28,31,36,.12);transition:translate .2s cubic-bezier(.22,1,.36,1),box-shadow .2s cubic-bezier(.22,1,.36,1)}.ds-magnet:hover{translate:0 -3px;box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 3px 6px rgba(28,31,36,.12),0 30px 54px rgba(28,31,36,.18)}.ds-magnet:active{translate:0 0;box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 1px 2px rgba(28,31,36,.20),0 8px 16px rgba(28,31,36,.12)}.ds-magnet:focus-visible{outline:3px solid var(--blue,#2456d6);outline-offset:3px}.ds-magnet svg{width:22px;height:22px;flex:none;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}"
+    },
+    {
+      "name": "Aimant compact",
+      "kind": "button",
+      "refersTo": "button-magnet-compact",
+      "description": "Le même aimant dans les étapes d’installation et sur téléphone.",
+      "html": "<a class=\"ds-magnet-sm\" href=\"#\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 4v11\"/><path d=\"m7 11 5 5 5-5\"/><path d=\"M5 20h14\"/></svg>Télécharger pour Windows</a>",
+      "css": ".ds-magnet-sm{display:inline-flex;align-items:center;gap:12px;padding:15px 22px 15px 18px;border-radius:12px;background:var(--blue,#2456d6);color:#fff;font-family:var(--sans,Archivo, system-ui, sans-serif);font-weight:700;font-size:17px;line-height:1.1;text-decoration:none;box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 1px 2px rgba(28,31,36,.20),0 8px 16px rgba(28,31,36,.12);transition:translate .2s cubic-bezier(.22,1,.36,1),box-shadow .2s cubic-bezier(.22,1,.36,1)}.ds-magnet-sm:hover{translate:0 -3px;box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 3px 6px rgba(28,31,36,.12),0 30px 54px rgba(28,31,36,.18)}.ds-magnet-sm:active{translate:0 0;box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 1px 2px rgba(28,31,36,.20),0 8px 16px rgba(28,31,36,.12)}.ds-magnet-sm:focus-visible{outline:3px solid var(--blue,#2456d6);outline-offset:3px}.ds-magnet-sm svg{width:22px;height:22px;flex:none;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}"
+    },
+    {
+      "name": "Lien de texte",
+      "kind": "custom",
+      "refersTo": "link-text",
+      "description": "L’alternative au bouton (version portable) et les liens dans le texte.",
+      "html": "<p class=\"ds-p\">Sans installation : <a class=\"ds-link\" href=\"#\">version portable</a></p>",
+      "css": ".ds-p{font-family:var(--sans,Archivo, system-ui, sans-serif);font-size:15px;color:var(--ink-2,#4b5058)}.ds-link{color:var(--blue,#2456d6);text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px;text-decoration-color:rgba(36,86,214,.35);transition:text-decoration-color .2s}.ds-link:hover{text-decoration-color:var(--blue,#2456d6)}.ds-link:focus-visible{outline:3px solid var(--blue,#2456d6);outline-offset:3px;border-radius:4px}"
+    },
+    {
+      "name": "Navigation",
+      "kind": "nav",
+      "refersTo": "nav-link",
+      "description": "Marque et ancres des planches en tête de page, masquées sous 1180px.",
+      "html": "<header class=\"ds-top\"><a class=\"ds-brand\" href=\"#\"><span class=\"ds-mark\"></span>Precise Gunplay</a><nav class=\"ds-links\"><a href=\"#\">Boutique</a><a href=\"#\">Partie en direct</a><a href=\"#\">Statistiques</a><a href=\"#\">Installation</a></nav></header>",
+      "css": ".ds-top{display:flex;align-items:center;justify-content:space-between;gap:24px;font-family:var(--sans,Archivo, system-ui, sans-serif);color:var(--ink,#1c1f24)}.ds-brand{display:inline-flex;align-items:center;gap:10px;font-weight:700;font-size:17px;text-decoration:none;color:inherit}.ds-mark{width:30px;height:30px;border-radius:50%;background:var(--ink,#1c1f24)}.ds-links{display:flex;gap:24px;font-size:15px}.ds-links a{color:var(--ink-2,#4b5058);text-decoration:none;transition:color .2s cubic-bezier(.22,1,.36,1)}.ds-links a:hover{color:var(--ink,#1c1f24)}.ds-links a:focus-visible{outline:3px solid var(--blue,#2456d6);outline-offset:3px;border-radius:4px}"
+    },
+    {
+      "name": "Feuille scotchée",
+      "kind": "card",
+      "refersTo": "sheet",
+      "description": "Le conteneur de tout contenu : papier incliné, ombre loin, scotch.",
+      "html": "<div class=\"ds-sheet\"><span class=\"ds-tape\"></span><div class=\"ds-head\"><h3>Historique</h3><span class=\"ds-fict\">Données fictives</span></div><p class=\"ds-meta\">Compétitif, épisode en cours</p></div>",
+      "css": ".ds-sheet{position:relative;max-width:360px;padding:32px;background:var(--paper,#fffefa);border-radius:2px;box-shadow:0 2px 4px rgba(28,31,36,.10),0 22px 40px rgba(28,31,36,.15);rotate:-1.2deg;font-family:var(--sans,Archivo, system-ui, sans-serif);color:var(--ink,#1c1f24)}.ds-tape{position:absolute;left:40%;top:-12px;width:86px;height:26px;background:var(--tape,rgba(242,194,48,.55));rotate:-4deg;mix-blend-mode:multiply}.ds-head{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-bottom:8px}.ds-head h3{margin:0;font-weight:800;font-stretch:112%;font-size:19px;line-height:1.2}.ds-fict{font-size:13px;color:var(--ink-3,#6d727a)}.ds-meta{margin:0;font-size:14px;line-height:1.45;color:var(--ink-2,#4b5058)}"
+    },
+    {
+      "name": "Note jaune punaisée",
+      "kind": "card",
+      "refersTo": "sheet-note",
+      "description": "La seule feuille colorée, pour une information à part (marché nocturne).",
+      "html": "<div class=\"ds-note\"><span class=\"ds-pin\"></span><h3>Marché nocturne</h3><p>Des offres à prix réduit, rien que pour vous.</p></div>",
+      "css": ".ds-note{position:relative;max-width:300px;padding:32px 24px 24px;background:var(--note,#fbe7a1);border-radius:2px;box-shadow:0 2px 4px rgba(28,31,36,.10),0 22px 40px rgba(28,31,36,.15);rotate:2.4deg;font-family:var(--sans,Archivo, system-ui, sans-serif)}.ds-note h3{margin:0 0 6px;font-weight:800;font-stretch:112%;font-size:19px;line-height:1.2;color:var(--ink,#1c1f24)}.ds-note p{margin:0;font-size:15px;line-height:1.45;color:#4a3f1c}.ds-pin{position:absolute;left:50%;top:-14px;width:30px;height:30px;margin-left:-15px;border-radius:50%;background:radial-gradient(circle at 38% 32%,#ff8a8e,var(--red,#e0393e) 58%,#a51f24);box-shadow:0 1px 2px rgba(28,31,36,.20),0 8px 16px rgba(28,31,36,.12)}"
+    },
+    {
+      "name": "Aimants d’agents",
+      "kind": "custom",
+      "refersTo": "agent-magnet",
+      "description": "Pions ronds bordés de la couleur du camp : bleu pour nous, rouge pour l’adversaire.",
+      "html": "<div class=\"ds-tokens\"><span class=\"ds-token ds-us\"></span><span class=\"ds-token ds-them\"></span><span class=\"ds-token ds-us ds-sm\"></span></div>",
+      "css": ".ds-tokens{display:flex;align-items:center;gap:16px}.ds-token{display:block;width:56px;height:56px;border-radius:50%;background:#2a2e35;border:4px solid var(--c);box-shadow:0 1px 2px rgba(28,31,36,.20),0 8px 16px rgba(28,31,36,.12)}.ds-us{--c:var(--blue,#2456d6)}.ds-them{--c:var(--red,#e0393e)}.ds-sm{width:34px;height:34px;border-width:3px}"
+    },
+    {
+      "name": "Annotation au feutre",
+      "kind": "custom",
+      "description": "Trait qui se dessine et note manuscrite qui pointe une valeur.",
+      "html": "<div class=\"ds-annot\"><span class=\"ds-val\">+102 RR</span><svg viewBox=\"0 0 150 72\" aria-hidden=\"true\"><ellipse cx=\"75\" cy=\"36\" rx=\"70\" ry=\"30\"/></svg><p class=\"ds-marker\">en 20 matchs</p></div>",
+      "css": ".ds-annot{position:relative;display:inline-block;padding:20px 28px;font-family:var(--sans,Archivo, system-ui, sans-serif)}.ds-val{font-size:26px;font-weight:800;font-stretch:110%;font-variant-numeric:tabular-nums;color:var(--ink,#1c1f24)}.ds-annot svg{position:absolute;left:0;top:4px;width:150px;height:72px;overflow:visible}.ds-annot ellipse{fill:none;stroke:var(--red,#e0393e);stroke-width:3.5;stroke-linecap:round;stroke-dasharray:340;stroke-dashoffset:340;animation:ds-draw 1.2s cubic-bezier(.45,0,.25,1) forwards}.ds-marker{margin:6px 0 0;font-family:var(--hand,Caveat, Segoe Print, cursive);font-weight:700;font-size:26px;line-height:1;color:var(--red-ink,#c22a2f)}@keyframes ds-draw{to{stroke-dashoffset:0}}@media (prefers-reduced-motion:reduce){.ds-annot ellipse{animation:none;stroke-dashoffset:0}}"
+    },
+    {
+      "name": "Interrupteur",
+      "kind": "input",
+      "refersTo": "switch-track",
+      "description": "Le seul contrôle de la page, pour montrer l’écran qui s’étire.",
+      "html": "<label class=\"ds-switch\"><input type=\"checkbox\"><span class=\"ds-track\"><span class=\"ds-knob\"></span></span>Résolution étirée</label>",
+      "css": ".ds-switch{display:inline-flex;align-items:center;gap:12px;font-family:var(--sans,Archivo, system-ui, sans-serif);font-weight:700;cursor:pointer;color:var(--ink,#1c1f24)}.ds-switch input{position:absolute;opacity:0;width:1px;height:1px}.ds-track{position:relative;width:58px;height:32px;border-radius:999px;background:var(--rule,#e2e0d8);box-shadow:inset 0 1px 3px rgba(28,31,36,.25);transition:background .25s cubic-bezier(.22,1,.36,1)}.ds-knob{position:absolute;left:3px;top:3px;width:26px;height:26px;border-radius:50%;background:var(--paper,#fffefa);box-shadow:0 1px 2px rgba(28,31,36,.20),0 8px 16px rgba(28,31,36,.12);transition:translate .3s cubic-bezier(.22,1,.36,1)}.ds-switch input:checked+.ds-track{background:var(--blue,#2456d6)}.ds-switch input:checked+.ds-track .ds-knob{translate:26px 0}.ds-switch input:focus-visible+.ds-track{outline:3px solid var(--blue,#2456d6);outline-offset:3px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Le tableau blanc d’avant-match",
+    "overview": "Le site est le tableau blanc d’une équipe avant le match, vu de face. Un émail froid et légèrement bombé occupe tout l’écran, tenu par un cadre en aluminium fixé aux bords de la fenêtre. Dessus, on pose des choses : des feuilles de papier chaud scotchées ou punaisées de travers, des aimants ronds, une carte imprimée. Et on écrit au feutre : un bleu pour notre équipe et l’action, un rouge pour les adversaires et les annotations. Chaque élément de l’interface est un objet de ce tableau ; rien n’y flotte sans raison matérielle.\n\nLa densité est celle d’une planche de travail : une planche par fonction, une feuille principale et une ou deux pièces rapportées (fiche, note jaune, aimants), jamais une grille de cartes égales. La profondeur vient des matières : ombres à deux couches, feuilles qui suivent le pointeur selon leur hauteur au-dessus de l’émail, reflet qui glisse sur l’émail. Le mouvement est celui d’une main qui écrit : les tracés au feutre se dessinent quand une planche entre à l’écran, les aimants avancent le long des flèches.\n\nRejets confirmés : le site « HUD néon rouge » des jeux de tir, la page SaaS blanche à cartes égales, et la première version calquée sur l’app (cartes à contour et fond de même teinte, aucune profondeur, aucune animation).\n\nCe système décrit le site (`site/`) seulement. L’application Electron (`renderer/`) est une autre entité, avec sa propre identité dans `renderer/styles.css` : elle ne partage ni ces jetons ni ces composants, seulement le nom et le logo.",
+    "keyCharacteristics": [
+      "Émail froid, papier chaud, encre presque noire, deux feutres et un scotch jaune.",
+      "Archivo élargi et très gras pour les titres et les chiffres, Archivo normal pour le texte, Caveat pour ce qui est écrit à la main.",
+      "Feuilles posées de travers (entre -3° et 3,5°), ombres de contact et de portée.",
+      "Tracés au feutre qui se dessinent, aimants qui se déplacent, parallaxe par hauteur.",
+      "Un seul bouton, l’aimant bleu, pour une seule action : télécharger."
+    ],
+    "rules": [
+      {
+        "name": "La règle d’une couleur par camp",
+        "body": "Le bleu est notre équipe et l’action, le rouge l’adversaire et l’annotation. Aucun feutre n’est décoratif : si un trait bleu ou rouge ne désigne rien, il disparaît.",
+        "section": "colors"
+      },
+      {
+        "name": "La règle du rouge lisible",
+        "body": "Le texte rouge s’écrit en encre rouge (red-ink), jamais en feutre rouge (marker-red) ; le feutre rouge reste aux traits, bordures et pastilles.",
+        "section": "colors"
+      },
+      {
+        "name": "La règle du papier chaud sur émail froid",
+        "body": "Les feuilles sont toujours en papier (paper), le fond toujours en émail (board). Une seule exception colorée, la note jaune, et elle porte une information à part (le marché nocturne).",
+        "section": "colors"
+      },
+      {
+        "name": "La règle de la main",
+        "body": "Caveat n’écrit que ce qu’une main écrirait sur le tableau : annotations, note sous le bouton, chiffres des étapes. Jamais un titre, un paragraphe, un libellé de bouton ou un lien de navigation.",
+        "section": "typography"
+      },
+      {
+        "name": "La règle de la largeur",
+        "body": "L’axe de largeur (110 à 118 %) est réservé aux titres, aux noms de lieu et aux chiffres ; le texte courant reste en largeur normale. Plus le rôle est haut, plus il est large.",
+        "section": "typography"
+      },
+      {
+        "name": "La règle de la casse normale",
+        "body": "Aucun libellé en capitales ni espacé : la hiérarchie passe par la largeur et la graisse.",
+        "section": "typography"
+      },
+      {
+        "name": "La règle de la planche",
+        "body": "Une fonction égale une planche : une feuille qui montre l’app au travail, une pièce rapportée au plus, des annotations au feutre qui pointent les valeurs. Jamais une rangée de cartes identiques.",
+        "section": "layout"
+      },
+      {
+        "name": "La règle des deux couches",
+        "body": "Toute ombre a un contact et une portée. Une ombre à une seule couche, ou décalée sans flou, n’appartient pas à ce tableau.",
+        "section": "elevation"
+      },
+      {
+        "name": "La règle de la hauteur",
+        "body": "Les aimants sont proches, les feuilles loin, et seul ce qu’on peut prendre se soulève au survol.",
+        "section": "elevation"
+      },
+      {
+        "name": "La règle de la feuille posée",
+        "body": "Une feuille n’a pas de contour : son bord vient de son ombre et de son inclinaison.",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "Do poser chaque contenu sur une feuille en papier (paper, 2px, ombre loin) inclinée de son propre angle, entre -3° et 3,5°.",
+      "Do réserver le feutre bleu (marker-blue) à notre équipe et à l’action, le rouge à l’adversaire et à l’annotation, et écrire le texte rouge en encre rouge (red-ink).",
+      "Do pointer les valeurs importantes d’un trait de feutre qui se dessine, et les annoter en Caveat 700.",
+      "Do donner à toute ombre ses deux couches, contact et portée, teintées de l’encre (rgba(28,31,36,…)).",
+      "Do écrire titres et chiffres en Archivo élargi (largeur 110 à 118 %, graisse 800 à 850), chiffres tabulaires.",
+      "Do marquer « Données fictives » sur toute feuille qui recompose des données de l’app.",
+      "Do afficher l’état final de chaque tracé et de chaque annotation quand l’utilisateur réduit les animations."
+    ],
+    "donts": [
+      "Don't reprendre les jetons, les composants ou l’aspect de l’app Electron (`renderer/styles.css`) : le site est une autre entité.",
+      "Don't faire de carte à contour et fond de même teinte, ni de grille de cartes identiques.",
+      "Don't glisser vers le « HUD néon rouge » des jeux de tir ou vers la page SaaS blanche.",
+      "Don't écrire en Caveat un titre, un paragraphe, un bouton ou un lien de navigation.",
+      "Don't mettre de libellé en capitales ou espacé.",
+      "Don't utiliser un dégradé, une lueur ou un reflet qui ne rende pas une matière du tableau (émail, aluminium, punaise, feutre).",
+      "Don't ajouter un second bouton plein : l’aimant bleu est la seule action, l’alternative est un lien.",
+      "Don't utiliser une ombre à une seule couche ou décalée sans flou."
+    ]
+  }
+}
