@@ -687,7 +687,7 @@ class Services {
     if (message.length > CHAT_MAX) throw new Error(`Message trop long (${CHAT_MAX} caractères maximum).`);
     // On n'écrit qu'à ses amis.
     const friends = await this.client.getFriends();
-    if (!(friends?.friends || []).some((f) => f.pid === cid)) throw new Error("Ce joueur n'est pas dans votre liste d'amis.");
+    if (!(friends?.friends || []).some((f) => f.pid === cid)) throw new Error("Ce joueur n’est pas dans votre liste d’amis.");
     await this.client.sendMessage(cid, message);
     return true;
   }

@@ -27,6 +27,8 @@ const QUEUES = {
 const queueName = (q) => QUEUES[q] ?? (q ? q.charAt(0).toUpperCase() + q.slice(1) : 'Personnalisée');
 
 const fmtNum = (n) => Number(n || 0).toLocaleString('fr-FR');
+// Score d'une partie, le même partout : « 13 – 7 ».
+const scoreText = (s) => (s ? `${s[0]} – ${s[1]}` : '—');
 
 function fmtDuration(ms) {
   ms = Math.max(0, ms);
@@ -54,7 +56,9 @@ function priceHtml(p, discounted) {
 function toast(message, type = 'info') {
   const el = document.createElement('div');
   el.className = `toast ${type}`;
-  el.textContent = message;
+  // Une erreur se reconnaît à son icône ; le fond et le texte restent ceux de tous les toasts.
+  if (type === 'error') el.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5v.5"/></svg>';
+  el.append(message);
   $('#toasts').appendChild(el);
   setTimeout(() => el.remove(), 5000);
 }
@@ -98,13 +102,28 @@ const state = {
 const agentOf = (id) => (id && state.assets?.agents.find((a) => a.uuid.toLowerCase() === String(id).toLowerCase())) || null;
 const tierOf = (t) => state.assets?.tiers.find((x) => x.tier === t) || null;
 
+// Rangs et actes arrivent en capitales (« DIAMANT 1 », « ÉPISODE 9 · ACTE III ») : on les écrit en minuscules,
+// avec une majuscule en tête de chaque partie, et on garde les chiffres romains.
+function unshout(name) {
+  if (!name || name !== name.toUpperCase()) return name;
+  // Les mots peuvent être séparés par des espaces insécables (« ACTE VI ») : on garde les séparateurs tels quels.
+  return name.split(' · ').map((part) => part.split(/(\s+)/)
+    .map((w, i) => (/^\s*$|^[IVXLC]+$|\d/.test(w) ? w : i ? w.toLocaleLowerCase('fr-FR') : w[0] + w.slice(1).toLocaleLowerCase('fr-FR')))
+    .join('')).join(' · ');
+}
+function withAssets(a) {
+  for (const t of a.tiers || []) t.name = unshout(t.name);
+  for (const x of [...(a.acts || []), a.currentAct].filter(Boolean)) x.name = unshout(x.name);
+  return a;
+}
+
 function rankHtml(rank, { peak = true } = {}) {
   if (!rank) return '<div class="rank muted">—</div>';
   const t = tierOf(rank.tier);
   const p = tierOf(rank.peak);
   const name = rank.tier ? `${esc(t?.name || '')}${rank.rr != null && rank.tier ? ` <span class="muted">${rank.rr} RR</span>` : ''}` : '<span class="muted">Non classé</span>';
   return `<div class="rank">${t?.icon ? `<img src="${t.icon}" alt="">` : ''}<div>${name}</div>${
-    peak && rank.peak > rank.tier && p?.icon ? `<span class="peak" title="Meilleur rang : ${esc(p.name)}"><img src="${p.icon}" alt=""></span>` : ''
+    peak && rank.peak > rank.tier && p?.icon ? `<span class="peak" title="Meilleur rang : ${esc(p.name)}"><img src="${p.icon}" alt=""></span>` : ''
   }</div>`;
 }
 
@@ -115,7 +134,7 @@ function partyAttrs(p) {
   if (!p.party) return { cls: '', style: '' };
   return { cls: 'in-party', style: `style="--pc:${PARTY_COLORS[(p.partyIdx || 0) % PARTY_COLORS.length]}"` };
 }
-const partyTag = (p) => (p.party ? ` · <span class="party-tag" title="Joue en groupe avec les autres « Groupe ${p.party} »">Groupe ${p.party}</span>` : '');
+const partyTag = (p) => (p.party ? ` · <span class="party-tag" title="Joue en groupe avec les autres « Groupe ${p.party} »">Groupe ${p.party}</span>` : '');
 
 // Lien vers le profil Tracker d'un joueur (jamais pour un joueur en mode anonyme).
 function trackerBtn(name, tag, hidden = false) {
@@ -228,7 +247,7 @@ function offlineState() {
     return { kind: 'login', title: 'Connexion requise', text: 'Connectez-vous à votre compte dans le Riot Client.', action: 'launch', label: 'Ouvrir le client', launching };
   }
   if (s.code === 'RIOT_CLIENT_CLOSED' || launching) {
-    return { kind: 'closed', title: launching ? 'Démarrage…' : 'Riot Client fermé', text: launching ? 'Connectez-vous : le compte sera lié automatiquement.' : 'Lancez le Riot Client pour lier votre compte.', action: 'launch', label: 'Lancer Riot Client', launching };
+    return { kind: 'closed', title: launching ? 'Démarrage…' : 'Riot Client fermé', text: launching ? 'Connectez-vous : le compte sera lié automatiquement.' : 'Lancez le Riot Client pour lier votre compte.', action: 'launch', label: 'Lancer Riot Client', launching };
   }
   if (s.code) return { kind: 'error', title: 'Liaison impossible', text: s.message || '', action: 'retry', label: 'Réessayer' };
   return { kind: 'search', title: 'Recherche…', text: s.message || 'Recherche du Riot Client…' };
@@ -236,12 +255,6 @@ function offlineState() {
 
 const ICON_PLAY = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>';
 const ICON_RETRY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>';
-const ICON_OFFLINE = {
-  closed: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v8"/><path d="M6.3 7.3a8 8 0 1 0 11.4 0"/></svg>',
-  login: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
-  error: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 8v5M12 16.5v.5"/><circle cx="12" cy="12" r="9"/></svg>',
-  search: '<span class="spinner"></span>',
-};
 
 function offlineButton(o, cls = '') {
   if (!o.action) return '';
@@ -286,12 +299,9 @@ function renderAccount() {
     el.style.backgroundImage = '';
     el.title = '';
     el.innerHTML = `
-      <div class="acc-top">
-        <div class="acc-avatar acc-off-icon">${ICON_OFFLINE[o.kind]}</div>
-        <div class="acc-id">
-          <div class="acc-state">${esc(o.title)}</div>
-          <div class="acc-hint">${esc(o.text)}</div>
-        </div>
+      <div class="acc-id">
+        <div class="acc-state">${o.kind === 'search' ? '<span class="spinner"></span>' : ''}${esc(o.title)}</div>
+        <div class="acc-hint">${esc(o.text)}</div>
       </div>
       ${offlineButton(o, 'acc-btn')}`;
     return;
@@ -321,6 +331,9 @@ async function refreshProfile() {
 }
 $('#account').addEventListener('click', () => state.status.connected && navigate('home'));
 
+// Pages utilisables sans compte lié.
+const needsAuth = (page) => page !== 'settings' && page !== 'stretch';
+
 function navigate(page) {
   state.onUnread = null;
   state.onStretch = null;
@@ -332,8 +345,7 @@ function navigate(page) {
   renderNav();
   content.scrollTop = 0;
   chipPos.clear();
-  const needsAuth = page !== 'settings' && page !== 'stretch';
-  if (needsAuth && !state.status.connected) return renderConnect();
+  if (needsAuth(page) && !state.status.connected) return renderConnect();
   state.entering = true;
   content.innerHTML = loader();
   PAGES[page]().catch((e) => {
@@ -404,10 +416,10 @@ function renderUpdate() {
   const el = $('#update');
   if (!u || !['downloading', 'ready', 'available'].includes(u.status)) return (el.innerHTML = '');
   if (u.status === 'downloading') {
-    el.innerHTML = `<div class="update-card"><b>Mise à jour v${esc(u.latest)}</b>Téléchargement… ${u.progress || 0}%<div class="update-bar"><div style="width:${u.progress || 0}%"></div></div></div>`;
+    el.innerHTML = `<div class="update-card"><b>Mise à jour v${esc(u.latest)}</b>Téléchargement… ${u.progress || 0} %<div class="update-bar"><div style="width:${u.progress || 0}%"></div></div></div>`;
   } else {
     el.innerHTML = `<div class="update-card"><b>Mise à jour v${esc(u.latest)} ${u.status === 'ready' ? 'prête' : 'disponible'}</b>
-      ${u.status !== 'ready' ? 'Téléchargez la nouvelle version sur GitHub.' : u.retry ? "La dernière installation n'a pas abouti. L'installeur va s'ouvrir pour la terminer." : "Redémarrez l'app pour passer à la nouvelle version."}
+      ${u.status !== 'ready' ? 'Téléchargez la nouvelle version sur GitHub.' : u.retry ? "La dernière installation n’a pas abouti. L’installeur va s’ouvrir pour la terminer." : "Redémarrez l’app pour passer à la nouvelle version."}
       <button class="btn primary" id="update-btn">${u.status === 'ready' ? 'Redémarrer' : 'Télécharger'}</button></div>`;
     $('#update-btn').onclick = (e) => {
       if (u.status === 'ready') {
@@ -422,14 +434,14 @@ function renderUpdate() {
 function updateLabel(u) {
   if (!u) return '';
   return {
-    dev: 'Mode développement : mises à jour désactivées.',
+    dev: 'Mode développement : mises à jour désactivées.',
     idle: 'Pas encore vérifié.',
     checking: 'Recherche de mises à jour…',
     none: 'Vous avez la dernière version.',
-    downloading: `Téléchargement de la v${u.latest}… ${u.progress || 0}%`,
-    ready: `v${u.latest} prête : redémarrez l'app pour l'installer.`,
-    available: `v${u.latest} disponible sur GitHub (version portable : mise à jour manuelle).`,
-    error: `Erreur : ${u.error || 'inconnue'}`,
+    downloading: `Téléchargement de la v${u.latest}… ${u.progress || 0} %`,
+    ready: `v${u.latest} prête : redémarrez l’app pour l’installer.`,
+    available: `v${u.latest} disponible sur GitHub (version portable : mise à jour manuelle).`,
+    error: `Erreur : ${u.error || 'inconnue'}`,
   }[u.status] || '';
 }
 
@@ -439,13 +451,12 @@ function renderConnect() {
     <div class="connect">
       <img class="logo" src="logo-mark.png" alt="">
       <h1>Precise Gunplay</h1>
-      <p class="muted">L'application se lie à votre compte via le Riot Client ouvert sur ce PC. Aucun mot de passe n'est demandé ni stocké.</p>
       <div class="steps">
-        <div class="step"><b>1</b><div>Lancez le <strong>Riot Client</strong> ou <strong>VALORANT</strong>.</div></div>
-        <div class="step"><b>2</b><div>Connectez-vous à votre compte Riot. Cochez « Rester connecté » pour ne plus avoir à le faire.</div></div>
-        <div class="step"><b>3</b><div>Precise Gunplay détecte la session et lie le compte.</div></div>
+        <div class="step"><b>1</b><div>Lancez le <strong>Riot Client</strong> ou <strong>VALORANT</strong> sur ce PC.</div></div>
+        <div class="step"><b>2</b><div>Connectez-vous à votre compte Riot. Cochez « Rester connecté » pour ne plus avoir à le faire.</div></div>
+        <div class="step"><b>3</b><div>Precise Gunplay détecte la session et lie le compte, sans jamais demander ni stocker votre mot de passe.</div></div>
       </div>
-      <div class="warn-box" style="text-align:left;margin-bottom:22px">État : ${esc(state.status.message || 'En attente…')}</div>
+      <div class="warn-box connect-state">État : ${esc(state.status.message || 'En attente…')}</div>
       <div class="connect-actions">
         ${offlineButton({ ...offlineState(), action: 'launch', label: 'Lancer Riot Client' }, 'big')}
         <button class="btn big" data-offline="retry">${ICON_RETRY}Réessayer</button>
@@ -460,7 +471,7 @@ function onUpdate(u) {
   renderUpdate();
   const label = $('#s-update-label');
   if (label) label.textContent = updateLabel(u);
-  if (u.status === 'ready' && prev !== 'ready') toast(`Mise à jour v${u.latest} téléchargée : redémarrez l'app pour l'installer.`);
+  if (u.status === 'ready' && prev !== 'ready') toast(`Mise à jour v${u.latest} téléchargée : redémarrez l’app pour l’installer.`);
 }
 
 function onStatus(s) {
@@ -473,10 +484,10 @@ function onStatus(s) {
       state.owned = null;
       state.profile = null;
       if (state.page !== 'home') refreshProfile(); // l'accueil charge déjà le profil
-      toast(`Compte lié : ${s.name || ''}#${s.tag || ''}`);
+      toast(`Compte lié : ${s.name || ''}#${s.tag || ''}`);
     }
     navigate(state.page);
-  } else if (!s.connected && state.page !== 'settings') {
+  } else if (!s.connected && needsAuth(state.page)) {
     renderConnect();
   }
 }
@@ -555,7 +566,7 @@ PAGES.home = async () => {
     const sub = [p.level != null ? `Niveau ${esc(p.level)}` : '', p.title ? esc(p.title) : ''].filter(Boolean).join(' · ');
     return `
       <div class="page-head dash-head">
-        <h1>${sub ? `<small>${sub}</small>` : ''}${esc(p.name)}<span class="dash-tag">#${esc(p.tag)}</span></h1>
+        <div><h1>${esc(p.name)}<span class="dash-tag">#${esc(p.tag)}</span></h1>${sub ? `<div class="h1-facts">${sub}</div>` : ''}</div>
         <div class="wallet">
           <div class="coin" title="Valorant Points"><img src="${CURRENCY_ICON.vp}" alt="">${fmtNum(p.wallet.vp)}</div>
           <div class="coin" title="Radianite"><img src="${CURRENCY_ICON.rp}" alt="">${fmtNum(p.wallet.rp)}</div>
@@ -572,18 +583,18 @@ PAGES.home = async () => {
         <div class="ta-bg"></div>
         ${ag?.portrait ? `<div class="ta-art"><img src="${ag.portrait}" alt=""></div>` : ''}
         <div class="ta-body">
-          <div class="ta-label">Agent favori · ${scopeTag(scope)}</div>
           <div class="ta-name">${esc(ag?.name || '?')}</div>
+          <div class="ta-label">Agent favori · ${scopeTag(scope)}</div>
           <div class="ta-abilities">
             ${(ag?.abilities || []).map((x) => `<img src="${x.icon}" alt="" title="${esc(x.name.replace(/\s+/g, ' '))}">`).join('')}
             ${g.timed === g.n && g.lengthMs ? `<span>Temps de jeu <b>${hours(g.lengthMs)}</b></span>` : ''}
           </div>
           <div class="ta-stats">
-            ${stat('Victoires', `${g.winRate.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`)}
+            ${stat('Victoires', pct(g.winRate))}
             ${stat('Matchs', `${g.n} <em>${g.wins} V · ${g.losses} D</em>`)}
             ${stat('ACS', f1(g.acs))}
             ${stat('K/D', f2(g.kd))}
-            ${stat('Headshot %', f1(g.hs))}
+            ${stat('Headshot', pct(g.hs))}
             ${stat('Dégâts / manche', f1(g.adr))}
           </div>
         </div>
@@ -598,11 +609,10 @@ PAGES.home = async () => {
       <section class="top-agent no-matches">
         <div class="ta-bg" ${p.card?.wide ? `style="background-image:url('${p.card.wide}')"` : ''}></div>
         <div class="ta-body">
-          <div class="ta-label">Agent favori</div>
           <div class="ta-name">${syncing ? 'Synchronisation…' : 'Aucun match'}</div>
           <p>${syncing
-            ? 'Synchronisation des matchs : agents, cartes et armes favoris s’afficheront ici.'
-            : 'Jouez une partie : vos agents, cartes et armes favoris s’afficheront ici.'}</p>
+            ? 'Synchronisation des matchs : agents, cartes et armes favoris s’afficheront ici.'
+            : 'Jouez une partie : vos agents, cartes et armes favoris s’afficheront ici.'}</p>
         </div>
       </section>`;
   }
@@ -617,7 +627,7 @@ PAGES.home = async () => {
           return `<div class="ag-card" data-go="stats" style="${agentVars(ag)}">
             ${ag?.portrait ? `<img class="ag-art" src="${ag.portrait}" alt="" loading="lazy">` : ''}
             ${ag?.roleIcon ? `<img class="ag-role" src="${ag.roleIcon}" alt="" title="${esc(ag.role)}">` : ''}
-            <div class="ag-info"><b>${esc(ag?.name || '?')}</b><span>${g.n} match${g.n > 1 ? 's' : ''} · <i class="${tone(g.winRate, 50)}">${f0(g.winRate)} %</i></span></div>
+            <div class="ag-info"><b>${esc(ag?.name || '?')}</b><span>${g.n} match${g.n > 1 ? 's' : ''} · <i class="${tone(g.winRate, 50)}">${f0(g.winRate)} %</i></span></div>
           </div>`;
         }).join('')}
       </div>`;
@@ -636,7 +646,7 @@ PAGES.home = async () => {
           return `<div class="map-card" data-go="stats" ${mp?.splash ? `style="--map:url('${mp.splash}')"` : ''}>
             <span class="map-count">${g.n} match${g.n > 1 ? 's' : ''}</span>
             <b>${esc(mp?.name || '?')}</b>
-            <span><i class="${tone(g.winRate, 50)}">${f0(g.winRate)} %</i> de victoires</span>
+            <span><i class="${tone(g.winRate, 50)}">${f0(g.winRate)} %</i> de victoires</span>
           </div>`;
         }).join('')}
       </div>`;
@@ -652,7 +662,7 @@ PAGES.home = async () => {
           ${r?.tier
             ? `<div class="rc-value"><b>${r.rr}</b><span>/ 100 RR</span></div><div class="rc-name">${esc(t?.name || '')}</div>`
             : '<div class="rc-value"><b class="rc-none">Non classé</b></div><div class="rc-name">Rang actuel</div>'}
-          ${peak ? `<div class="st-sub">Meilleur : ${esc(peak.name)}</div>` : ''}
+          ${peak ? `<div class="st-sub">Meilleur : ${esc(peak.name)}</div>` : ''}
           ${r?.tier ? `<div class="rc-bar"><div style="width:${Math.min(100, r.rr)}%"></div></div>` : ''}
         </div>
         <div class="rc-badge">${t?.icon ? `<img src="${t.icon}" alt="">` : ''}</div>
@@ -668,7 +678,7 @@ PAGES.home = async () => {
           return `<div class="lm-row ${r.result}" data-go="history" ${mp?.listIcon ? `style="--map:url('${mp.listIcon}')"` : ''}>
             ${ag ? `<img class="lm-agent" src="${ag.icon}" alt="" title="${esc(ag.name)}">` : '<span class="lm-agent"></span>'}
             <div class="lm-info"><b>${esc(mp?.name || '?')}</b><span>${timeAgo(r.startedAt)}${r.queue === 'competitive' ? '' : ` · ${esc(queueName(r.queue))}`}</span></div>
-            <div class="lm-score">${r.score ? `${r.score[0]} : ${r.score[1]}` : '—'}</div>
+            <div class="lm-score">${scoreText(r.score)}</div>
             <div class="lm-tier">${t?.icon && r.tier ? `<img src="${t.icon}" alt="" title="${esc(t.name)}">` : ''}</div>
           </div>`;
         }).join('')}
@@ -729,12 +739,12 @@ PAGES.home = async () => {
 // ---------- Boutique ----------
 function offerCard(o, { small = false } = {}) {
   return `
-    <div class="offer ${small ? 'small' : ''} ${o.icon ? '' : 'hidden-card'}" style="${o.color ? `--tier:${o.color}` : ''}">
+    <div class="offer ${small ? 'small' : ''}" style="${o.color ? `--tier:${o.color}` : ''}">
       ${o.tierIcon ? `<img class="tier-icon" src="${o.tierIcon}" alt="">` : ''}
-      ${o.percent ? `<div class="discount">-${o.percent}%</div>` : ''}
-      <div class="art">${o.icon ? `<img src="${o.icon}" alt="" loading="lazy">` : '✦'}</div>
-      <div class="kind">${esc(o.kind)}</div>
+      ${o.percent ? `<div class="discount">−${o.percent} %</div>` : ''}
+      <div class="art">${o.icon ? `<img src="${o.icon}" alt="" loading="lazy">` : ''}</div>
       <div class="oname">${esc(o.name)}</div>
+      ${o.kind && o.kind !== 'Skin' ? `<div class="kind">${esc(o.kind)}</div>` : ''}
       ${priceHtml(o.price, o.discounted)}
     </div>`;
 }
@@ -757,7 +767,7 @@ PAGES.store = async () => {
     <div class="offers">${s.daily.map((o) => offerCard(o)).join('') || '<div class="muted">Aucune offre.</div>'}</div>
 
     ${s.night ? `
-      <h2 style="color:#b388ff">Marché nocturne <span class="timer">Fin dans <b data-ends="${s.night.endsAt}">${fmtDuration(s.night.endsAt - Date.now())}</b></span></h2>
+      <h2>Marché nocturne <span class="timer">Fin dans <b data-ends="${s.night.endsAt}">${fmtDuration(s.night.endsAt - Date.now())}</b></span></h2>
       <div class="offers">${s.night.offers.map((o) => offerCard(o)).join('')}</div>` : ''}
 
     ${s.bundles.length ? `<h2>Packs en vedette</h2>` : ''}
@@ -772,14 +782,14 @@ PAGES.store = async () => {
         </div>
         <div class="bundle-items">
           ${b.items.map((i) => `
-            <div class="bitem">${i.icon ? `<img src="${i.icon}" alt="" loading="lazy">` : '<div style="width:56px"></div>'}
-              <div class="bi-name">${esc(i.name)}<div class="muted" style="font-size:11px">${esc(i.kind)}${i.amount > 1 ? ` ×${i.amount}` : ''}</div></div>
+            <div class="bitem">${i.icon ? `<img src="${i.icon}" alt="" loading="lazy">` : '<span class="bitem-art"></span>'}
+              <div class="bi-name">${esc(i.name)}<div class="bi-kind">${esc(i.kind)}${i.amount > 1 ? ` ×${i.amount}` : ''}</div></div>
               ${i.price.amount ? priceHtml(i.price) : '<span class="muted">Offert</span>'}</div>`).join('')}
         </div>
       </div>`).join('')}
 
     ${s.accessories?.offers.length ? `
-      <h2>Boutique d'accessoires <span class="timer">Renouvellement dans <b data-ends="${s.accessories.endsAt}">${fmtDuration(s.accessories.endsAt - Date.now())}</b></span></h2>
+      <h2>Boutique d’accessoires <span class="timer">Renouvellement dans <b data-ends="${s.accessories.endsAt}">${fmtDuration(s.accessories.endsAt - Date.now())}</b></span></h2>
       <div class="offers">${s.accessories.offers.map((o) => offerCard(o, { small: true })).join('')}</div>` : ''}`;
 };
 
@@ -793,7 +803,7 @@ function ask({ title, body, ok = 'OK', cancel = 'Annuler' }) {
     const el = document.createElement('div');
     el.className = 'modal-back';
     el.innerHTML = `<div class="modal" role="dialog" aria-modal="true">
-      <h3>${esc(title)}</h3><p>${body}</p>
+      <h2>${esc(title)}</h2><p>${body}</p>
       <div class="modal-actions"><button class="btn ghost" data-v="0">${esc(cancel)}</button><button class="btn primary" data-v="1">${esc(ok)}</button></div>
     </div>`;
     const close = (v) => { document.removeEventListener('keydown', onKey); el.remove(); resolve(v); };
@@ -809,8 +819,8 @@ function ask({ title, body, ok = 'OK', cancel = 'Annuler' }) {
   });
 }
 
-const secs =(ms) => `${(Number(ms) / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 2 })}s`;
-const autolockReady =(al) => !!al.agentId || Object.values(al.perMap || {}).some(Boolean);
+const secs = (ms) => `${(Number(ms) / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} s`;
+const autolockReady = (al) => !!al.agentId || Object.values(al.perMap || {}).some(Boolean);
 
 PAGES.agent = async () => {
   const alive = guard();
@@ -853,13 +863,13 @@ PAGES.agent = async () => {
 
     const hint = map
       ? mapPick
-        ? `Sur <b>${esc(map.name)}</b>, l'app prend <b>${esc(agentOf(mapPick)?.name)}</b>. S'il est déjà pris : ${defaults.length ? `liste par défaut (${defaultNames}).` : 'rien n\'est fait.'}`
+        ? `Sur <b>${esc(map.name)}</b>, l’app prend <b>${esc(agentOf(mapPick)?.name)}</b>. S’il est déjà pris : ${defaults.length ? `liste par défaut (${defaultNames}).` : 'rien n’est fait.'}`
         : defaults.length
-          ? `Aucun agent dédié : la liste par défaut s'applique (${defaultNames}). Cliquez sur un agent pour en choisir un pour cette carte.`
-          : `Aucun agent dédié et liste par défaut vide : rien n'est fait sur ${esc(map.name)}. Cliquez sur un agent pour en choisir un.`
+          ? `Aucun agent dédié : la liste par défaut s’applique (${defaultNames}). Cliquez sur un agent pour en choisir un pour cette carte.`
+          : `Aucun agent dédié et liste par défaut vide : rien n’est fait sur ${esc(map.name)}. Cliquez sur un agent pour en choisir un.`
       : defaults.length
-        ? `Utilisée sur les cartes sans agent dédié, et en secours si l'agent de la carte est déjà pris. Le premier disponible dans l'ordre est choisi (${MAX_DEFAULT_AGENTS} max).`
-        : `Vide : l'app n'agit que sur les cartes où vous avez choisi un agent. Cliquez sur des agents pour les ajouter par ordre de priorité (${MAX_DEFAULT_AGENTS} max).`;
+        ? `Utilisée sur les cartes sans agent dédié, et en secours si l’agent de la carte est déjà pris. Le premier disponible dans l’ordre est choisi (${MAX_DEFAULT_AGENTS} max).`
+        : `Vide : l’app n’agit que sur les cartes où vous avez choisi un agent. Cliquez sur des agents pour les ajouter par ordre de priorité (${MAX_DEFAULT_AGENTS} max).`;
     const canClear = map ? !!mapPick : defaults.length > 0;
 
     const grid = state.assets.agents
@@ -881,14 +891,14 @@ PAGES.agent = async () => {
 
       ${actionsLocked() ? lockedNotice() : `<div class="warn-box">
         Quand une partie est trouvée, Precise Gunplay choisit automatiquement votre agent pendant la phase de sélection.
-        L'app utilise les mêmes API que le client officiel, mais l'automatisation n'est pas approuvée par Riot :
-        le mode <b>Verrouiller</b> est le plus risqué vis-à-vis des conditions d'utilisation. Utilisez-le à vos risques ; le mode <b>Survoler</b> vous laisse confirmer vous-même.
+        L’app utilise les mêmes API que le client officiel, mais l’automatisation n’est pas approuvée par Riot :
+        le mode <b>Verrouiller</b> est le plus risqué vis-à-vis des conditions d’utilisation. Utilisez-le à vos risques ; le mode <b>Survoler</b> vous laisse confirmer vous-même.
       </div>`}
 ${actionsLocked() ? '<div class="locked-zone">' : ''}
 
-      <div class="panel" style="margin-top:16px">
+      <div class="panel mt-block">
         <div class="setting-row">
-          <div class="label"><div>Mode</div><div>Survoler : l'agent est présélectionné, vous cliquez sur « Verrouiller ». Verrouiller : l'agent est validé directement.</div></div>
+          <div class="label"><div>Mode</div><div>Survoler : l’agent est présélectionné, vous cliquez sur « Verrouiller ». Verrouiller : l’agent est validé directement.</div></div>
           <div class="chip-group" id="al-mode">
             <button data-mode="select" class="${al.mode === 'select' ? 'on' : ''}">Survoler</button>
             <button data-mode="lock" class="${al.mode === 'lock' ? 'on' : ''}">Verrouiller</button>
@@ -897,13 +907,13 @@ ${actionsLocked() ? '<div class="locked-zone">' : ''}
         <div class="setting-row">
           <div class="label"><div>Délai avant sélection</div><div>Laisse le temps aux coéquipiers de choisir avant vous.</div></div>
           <input type="range" id="al-delay" min="0" max="8000" step="250" value="${al.delayMs}">
-          <b id="al-delay-val" style="width:52px;text-align:right">${secs(al.delayMs)}</b>
+          <b id="al-delay-val" class="range-val">${secs(al.delayMs)}</b>
         </div>
         ${al.mode === 'lock' ? `
         <div class="setting-row">
           <div class="label"><div>Délai avant verrouillage</div><div>Temps entre le survol et le verrouillage. Un verrouillage instantané est plus facilement détecté comme automatique.</div></div>
           <input type="range" id="al-lock-delay" min="0" max="2000" step="50" value="${al.lockDelayMs}">
-          <b id="al-lock-delay-val" style="width:52px;text-align:right">${secs(al.lockDelayMs)}</b>
+          <b id="al-lock-delay-val" class="range-val">${secs(al.lockDelayMs)}</b>
         </div>` : ''}
       </div>
 
@@ -928,7 +938,7 @@ ${actionsLocked() ? '</div>' : ''}`;
     $('#al-enabled').onchange = (e) => {
       if (e.target.checked && !autolockReady(state.settings.autolock)) {
         e.target.checked = false;
-        return toast('Choisissez d\'abord un agent, par défaut ou pour une carte.', 'error');
+        return toast('Choisissez d’abord un agent, par défaut ou pour une carte.', 'error');
       }
       save({ enabled: e.target.checked });
     };
@@ -948,8 +958,8 @@ ${actionsLocked() ? '</div>' : ''}`;
       if (t.dataset.mode === 'lock' && al.mode !== 'lock') {
         return ask({
           title: 'Verrouillage automatique',
-          body: `Votre agent sera validé sans que vous ayez à cliquer. Un verrouillage instantané se repère facilement :
-            garde un <b>délai avant sélection</b> et un <b>délai avant verrouillage</b> pour rester discret.
+          body: `Votre agent sera validé sans que vous ayez à cliquer. Un verrouillage instantané se repère facilement :
+            gardez un <b>délai avant sélection</b> et un <b>délai avant verrouillage</b> pour rester discret.
             Vous pouvez les régler juste en dessous.`,
           ok: 'Activer',
         }).then((yes) => yes && save({ mode: 'lock' }));
@@ -992,7 +1002,7 @@ function recentCells(r) {
   const kdClass = r.kd >= 1.2 ? 'good' : r.kd < 0.8 ? 'bad' : '';
   return `<div class="pc num" title="${title}"><b>${n(r.kills)} / ${n(r.deaths)} / ${n(r.assists)}</b></div>
     <div class="pc num ${kdClass}" title="${title}">${r.kd.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-    <div class="pc num" title="${title}">${r.hs != null ? `${Math.round(r.hs)} %` : '—'}</div>`;
+    <div class="pc num" title="${title}">${r.hs != null ? `${Math.round(r.hs)} %` : '—'}</div>`;
 }
 
 function playerRow(p, { pregame = false } = {}) {
@@ -1016,7 +1026,7 @@ function teamHtml(side, title, players, { pregame = false, score = null } = {}) 
   return `
     <div class="team ${side} ${pregame ? 'pregame' : ''}">
       <div class="player player-head">
-        <div class="ph-title"><h3>${title}${score != null ? ` <span class="team-score">${score}</span>` : ''}</h3></div>
+        <div class="ph-title"><h2>${title}${score != null ? ` <span class="team-score">${score}</span>` : ''}</h2></div>
         ${pregame ? '<div></div>' : ''}
         <div class="num">K / D / A</div><div class="num">K/D</div><div class="num">HS</div><div class="ph-rank">Rang</div><div></div>
       </div>
@@ -1049,7 +1059,7 @@ PAGES.live = async () => {
       content.innerHTML = `
         <div class="page-head"><h1>Partie en direct</h1></div>
         <div class="empty">
-          <h3>Pas de partie en cours</h3><div>Cette page se met à jour toute seule dès que la sélection d'agent commence.</div></div>`;
+          <h2>Pas de partie en cours</h2><div>Cette page se met à jour toute seule dès que la sélection d’agent commence.</div></div>`;
       return;
     }
     const me = d.allies.find((p) => p.isMe);
@@ -1059,7 +1069,7 @@ PAGES.live = async () => {
       <div class="match-head" style="${d.map?.splash ? `background-image:url('${d.map.splash}')` : ''}">
         <div>
           <div>
-            <div class="phase">${d.state === 'pregame' ? 'Sélection d\'agent' : 'En jeu'} · ${esc(queueName(d.queue))}</div>
+            <div class="phase">${d.state === 'pregame' ? 'Sélection d’agent' : 'En jeu'} · ${esc(queueName(d.queue))}</div>
             <div class="mapname">${esc(d.map?.name || 'Carte inconnue')}${d.side ? `<span class="pill side ${d.side}">${d.side === 'attack' ? 'Attaque' : 'Défense'}</span>` : ''}</div>
           </div>
           ${d.state === 'pregame' ? `<div class="countdown" data-ends="${d.endsAt}">${fmtDuration(d.endsAt - Date.now())}</div>` : ''}
@@ -1068,9 +1078,9 @@ PAGES.live = async () => {
       </div>
 
       ${d.state === 'pregame' && !myLocked ? lockZone(`
-        <div class="panel" style="margin-bottom:16px">
-          <div class="row" style="margin-bottom:12px">
-            <b style="letter-spacing:.1em;text-transform:uppercase">Choisir mon agent</b>
+        <div class="panel mb-block">
+          <div class="row pick-head">
+            <b>Choisir mon agent</b>
             <div class="spacer"></div>
             <button class="btn primary" id="lock-btn" ${pick && !actionsLocked() ? '' : 'disabled'}>Verrouiller ${pick ? esc(agentOf(pick)?.name) : ''}</button>
             <button class="btn danger" id="dodge-btn" title="Quitter la sélection (pénalité possible)" ${lockAttr()}>Esquiver</button>
@@ -1081,7 +1091,7 @@ PAGES.live = async () => {
           }).join('')}</div>
         </div>`) : ''}
 
-      <div class="live-note muted">K/D/A, K/D et HS : moyenne sur les 3 derniers matchs de chaque joueur dans ce mode (pas la partie en cours).</div>
+      <div class="live-note muted">K/D/A, K/D et HS : moyenne sur les 3 derniers matchs de chaque joueur dans ce mode (pas la partie en cours).</div>
       ${teamHtml('ally', 'Votre équipe', d.allies, { pregame: d.state === 'pregame', score: d.score?.[0] })}
       ${d.enemies.length ? teamHtml('enemy', 'Adversaires', d.enemies, { score: d.score?.[1] }) : ''}`;
   }
@@ -1102,7 +1112,12 @@ PAGES.live = async () => {
       } catch (err) { toast(err.message, 'error'); }
     }
     if (t.id === 'dodge-btn') {
-      if (!confirm('Quitter la sélection d\'agent ? Vous risquez une pénalité (RR, temps d\'attente).')) return;
+      const yes = await ask({
+        title: 'Esquiver la partie',
+        body: 'Vous quittez la sélection d’agent et risquez une pénalité (RR, temps d’attente).',
+        ok: 'Esquiver',
+      });
+      if (!yes) return;
       try {
         await call('pregame-dodge', last.matchId);
         toast('Partie esquivée.');
@@ -1138,13 +1153,13 @@ PAGES.history = async () => {
       const wins = list.filter((m) => m.result === 'win').length;
       const k = list.reduce((s, m) => s + m.kills, 0), dth = list.reduce((s, m) => s + m.deaths, 0);
       body = list.length ? `
-        <div class="wallet" style="margin-bottom:16px">
+        <div class="wallet mb-block">
           <div class="coin">${list.length} <span class="muted">matchs</span></div>
-          <div class="coin" style="color:var(--win)">${Math.round((wins / list.length) * 100)}% <span class="muted">victoires</span></div>
-          <div class="coin">${(k / Math.max(1, dth)).toFixed(2)} <span class="muted">K/D</span></div>
+          <div class="coin"><span class="${tone((wins / list.length) * 100, 50)}">${Math.round((wins / list.length) * 100)} %</span> <span class="muted">victoires</span></div>
+          <div class="coin">${f2(k / Math.max(1, dth))} <span class="muted">K/D</span></div>
           <div class="coin">${Math.round(list.reduce((s, m) => s + m.acs, 0) / list.length)} <span class="muted">ACS moyen</span></div>
         </div>
-        ${list.map(matchHtml).join('')}` : '<div class="empty"><h3>Aucun match</h3><div>Jouez une partie dans ce mode pour la voir ici.</div></div>';
+        ${list.map(matchHtml).join('')}` : '<div class="empty"><h2>Aucun match</h2><div>Jouez une partie dans ce mode pour la voir ici.</div></div>';
     } catch (e) {
       body = errorBox(e.message);
     }
@@ -1156,7 +1171,7 @@ PAGES.history = async () => {
 
   const head = () => `
     <div class="page-head"><h1>Historique</h1></div>
-    <div class="chip-group" id="hfilter" style="margin-bottom:16px">${FILTERS.map(([v, l]) => `<button data-filter="${v}" class="${filter === v ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+    <div class="chip-group mb-block" id="hfilter">${FILTERS.map(([v, l]) => `<button data-filter="${v}" class="${filter === v ? 'on' : ''}">${l}</button>`).join('')}</div>`;
 
   function placementBadge(m) {
     if (m.mvp === 'match') return '<span class="badge mvp">MVP</span>';
@@ -1188,7 +1203,7 @@ PAGES.history = async () => {
               <td><b>${p.acs}</b></td><td>${p.kills}</td><td>${p.deaths}</td><td>${p.assists}</td>
               <td class="${diff > 0 ? 'pos' : diff < 0 ? 'neg' : ''}">${diff > 0 ? '+' : ''}${diff}</td>
               <td>${(p.kills / Math.max(1, p.deaths)).toFixed(2).replace('.', ',')}</td>
-              <td>${p.adr}</td><td>${p.hs != null ? `${p.hs} %` : '—'}</td><td>${p.fb}</td>
+              <td>${p.adr}</td><td>${p.hs != null ? `${p.hs} %` : '—'}</td><td>${p.fb}</td>
               <td>${p.isMe ? '' : trackerBtn(p.name, p.tag)}</td>
             </tr>`;
           }).join('')}
@@ -1238,13 +1253,13 @@ PAGES.history = async () => {
           ${m.map?.listIcon ? `<img class="mimg" src="${m.map.listIcon}" alt="" loading="lazy">` : '<div></div>'}
           ${a ? `<img class="magent" src="${a.icon}" alt="" title="${esc(a.name)}">` : '<div></div>'}
           <div class="minfo"><div class="mmap">${esc(m.map?.name || '?')}</div><div class="mmeta">${esc(queueName(m.queue))} · ${m.startedAt ? timeAgo(m.startedAt) : ''} · ${Math.round((m.lengthMs || 0) / 60000)} min</div></div>
-          <div><div class="stat-label">${label}</div><div class="mscore">${m.score ? `${m.score[0]} - ${m.score[1]}` : '—'}</div></div>
+          <div><div class="stat-label">${label}</div><div class="mscore">${scoreText(m.score)}</div></div>
           <div>${placementBadge(m)}</div>
           <div><div class="stat-label">K / D / A</div><div class="stat-val">${m.kills} / ${m.deaths} / ${m.assists}</div></div>
           <div><div class="stat-label">ACS</div><div class="stat-val">${m.acs}</div></div>
-          <div class="col-hs"><div class="stat-label">HS</div><div class="stat-val">${m.hs != null ? `${m.hs} %` : '—'}</div></div>
+          <div class="col-hs"><div class="stat-label">HS</div><div class="stat-val">${m.hs != null ? `${m.hs} %` : '—'}</div></div>
           <div class="col-adr"><div class="stat-label">ADR</div><div class="stat-val">${m.adr}</div></div>
-          <div>${t?.icon && m.tier ? `<img src="${t.icon}" alt="" title="${esc(t.name)}" style="width:36px;height:36px">` : ''}</div>
+          <div>${t?.icon && m.tier ? `<img src="${t.icon}" alt="" title="${esc(t.name)}" class="mtier">` : ''}</div>
           <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
         </div>
         <div class="scoreboard"><div class="sb-inner"><div class="sb-pad">${scoreboardHtml(m)}</div></div></div>
@@ -1275,7 +1290,7 @@ PAGES.history = async () => {
 };
 
 // ---------- Statistiques ----------
-const CHART = { pos: '#12d6a0', neg: '#ff2e4d', draw: '#6b7590', line: '#12d6a0', grid: '#222941', surface: '#121626' };
+const CHART = { pos: '#12d6a0', neg: '#ff3b5c', draw: '#6b7590', line: '#12d6a0', grid: '#222941', surface: '#121626' };
 
 // Infobulle unique pour tous les graphiques (contenu inséré via textContent).
 function chartTip() {
@@ -1491,15 +1506,15 @@ function groupBy(recs, key) {
 const f2 = (n) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const f1 = (n) => n.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const f0 = (n) => Math.round(n).toLocaleString('fr-FR');
-const pct = (n) => `${n.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`;
-const DD_TITLE = 'Écart de dégâts : dégâts infligés moins dégâts reçus, par manche';
+const pct = (n) => `${n.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`;
+const DD_TITLE = 'Écart de dégâts : dégâts infligés moins dégâts reçus, par manche';
 const signed = (n) => (n == null ? '—' : `${n > 0 ? '+' : ''}${f0(n)}`);
 const hours = (ms) => `${(ms / 3600000).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} h`;
 // Couleur d'une valeur autour d'un seuil (vert au-dessus, rouge en dessous).
 const tone = (v, mid) => (v == null || v === mid ? '' : v > mid ? 'pos' : 'neg');
 
 const WEAPON_CATEGORY = {
-  Rifle: "Fusil d'assaut", SMG: 'Mitraillette', Shotgun: 'Fusil à pompe', Sniper: 'Fusil de précision',
+  Rifle: "Fusil d’assaut", SMG: 'Mitraillette', Shotgun: 'Fusil à pompe', Sniper: 'Fusil de précision',
   Heavy: 'Mitrailleuse', Sidearm: 'Arme de poing', Melee: 'Corps à corps',
 };
 
@@ -1528,21 +1543,6 @@ function sparkline(vals) {
       <path class="spark-area" d="${line}L200,56L0,56Z"/>
       <path class="spark-line" d="${line}"/>
     </svg>
-  </div>`;
-}
-
-/** Anneau victoires / défaites. */
-function winRing(a) {
-  const C = 2 * Math.PI * 26;
-  const played = a.wins + a.losses + a.draws || 1;
-  const w = (a.wins / played) * C, l = (a.losses / played) * C;
-  return `<div class="wl-ring">
-    <svg viewBox="0 0 64 64" aria-hidden="true">
-      <circle cx="32" cy="32" r="26" class="ring-bg"/>
-      <circle cx="32" cy="32" r="26" class="ring-loss" stroke-dasharray="${l} ${C}" stroke-dashoffset="${-w}"/>
-      <circle cx="32" cy="32" r="26" class="ring-win" stroke-dasharray="${w} ${C}"/>
-    </svg>
-    <div><b class="pos">${a.wins} V</b><b class="neg">${a.losses} D</b></div>
   </div>`;
 }
 
@@ -1595,11 +1595,11 @@ PAGES.stats = async () => {
     if (!s) return '';
     if (s.running) {
       if (s.waitUntil && s.waitUntil > Date.now()) {
-        return `<span class="rate-wait">Pause imposée par Riot : reprise dans <b data-ends="${s.waitUntil}">${fmtDuration(s.waitUntil - Date.now())}</b></span> · ${s.done} / ${s.total} nouveaux matchs`;
+        return `<span class="rate-wait">Pause imposée par Riot : reprise dans <b data-ends="${s.waitUntil}">${fmtDuration(s.waitUntil - Date.now())}</b></span> · ${s.done} / ${s.total} nouveaux matchs`;
       }
       return s.total ? `<span class="sync-dot"></span>Synchronisation… ${s.done} / ${s.total} nouveaux matchs` : '<span class="sync-dot"></span>Recherche de nouveaux matchs…';
     }
-    if (s.error) return `Synchronisation impossible : ${esc(s.error)}`;
+    if (s.error) return `Synchronisation impossible : ${esc(s.error)}`;
     return `À jour · ${data?.records.length || 0} matchs en mémoire`;
   }
 
@@ -1649,14 +1649,14 @@ PAGES.stats = async () => {
     const bestAct = acts.find((x) => x.uuid === best?.act);
     return `
       <div class="panel side-card rank-side">
-        <div class="side-title">${past ? "Rang de fin d'acte" : 'Rang actuel'}</div>
+        <div class="side-title">${past ? "Rang de fin d’acte" : 'Rang actuel'}</div>
         <div class="rank-line">
           ${rt?.icon && actRank?.tier ? `<img src="${rt.icon}" alt="">` : '<span class="rank-none"></span>'}
           <div><div class="rank-name">${actRank?.tier ? esc(rt?.name) : 'Non classé'}</div>
-          <div class="st-sub">${actRank?.tier ? `${actRank.rr} RR` : ''}${actRank?.peak && actRank.peak !== actRank.tier ? `${actRank?.tier ? ' · ' : ''}max de l'acte : ${esc(at?.name || '')}` : ''}</div></div>
+          <div class="st-sub">${actRank?.tier ? `${actRank.rr} RR` : ''}${actRank?.peak && actRank.peak !== actRank.tier ? `${actRank?.tier ? ' · ' : ''}max de l’acte : ${esc(at?.name || '')}` : ''}</div></div>
         </div>
         ${bt ? `
-          <div class="side-title" style="margin-top:14px">Meilleur rang</div>
+          <div class="side-title side-title-next">Meilleur rang</div>
           <div class="rank-line">
             ${bt.icon ? `<img src="${bt.icon}" alt="">` : ''}
             <div><div class="rank-name">${esc(bt.name)}</div>${bestAct ? `<div class="st-sub">${esc(bestAct.name)}</div>` : ''}</div>
@@ -1677,7 +1677,7 @@ PAGES.stats = async () => {
               <div class="acc-row ${i === 0 ? 'head' : ''}"><span>${l}</span><b>${pct(v)}</b><em>${f0(hits)} touches</em></div>`).join('')}
           </div>
         </div>
-        ${hsTrend.length >= 2 ? `<div class="side-sub">Headshot % par match <span>${hsTrend.length} derniers</span></div>${sparkline(hsTrend)}` : ''}
+        ${hsTrend.length >= 2 ? `<div class="side-sub">Headshot % par match <span>${hsTrend.length} derniers</span></div>${sparkline(hsTrend)}` : ''}
       </div>`;
   }
 
@@ -1738,13 +1738,11 @@ PAGES.stats = async () => {
   }
 
   // ---------- Vue d'ensemble ----------
-  function overview(a, recs, actRank) {
+  function overview(a, recs) {
     const resultLabel = { win: 'Victoire', loss: 'Défaite', draw: 'Égalité' };
     const queueLabel = QUEUE_F.find(([v]) => v === f.queue)?.[1] || '';
-    const rt = tierOf(actRank?.tier);
     const key = (label, value, sub, cls = '') => `<div class="ov-key"><div class="st-label">${label}</div><div class="ov-key-val ${cls}">${value}</div>${sub ? `<div class="st-sub">${sub}</div>` : ''}</div>`;
     const cell = (label, value, cls = '') => `<div class="ov-cell"><div class="st-label">${label}</div><b class="${cls}">${value}</b></div>`;
-    const showRank = (f.queue === 'competitive' || f.queue === 'all') && actRank?.tier;
     return `
       <div class="panel st-overview">
         <div class="ov-head">
@@ -1754,11 +1752,6 @@ PAGES.stats = async () => {
           </div>
           <div class="form">${recs.slice(0, 10).map((r) => `<span class="form-dot ${r.result}" title="${resultLabel[r.result]}">${r.result === 'win' ? 'V' : r.result === 'loss' ? 'D' : 'N'}</span>`).join('')}</div>
         </div>
-        <div class="ov-top">
-          ${showRank ? `<div class="ov-rank">${rt?.icon ? `<img src="${rt.icon}" alt="">` : ''}<div><div class="st-label">Rang</div><div class="ov-rank-name">${esc(rt?.name || '')}</div></div></div>` : ''}
-          <div class="ov-hero"><div class="st-label">K/D</div><div class="hero-value">${f2(a.kd)}</div></div>
-          ${winRing(a)}
-        </div>
         <div class="ov-keys">
           ${key('Dégâts / manche', f1(a.adr), 'ADR')}
           ${key('K/D', f2(a.kd), `${f0(a.kills)} K · ${f0(a.deaths)} D`, tone(a.kd, 1))}
@@ -1766,12 +1759,12 @@ PAGES.stats = async () => {
           ${key('Victoires', pct(a.winRate), `${a.wins} V · ${a.losses} D${a.draws ? ` · ${a.draws} N` : ''}`, tone(a.winRate, 50))}
         </div>
         <div class="ov-grid">
-          ${cell('Victoires', f0(a.wins))}
           ${cell('KAST', pct(a.kastPct))}
           ${cell(`<span title="${DD_TITLE}">DDΔ / manche</span>`, signed(a.ddDelta), tone(a.ddDelta, 0))}
           ${cell('Kills', f0(a.kills))}
           ${cell('Morts', f0(a.deaths))}
           ${cell('Assists', f0(a.assists))}
+          ${cell('Morts / manche', f2(a.deaths / Math.max(1, a.rounds)))}
           ${cell('ACS', f1(a.acs))}
           ${cell('KAD', f2(a.kda))}
           ${cell('Kills / manche', f2(a.kpr))}
@@ -1782,7 +1775,7 @@ PAGES.stats = async () => {
       </div>
       <div class="ov-strip">
         <div><div class="st-label">Manches gagnées</div><b class="${tone(a.roundWin, 50)}">${a.roundWin == null ? '—' : pct(a.roundWin)}</b><div class="st-sub">${f0(a.roundsWon)} / ${f0(a.roundsTotal)}</div></div>
-        <div><div class="st-label">Duels d'ouverture</div><b class="${tone(a.entry, 50)}">${a.entry == null ? '—' : pct(a.entry)}</b><div class="st-sub">${f0(a.fb)} FB · ${f0(a.fd)} FD</div></div>
+        <div><div class="st-label">Duels d’ouverture</div><b class="${tone(a.entry, 50)}">${a.entry == null ? '—' : pct(a.entry)}</b><div class="st-sub">${f0(a.fb)} FB · ${f0(a.fd)} FD</div></div>
         <div><div class="st-label">Clutchs</div><b>${a.detailed ? f0(a.clutches) : '—'}</b><div class="st-sub">manches sauvées seul</div></div>
         <div><div class="st-label">Multi-kills</div><b>${f0(a.k3 + a.k4 + a.k5)}</b><div class="st-sub">${f0(a.k3)} 3K · ${f0(a.k4)} 4K · ${f0(a.k5)} ACE</div></div>
       </div>`;
@@ -1840,12 +1833,12 @@ PAGES.stats = async () => {
         <div class="sm-info"><div class="sm-map">${esc(mp?.name || '?')}</div><div class="st-sub">${timeAgo(r.startedAt)}${f.queue === 'all' ? ` · ${esc(queueName(r.queue))}` : ''}</div></div>
         <div class="sm-place">${placeBadge(r)}</div>
         <div class="sm-tier">${t?.icon && r.tier ? `<img src="${t.icon}" alt="" title="${esc(t.name)}">` : ''}</div>
-        <div class="sm-score"><div class="st-label">Score</div><b>${r.score ? `${r.score[0]} : ${r.score[1]}` : '—'}</b></div>
+        <div class="sm-score"><div class="st-label">Score</div><b>${scoreText(r.score)}</b></div>
         <div class="sm-badges">${matchBadges(r)}</div>
         <div class="sm-stat"><div class="st-label">K/D</div><b class="${tone(r.kills / Math.max(1, r.deaths), 1)}">${f1(r.kills / Math.max(1, r.deaths))}</b></div>
         <div class="sm-stat kda"><div class="st-label">K / D / A</div><b>${r.kills} / ${r.deaths} / ${r.assists}</b></div>
         <div class="sm-stat col-dd" title="${DD_TITLE}"><div class="st-label">DDΔ</div><b class="${tone(dd, 0)}">${signed(dd)}</b></div>
-        <div class="sm-stat col-hs"><div class="st-label">HS %</div><b>${shots ? f0((r.head / shots) * 100) : '—'}</b></div>
+        <div class="sm-stat col-hs"><div class="st-label">HS %</div><b>${shots ? f0((r.head / shots) * 100) : '—'}</b></div>
         <div class="sm-stat"><div class="st-label">ACS</div><b>${f0(r.combat / Math.max(1, r.rounds))}</b></div>
       </div>`;
     };
@@ -1874,16 +1867,16 @@ PAGES.stats = async () => {
       ${list.length ? `
         <div class="panel sm-summary">
           <div class="sm-total">
-            <div><b class="pos">${a.wins} V</b> - <b class="neg">${a.losses} D</b> <span class="muted">(${f0(a.winRate)} %)</span></div>
+            <div><b class="pos">${a.wins} V</b> · <b class="neg">${a.losses} D</b> <span class="muted">(${f0(a.winRate)} %)</span></div>
             <div class="st-sub">${f2(a.kd)} K/D · ${f0(a.adr)} ADR</div>
           </div>
           ${top.map((g) => {
             const ag = agentOf(g.key);
-            return `<div class="sm-top-agent">${ag ? `<img src="${ag.icon}" alt="">` : ''}<div><b>${g.wins} V - ${g.losses} D</b> <span class="muted">(${f0(g.winRate)} %)</span><div class="st-sub">K/D ${f2(g.kd)}</div></div></div>`;
+            return `<div class="sm-top-agent">${ag ? `<img src="${ag.icon}" alt="">` : ''}<div><b>${g.wins} V · ${g.losses} D</b> <span class="muted">(${f0(g.winRate)} %)</span><div class="st-sub">K/D ${f2(g.kd)}</div></div></div>`;
           }).join('')}
         </div>
         <div class="sm-strip">
-          ${strip.map((r) => `<div class="sm-chip ${r.result}"><div class="st-sub">${timeAgo(r.startedAt)}</div><b>${r.score ? `${r.score[0]} : ${r.score[1]}` : '—'}</b><div class="st-sub">K/D ${f1(r.kills / Math.max(1, r.deaths))}</div></div>`).join('')}
+          ${strip.map((r) => `<div class="sm-chip ${r.result}"><div class="st-sub">${timeAgo(r.startedAt)}</div><b>${scoreText(r.score)}</b><div class="st-sub">K/D ${f1(r.kills / Math.max(1, r.deaths))}</div></div>`).join('')}
         </div>
         <div class="sm-list">${days.map((d) => dayHead(d) + d.recs.map(row).join('')).join('')}</div>
         ${list.length > shown ? `<div class="sm-more"><button class="btn ghost" data-more>Afficher ${Math.min(MATCH_PAGE, list.length - shown)} matchs de plus</button></div>` : ''}`
@@ -1925,11 +1918,11 @@ PAGES.stats = async () => {
       content.innerHTML = `${head}
         ${rankCard ? `<div class="st-solo">${rankCard}</div>` : ''}
         <div class="empty">
-          <h3>${syncing ? 'Synchronisation en cours…' : 'Aucun match'}</h3>
+          <h2>${syncing ? 'Synchronisation en cours…' : 'Aucun match'}</h2>
           <div>${syncing
-            ? 'Synchronisation des matchs : cette page se complète automatiquement.'
+            ? 'Synchronisation des matchs : cette page se complète automatiquement.'
             : tooOld
-              ? 'Riot ne fournit que les derniers matchs : cet acte est trop ancien pour être récupéré.<br>Precise Gunplay garde désormais tous vos matchs, pour les actes à venir.'
+              ? 'Riot ne fournit que les derniers matchs : cet acte est trop ancien pour être récupéré.<br>Precise Gunplay garde désormais tous vos matchs, pour les actes à venir.'
               : `Aucun match en ${esc(QUEUE_F.find(([v]) => v === f.queue)?.[1] || '')} pour ${esc(actName(f.act))}.`}</div>
         </div>`;
       bind();
@@ -1953,7 +1946,7 @@ PAGES.stats = async () => {
           ${mapsSide(maps)}
         </aside>
         <div class="st-main">
-          ${overview(a, recs, actRank)}
+          ${overview(a, recs)}
 
           ${rr.length >= 2 && (f.queue === 'competitive' || f.queue === 'all') ? `
             <h2>Évolution du RR <span class="timer">${rr.length} matchs classés</span></h2>
@@ -1971,7 +1964,7 @@ PAGES.stats = async () => {
 
           ${agentsTable(agents)}
           ${matchList(recs, agents, maps)}
-          ${f.act === 'all' && oldest ? `<p class="muted" style="font-size:12px;margin-top:18px">Matchs en mémoire depuis le ${new Date(oldest).toLocaleDateString('fr-FR')}. Riot ne fournit que les derniers matchs ; Precise Gunplay garde ensuite tout votre historique.</p>` : ''}
+          ${f.act === 'all' && oldest ? `<p class="muted st-foot">Matchs en mémoire depuis le ${new Date(oldest).toLocaleDateString('fr-FR')}. Riot ne fournit que les derniers matchs ; Precise Gunplay garde ensuite tout votre historique.</p>` : ''}
         </div>
       </div>`;
 
@@ -2036,25 +2029,25 @@ PAGES.party = async () => {
   function draw() {
     const p = last;
     if (!p) {
-      content.innerHTML = '<div class="page-head"><h1>Groupe</h1></div><div class="empty"><h3>Aucun groupe</h3><div>Lancez VALORANT pour voir votre groupe.</div></div>';
+      content.innerHTML = '<div class="page-head"><h1>Groupe</h1></div><div class="empty"><h2>Aucun groupe</h2><div>Lancez VALORANT pour voir votre groupe.</div></div>';
       return;
     }
     const searching = p.state === 'MATCHMAKING';
     const queues = [...new Set([p.queue, ...p.eligibleQueues].filter((q) => q !== undefined))];
     content.innerHTML = `
       <div class="page-head">
-        <h1>Groupe <span class="muted" style="font-size:18px">${p.members.length}/5</span></h1>
+        <h1>Groupe <span class="h1-count">${p.members.length}/5</span></h1>
       </div>
       ${actionsLocked() ? lockedNotice() : ''}
-      ${lockZone(`<div class="panel" style="margin-bottom:18px">
-        <div class="row" style="flex-wrap:wrap">
+      ${lockZone(`<div class="panel mb-block">
+        <div class="row party-bar">
           <div>
             <div class="stat-label">Mode</div>
             <select id="pq" ${!p.isOwner || searching || actionsLocked() ? 'disabled' : ''}>${queues.map((q) => `<option value="${esc(q)}" ${q === p.queue ? 'selected' : ''}>${esc(queueName(q))}</option>`).join('')}</select>
           </div>
-          <div style="margin-left:20px">
+          <div>
             <div class="stat-label">Groupe</div>
-            <div class="row" style="margin-top:6px"><label class="switch"><input type="checkbox" id="popen" ${p.open ? 'checked' : ''} ${p.isOwner && !actionsLocked() ? '' : 'disabled'}><span></span></label><span>${p.open ? 'Ouvert' : 'Fermé'}</span></div>
+            <div class="row party-open"><label class="switch"><input type="checkbox" id="popen" ${p.open ? 'checked' : ''} ${p.isOwner && !actionsLocked() ? '' : 'disabled'}><span></span></label><span>${p.open ? 'Ouvert' : 'Fermé'}</span></div>
           </div>
           <div class="spacer"></div>
           ${searching && p.queueEntryTime ? `<div class="muted">Recherche en cours…</div>` : ''}
@@ -2066,9 +2059,9 @@ PAGES.party = async () => {
           <div class="member">
             ${m.card ? `<img class="mcard" src="${m.card}" alt="">` : '<div class="mcard"></div>'}
             <div class="mname">${esc(m.name)}</div><div class="mtag">#${esc(m.tag)} · Niv. ${m.level ?? '?'}</div>
-            ${m.owner ? '<div class="crown">★ Chef de groupe</div>' : ''}
+            ${m.owner ? '<div class="crown">Chef de groupe</div>' : ''}
             ${rankHtml(m.rank)}
-            ${m.isMe ? '' : `<div style="margin-top:10px">${trackerBtn(m.name, m.tag)}</div>`}
+            ${m.isMe ? '' : `<div class="member-trn">${trackerBtn(m.name, m.tag)}</div>`}
           </div>`).join('')}
       </div>`;
   }
@@ -2114,7 +2107,7 @@ function friendAvatar(f, cls = '') {
 function scoreChip(v) {
   if (!v?.score) return '';
   const [a, e] = v.score;
-  return `<span class="fscore ${a > e ? 'ahead' : a < e ? 'behind' : ''}" title="Score de son équipe">${esc(a)}<i>-</i>${esc(e)}</span>`;
+  return `<span class="fscore ${a > e ? 'ahead' : a < e ? 'behind' : ''}" title="Score de son équipe">${esc(a)}<i>–</i>${esc(e)}</span>`;
 }
 
 // short : sans « En partie » / « Sélection d'agent », déjà dits par la section et la pastille de la ligne.
@@ -2124,7 +2117,7 @@ function friendStatus(f, short = false) {
   if (!v) return f.status === 'mobile' ? 'En ligne sur mobile' : `En ligne${f.product ? ` · ${esc(PRODUCTS[f.product] || f.product)}` : ''}`;
   const map = v.map ? ` · ${esc(v.map.name)}` : '';
   if (v.loop === 'INGAME') return `${short ? '' : 'En partie · '}${esc(queueName(v.queue))}${map}`;
-  if (v.loop === 'PREGAME') return `${short ? '' : "Sélection d'agent · "}${esc(queueName(v.queue))}${map}`;
+  if (v.loop === 'PREGAME') return `${short ? '' : "Sélection d’agent · "}${esc(queueName(v.queue))}${map}`;
   if (v.partyState === 'MATCHMAKING') return `Recherche une partie · ${esc(queueName(v.queue))}`;
   return `Dans les menus${v.partySize > 1 ? ` · groupe ${v.partySize}/${v.partyMax}` : ''}${v.idle ? ' · inactif' : ''}`;
 }
@@ -2206,7 +2199,7 @@ PAGES.friends = async () => {
   function dayLabel(ts) {
     const d = new Date(ts), now = new Date();
     const y = new Date(now); y.setDate(now.getDate() - 1);
-    if (d.toDateString() === now.toDateString()) return "Aujourd'hui";
+    if (d.toDateString() === now.toDateString()) return "Aujourd’hui";
     if (d.toDateString() === y.toDateString()) return 'Hier';
     return d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
   }
@@ -2257,8 +2250,8 @@ PAGES.friends = async () => {
           <div class="flive-head"><span class="live-dot"></span>En partie maintenant<b>${live.length}</b></div>
           <div class="flive">${live.map(liveCard).join('')}</div>` : ''}
         <div class="chat-empty">
-          <h3>Messagerie</h3>
-          <p class="muted">${actionsLocked() ? 'Choisissez un ami pour lire vos derniers messages.<br>L\'envoi de messages est désactivé.' : 'Choisissez un ami pour discuter.<br>Les messages passent par le Riot Client, comme dans le jeu.'}</p>
+          <h2>Messagerie</h2>
+          <p class="muted">${actionsLocked() ? 'Choisissez un ami pour lire vos derniers messages.<br>L’envoi de messages est désactivé.' : 'Choisissez un ami pour discuter.<br>Les messages passent par le Riot Client, comme dans le jeu.'}</p>
         </div>
       </div>`;
   }
@@ -2333,7 +2326,7 @@ PAGES.friends = async () => {
     <div class="page-head"><h1>Amis</h1><div class="fstats" id="fcount"></div></div>
     <div class="friends-layout">
       <div class="friends-col">
-        <input type="search" id="fsearch" placeholder="Rechercher un ami…" style="width:100%;margin-bottom:12px">
+        <input type="search" id="fsearch" placeholder="Rechercher un ami…" class="search-input">
         <div id="flist">${loader()}</div>
       </div>
       <div class="chatbox" id="chat"></div>
@@ -2369,7 +2362,7 @@ PAGES.collection = async () => {
   let query = '';
   content.innerHTML = `
     <div class="page-head"><h1>Collection</h1><span class="muted">${skins.length} skins</span></div>
-    <input type="search" id="csearch" placeholder="Rechercher un skin (ex : Vandal, Prime…)" style="width:360px;margin-bottom:16px">
+    <input type="search" id="csearch" placeholder="Rechercher un skin (ex : Vandal, Prime…)" class="search-input narrow">
     <div class="offers" id="cgrid"></div>`;
   const draw = () => {
     const q = query.toLowerCase();
@@ -2484,7 +2477,7 @@ PAGES.stretch = async () => {
   ].join('') : '';
   const HOTKEYS = [
     ['toggle', 'Basculer étirée ou native', 'Actif partout, jeu compris, quand la fonction est activée.'],
-    ['native', 'Tout restaurer', 'Toujours actif, même fonction coupée. En partie : résolution native.'],
+    ['native', 'Tout restaurer', 'Toujours actif, même fonction coupée. En partie : résolution native.'],
   ];
 
   content.innerHTML = `
@@ -2499,7 +2492,7 @@ PAGES.stretch = async () => {
       <button class="btn ghost" id="st-restore">Tout restaurer</button>
     </div>
 
-    <p class="muted st-rescue">Écran illisible : <span id="st-restore-key">${hotkeyHtml(info.hotkeys.native)}</span> remet l'affichage comme avant, à tout moment.</p>
+    <p class="muted st-rescue">Écran illisible : <span id="st-restore-key">${hotkeyHtml(info.hotkeys.native)}</span> remet l’affichage comme avant, à tout moment.</p>
 
     <div id="st-problems">${stretchProblemsHtml(info)}</div>
 
@@ -2508,7 +2501,7 @@ PAGES.stretch = async () => {
     <div class="panel st-gap">
       ${screenOptions ? `
       <div class="setting-row">
-        <div class="label"><div>Écran du jeu</div><div>Celui dont la résolution change. Automatique : l'écran où s'affiche VALORANT, sinon l'écran principal.</div></div>
+        <div class="label"><div>Écran du jeu</div><div>Celui dont la résolution change. Automatique : l’écran où s’affiche VALORANT, sinon l’écran principal.</div></div>
         <select id="st-screen">${screenOptions}</select>
       </div>` : ''}
       <div class="setting-row">
@@ -2530,11 +2523,11 @@ PAGES.stretch = async () => {
       <summary>Réglages avancés</summary>
       ${info.monitorsReady ? `
       <div class="setting-row">
-        <div class="label"><div>Écrans en mode générique pendant le jeu</div><div>Du lancement à la fermeture du jeu, Windows utilise son pilote d'écran standard pour tous les écrans. C'est ce qui permet à la résolution étirée de tenir. L'image ne change pas.</div></div>
+        <div class="label"><div>Écrans en mode générique pendant le jeu</div><div>Du lancement à la fermeture du jeu, Windows utilise son pilote d’écran standard pour tous les écrans. C’est ce qui permet à la résolution étirée de tenir. L’image ne change pas.</div></div>
         <label class="switch"><input type="checkbox" id="st-monitors" ${c.monitors ? 'checked' : ''}><span></span></label>
       </div>` : ''}
       <div class="setting-row">
-        <div class="label"><div>Régler VALORANT automatiquement</div><div>Plein écran fenêtré et format Remplir, nécessaires à l'étirement. Ses fichiers de réglages passent en lecture seule : les changements de qualité graphique faits en jeu ne sont plus enregistrés.</div></div>
+        <div class="label"><div>Régler VALORANT automatiquement</div><div>Plein écran fenêtré et format Remplir, nécessaires à l’étirement. Ses fichiers de réglages passent en lecture seule : les changements de qualité graphique faits en jeu ne sont plus enregistrés.</div></div>
         <label class="switch"><input type="checkbox" id="st-lock" ${c.gameConfig && info.configLocked !== null ? 'checked' : ''} ${info.configLocked === null ? 'disabled title="Lancez VALORANT une fois"' : ''}><span></span></label>
       </div>
       ${HOTKEYS.map(([k, label, note]) => `
@@ -2544,7 +2537,7 @@ PAGES.stretch = async () => {
       </div>`).join('')}
     </details>
 
-    <p class="muted st-note">${/amd|radeon/i.test(d?.gpu || '') ? "Carte AMD : la mise à l'échelle GPU passe en plein écran avant chaque passage en résolution étirée." : "Si l'image n'est pas étirée en jeu ou si l'écran affiche des artefacts, réglez la mise à l'échelle de la carte graphique sur plein écran : Plein écran effectuée sur le GPU chez NVIDIA."}</p>`;
+    <p class="muted st-note">${/amd|radeon/i.test(d?.gpu || '') ? "Carte AMD : la mise à l’échelle GPU passe en plein écran avant chaque passage en résolution étirée." : "Si l’image n’est pas étirée en jeu ou si l’écran affiche des artefacts, réglez la mise à l’échelle de la carte graphique sur plein écran : Plein écran effectuée sur le GPU chez NVIDIA."}</p>`;
 
   state.onStretch = (s) => {
     const el = $('#st-state');
@@ -2644,7 +2637,7 @@ PAGES.stretch = async () => {
         const accel = accelFromEvent(e);
         const keys = current();
         if (!accel) return toast('Combinaison non prise en charge : ajoutez Ctrl, Alt ou Maj, ou choisissez une touche F.', 'error');
-        if (Object.entries(keys).some(([k, v]) => k !== name && v === accel)) return toast('Déjà utilisé pour l\'autre raccourci.', 'error');
+        if (Object.entries(keys).some(([k, v]) => k !== name && v === accel)) return toast('Déjà utilisé pour l’autre raccourci.', 'error');
         stop();
         await save({ hotkeys: { ...keys, [name]: accel } });
         btn.innerHTML = hotkeyHtml(accel);
@@ -2661,7 +2654,7 @@ PAGES.stretch = async () => {
     try {
       const r = await call('stretch-lock', e.target.checked);
       state.settings.stretch.gameConfig = e.target.checked;
-      toast(r?.restart ? 'Réglages de VALORANT appliqués. Relancez le jeu pour qu\'il les prenne en compte.' : e.target.checked ? 'Réglages de VALORANT appliqués et verrouillés.' : 'Réglages de VALORANT déverrouillés.');
+      toast(r?.restart ? 'Réglages de VALORANT appliqués. Relancez le jeu pour qu’il les prenne en compte.' : e.target.checked ? 'Réglages de VALORANT appliqués et verrouillés.' : 'Réglages de VALORANT déverrouillés.');
     } catch (err) {
       e.target.checked = !e.target.checked;
       toast(err.message, 'error');
@@ -2695,11 +2688,11 @@ PAGES.settings = async () => {
         <select id="s-region">${REGIONS.map(([v, l]) => `<option value="${v}" ${s.regionOverride === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
       </div>
       <div class="setting-row">
-        <div class="label"><div>Notifications Windows</div><div>Affiche une notification quand l'agent auto sélectionne ou verrouille un agent.</div></div>
+        <div class="label"><div>Notifications Windows</div><div>Affiche une notification quand l’agent auto sélectionne ou verrouille un agent.</div></div>
         <label class="switch"><input type="checkbox" id="s-notif" ${s.notifications ? 'checked' : ''}><span></span></label>
       </div>
       <div class="setting-row">
-        <div class="label"><div>Lancer au démarrage de Windows</div><div>Ouvre Precise Gunplay à l'ouverture de la session Windows.</div></div>
+        <div class="label"><div>Lancer au démarrage de Windows</div><div>Ouvre Precise Gunplay à l’ouverture de la session Windows.</div></div>
         <label class="switch"><input type="checkbox" id="s-login" ${s.openAtLogin ? 'checked' : ''}><span></span></label>
       </div>
       <div class="setting-row">
@@ -2717,10 +2710,10 @@ PAGES.settings = async () => {
     </div>
 
     <h2>À propos</h2>
-    <div class="panel muted" style="line-height:1.6">
-      <b style="color:var(--text)">Precise Gunplay</b> v${esc(state.update?.current || '')}, compagnon non officiel pour VALORANT. Code source : github.com/NOUSSS/precise-gunplay<br>
-      Votre compte est lié via la session locale du Riot Client : l'app ne voit jamais votre mot de passe et ne stocke aucun jeton.<br>
-      Precise Gunplay n'est ni approuvé ni affilié à Riot Games. VALORANT et Riot Games sont des marques de Riot Games, Inc.
+    <div class="panel about">
+      <b>Precise Gunplay</b> v${esc(state.update?.current || '')}, compagnon non officiel pour VALORANT. Code source : github.com/NOUSSS/precise-gunplay<br>
+      Votre compte est lié via la session locale du Riot Client : l’app ne voit jamais votre mot de passe et ne stocke aucun jeton.<br>
+      Precise Gunplay n’est ni approuvé ni affilié à Riot Games. VALORANT et Riot Games sont des marques de Riot Games, Inc.
     </div>`;
   $('#s-region').onchange = async (e) => {
     state.settings = await call('settings-set', { regionOverride: e.target.value });
@@ -2730,7 +2723,7 @@ PAGES.settings = async () => {
   $('#s-login').onchange = async (e) => { state.settings = await call('settings-set', { openAtLogin: e.target.checked }); };
   $('#s-assets').onclick = async (e) => {
     e.target.disabled = true;
-    try { state.assets = await call('assets-refresh'); state.owned = null; toast('Données du jeu rechargées.'); }
+    try { state.assets = withAssets(await call('assets-refresh')); state.owned = null; toast('Données du jeu rechargées.'); }
     catch (err) { toast(err.message, 'error'); }
     e.target.disabled = false;
   };
@@ -2747,9 +2740,9 @@ PAGES.settings = async () => {
   renderNav();
   renderAccount();
   try {
-    [state.settings, state.assets, state.restrictions] = await Promise.all([call('settings-get'), call('assets'), call('restrictions')]);
+    [state.settings, state.assets, state.restrictions] = await Promise.all([call('settings-get'), call('assets').then(withAssets), call('restrictions')]);
   } catch (e) {
-    content.innerHTML = errorBox(`Impossible de charger les données du jeu (connexion Internet ?) : ${e.message}`);
+    content.innerHTML = errorBox(`Impossible de charger les données du jeu (connexion Internet ?) : ${e.message}`);
     return;
   }
   setInterval(refreshUnread, 8000);

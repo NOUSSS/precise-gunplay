@@ -58,7 +58,7 @@ class AutoLock extends EventEmitter {
       const pick = candidates.find((a) => !taken.has(a.toLowerCase()));
       if (!pick) {
         this.done.add(matchId);
-        this.emit('event', { type: 'unavailable', map: map?.name, message: 'Aucun de vos agents configurés n\'est disponible.' });
+        this.emit('event', { type: 'unavailable', map: map?.name, message: 'Aucun de vos agents configurés n’est disponible.' });
         return;
       }
 
@@ -84,7 +84,7 @@ class AutoLock extends EventEmitter {
       const n = (this.attempts.get(matchId) || 0) + 1;
       this.attempts.set(matchId, n);
       if (n >= 3) this.done.add(matchId);
-      this.emit('event', { type: 'error', message: `Sélection automatique : ${e.message}` });
+      this.emit('event', { type: 'error', message: `Sélection automatique : ${e.message}` });
     } finally {
       this.busy = false;
     }
