@@ -222,8 +222,8 @@ class RiotClient {
     const until = this.rateLimits.get(bucket) || 0;
     return until > Date.now() ? until : null;
   }
-  getCompetitiveUpdates(start = 0, end = 20) {
-    return this.pd('GET', `/mmr/v1/players/${this.puuid}/competitiveupdates?startIndex=${start}&endIndex=${end}&queue=competitive`);
+  getCompetitiveUpdates(start = 0, end = 20, puuid = this.puuid) {
+    return this.pd('GET', `/mmr/v1/players/${puuid}/competitiveupdates?startIndex=${start}&endIndex=${end}&queue=competitive`);
   }
   getMatchDetails(matchId) {
     return this.pd('GET', `/match-details/v1/matches/${matchId}`);
