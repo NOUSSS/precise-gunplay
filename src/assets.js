@@ -165,7 +165,7 @@ class Assets {
     const act = this.data.seasons.find(
       (s) => s.parent && s.type === 'EAresSeasonType::Act' && Date.parse(s.start) <= now && now <= Date.parse(s.end)
     );
-    return act ? { uuid: act.uuid, name: act.name } : null;
+    return act ? { uuid: act.uuid, name: act.name, start: Date.parse(act.start) } : null;
   }
 
   /** Actes déjà commencés, du plus récent au plus ancien, avec le nom de leur épisode. */
