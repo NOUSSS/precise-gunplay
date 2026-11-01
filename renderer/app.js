@@ -2433,7 +2433,7 @@ function wishIntro() {
     <div class="page-head"><h1>Liste de souhaits</h1></div>
     <div class="panel wish-intro">
       <p>Votre liste de souhaits est celle de PX-0, le bot Discord : il vous envoie un message privé dès qu’un de ces skins arrive dans votre boutique du jour ou votre marché nocturne, même quand ce PC est éteint.</p>
-      <p>Compte déjà connecté avec <b>/valorant connexion</b> ? Rien à refaire sur Discord : autorisez simplement l’app à échanger avec PX-0, une seule fois.</p>
+      <p>Compte déjà connecté avec <b>/valorant connexion</b> ? Votre liste s’affiche directement. Sinon, vous connecterez PX-0 ici en deux étapes, sans commande.</p>
       <p class="muted">L’app transmet alors à PX-0 le jeton de session du Riot Client, pour que Riot lui confirme votre compte. PX-0 ne le conserve pas et ne s’en sert pour rien d’autre.</p>
       <button class="btn primary" id="w-link">Autoriser et afficher ma liste</button>
     </div>`;
@@ -2445,6 +2445,174 @@ function wishIntro() {
 
 async function unlinkPx0() {
   state.settings = await call('settings-set', { px0: false });
+}
+
+// Connexion à PX-0 sans commande : Discord dans le navigateur (à qui écrire), puis QR code Riot Mobile (la session
+// Riot qui permet de lire la boutique chaque jour). PX-0 tient l'état de la liaison ; l'app le relit toutes les
+// 2 secondes et ne redessine que ce qui a changé (le QR code ne clignote pas).
+const ICON_DONE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+const LINK_ERRORS = {
+  qr_expired: () => 'Le QR code a expiré.',
+  qr_refused: () => 'Riot Mobile n’a pas validé la connexion.',
+  other_account: (me) => `Ce QR code a été validé avec un autre compte Riot. Générez-en un nouveau et validez-le avec ${me}.`,
+  riot_unavailable: () => 'Riot ne répond pas pour le moment.',
+};
+let px0DmFailed = false; // PX-0 n'a pas pu envoyer son message privé de confirmation
+
+function px0Link({ renew = false } = {}) {
+  const alive = guard();
+  const me = `${state.status.name || ''}#${state.status.tag || ''}`;
+  let view = null;
+  let opened = false; // page Discord ouverte dans le navigateur
+  let asking = false; // QR code demandé, pas encore reçu
+  let busy = false;
+  let ticks = 0; // suivis faits : un sur trois vérifie aussi une connexion faite avec le bot
+  let misses = 0; // suivis échoués de suite : une coupure passagère ne fait pas tout recommencer
+  let seq = 0; // une réponse plus ancienne que la dernière appliquée est ignorée
+  let applied = 0;
+  let drawn = '';
+  let timer = null;
+
+  content.innerHTML = `
+    <div class="page-head"><h1>Liste de souhaits</h1></div>
+    <div class="wish-link" id="w-link">${loader()}</div>`;
+
+  function stepsHtml() {
+    const discordDone = view.step !== 'discord';
+    const qrBlock = () => {
+      if (view.error) {
+        return `<div class="link-error">${esc(LINK_ERRORS[view.error]?.(me) || LINK_ERRORS.riot_unavailable())}</div>
+          <button class="btn" data-link="qr">${ICON_RETRY}Nouveau QR code</button>`;
+      }
+      return `<div class="link-qr">
+          ${view.qr ? `<img src="${view.qr.image}" alt="QR code de connexion Riot Mobile">` : '<div class="link-qr-wait"><span class="spinner"></span></div>'}
+          <div class="muted">Dans Riot Mobile, connecté au compte ${esc(me)}, touchez le bouton QR en haut à droite, scannez ce code puis validez.${view.qr ? `<div class="link-ends">Expire dans <b data-ends="${view.qr.expiresAt}">${fmtDuration(view.qr.expiresAt - Date.now())}</b></div>` : ''}</div>
+        </div>`;
+    };
+    return `
+      <div class="steps">
+        <div class="step ${discordDone ? 'done' : 'current'}">
+          <b>${discordDone ? ICON_DONE : '1'}</b>
+          <div class="link-body">
+            <div class="link-title">Se connecter avec Discord</div>
+            ${discordDone
+              ? `<div class="muted">${view.discordName ? `Connecté en tant que ${esc(view.discordName)}.` : 'Compte Discord déjà relié à PX-0.'}</div>`
+              : `<div class="muted">${opened
+                  ? 'Terminez la connexion dans votre navigateur, puis revenez ici. Pas connecté à Discord dans le navigateur ? Connectez-vous sur la page, ou passez par le bot (voir plus bas).'
+                  : 'Votre navigateur s’ouvre sur Discord pour relier PX-0 à votre compte Discord, qui recevra les alertes en message privé. Si vous n’y êtes pas connecté, Discord vous demandera de vous connecter. PX-0 ne voit que votre nom et votre identifiant Discord.'}</div>
+                 <button class="btn ${opened ? '' : 'primary'}" data-link="discord">${opened ? 'Rouvrir la page' : 'Se connecter avec Discord'}</button>`}
+          </div>
+        </div>
+        <div class="step ${discordDone ? 'current' : 'todo'}">
+          <b>2</b>
+          <div class="link-body">
+            <div class="link-title">Scanner un QR code avec Riot Mobile</div>
+            ${discordDone ? qrBlock() : '<div class="muted">PX-0 pourra alors lire votre boutique chaque jour, même ce PC éteint.</div>'}
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function draw() {
+    const key = JSON.stringify([view, opened]);
+    if (key === drawn) return;
+    drawn = key;
+    $('#w-link').innerHTML = `
+      <h2>${renew ? 'Renouveler la session de PX-0' : 'Connecter votre compte à PX-0'}</h2>
+      ${stepsHtml()}
+      <p class="link-bot">Vous préférez le bot ? Sur Discord, lancez <b>/valorant connexion</b> avec PX-0 : cette page se met à jour dès que c’est fait. Seule la connexion passe par le bot, votre liste se gère ici.</p>
+      <div class="row"><button class="btn ghost" data-link="${renew ? 'cancel' : 'unlink'}">${renew ? 'Annuler' : 'Délier PX-0'}</button></div>`;
+  }
+
+  function fail(message) {
+    clearInterval(timer);
+    drawn = '';
+    $('#w-link').innerHTML = `${errorBox(message)}
+      <div class="row mt-block"><button class="btn" data-link="restart">${ICON_RETRY}Recommencer</button><button class="btn ghost" data-link="${renew ? 'cancel' : 'unlink'}">${renew ? 'Annuler' : 'Délier PX-0'}</button></div>`;
+  }
+
+  async function apply(request, polling = false) {
+    const n = ++seq;
+    let next;
+    try {
+      next = await request;
+    } catch (e) {
+      if (polling && ++misses < 3) return;
+      if (alive() && n > applied) fail(e.message);
+      return;
+    }
+    misses = 0;
+    if (!alive() || n < applied) return;
+    applied = n;
+    view = next;
+    if (view.step === 'done') {
+      clearInterval(timer);
+      px0DmFailed = view.dmOk === false;
+      toast(`Alertes boutique activées pour ${view.riotName || me}.`, 'info');
+      return navigate('wishlist');
+    }
+    // Étape Riot Mobile : le premier QR code vient tout seul, les suivants à la demande (pas de boucle sans fin)
+    if (view.step === 'riot' && !view.qr && !view.error && !asking) requestQr();
+    draw();
+  }
+
+  function requestQr() {
+    asking = true;
+    apply(call('px0-link-qr', view.id)).finally(() => { asking = false; });
+  }
+
+  async function poll() {
+    if (busy || !view) return;
+    busy = true;
+    await apply(call('px0-link', view.id), true);
+    // Connexion faite avec le bot (/valorant connexion) : la liste de PX-0 le dit, toutes les 6 secondes
+    if (++ticks % 3 === 0 && alive()) {
+      const list = await call('wishlist').catch(() => null);
+      if (alive() && list?.linked && list.status === 'ok') {
+        clearInterval(timer);
+        toast(`Alertes boutique activées pour ${list.riotName || me}.`, 'info');
+        navigate('wishlist');
+      }
+    }
+    busy = false;
+  }
+
+  async function start() {
+    view = null;
+    opened = false;
+    drawn = '';
+    clearInterval(timer);
+    $('#w-link').innerHTML = loader();
+    await apply(call('px0-link-start'));
+    if (alive() && view && view.step !== 'done') timer = every(2000, poll);
+  }
+
+  content.onclick = async (e) => {
+    const action = e.target.closest('[data-link]')?.dataset.link;
+    if (action === 'discord') {
+      call('open-external', view.discordUrl).catch(() => {});
+      opened = true;
+      draw();
+    } else if (action === 'qr' && !asking) requestQr();
+    else if (action === 'restart') start();
+    else if (action === 'cancel') navigate('wishlist');
+    else if (action === 'unlink') {
+      await unlinkPx0();
+      navigate('wishlist');
+    }
+  };
+  start();
+}
+
+// Compte Discord qui reçoit les alertes : la preuve, sous la liste, que la liaison est faite.
+function discordHtml(d) {
+  if (!d?.name) return '';
+  const avatar = /^https:\/\/cdn\.discordapp\.com\//.test(d.avatar || '') ? `<img src="${esc(d.avatar)}" alt="">` : '<span></span>';
+  return `
+    <div class="wish-discord">
+      ${avatar}
+      <div><div>${esc(d.name)}</div><div>Alertes en message privé Discord</div></div>
+    </div>`;
 }
 
 PAGES.wishlist = async () => {
@@ -2462,19 +2630,7 @@ PAGES.wishlist = async () => {
   }
   if (!alive()) return;
 
-  if (!list.linked) {
-    const me = `${state.status.name || ''}#${state.status.tag || ''}`;
-    content.innerHTML = `
-      <div class="page-head"><h1>Liste de souhaits</h1></div>
-      <div class="empty">
-        <h2>Aucun compte PX-0 pour ${esc(me)}</h2>
-        <div>Sur Discord, lancez <b>/valorant connexion</b> avec PX-0 et connectez ce compte Riot, puis revenez ici.</div>
-        <div class="connect-actions mt-block"><button class="btn primary" id="w-retry">${ICON_RETRY}Réessayer</button><button class="btn ghost" id="w-unlink">Délier PX-0</button></div>
-      </div>`;
-    $('#w-retry').onclick = () => navigate('wishlist');
-    $('#w-unlink').onclick = async () => { await unlinkPx0(); navigate('wishlist'); };
-    return;
-  }
+  if (!list.linked) return px0Link();
 
   const byId = new Map(catalog.map((s) => [s.uuid, s]));
   const inShop = new Set([...(store?.daily || []), ...(store?.night?.offers || [])].map((o) => o.skinId).filter(Boolean));
@@ -2495,7 +2651,8 @@ PAGES.wishlist = async () => {
       <h1>Liste de souhaits <span class="h1-count" id="w-count"></span></h1>
       <span class="muted">Alertes PX-0 pour ${esc(list.riotName || 'votre compte')}</span>
     </div>
-    ${list.status === 'expired' ? '<div class="warn-box mb-block">La session Riot de PX-0 a expiré : les alertes sont en pause. Sur Discord, relancez <b>/valorant connexion</b> pour les reprendre.</div>' : ''}
+    ${list.status === 'expired' ? '<div class="warn-box mb-block wish-warn"><span>La session Riot de PX-0 a expiré : les alertes sont en pause.</span><button class="btn" id="w-renew">Renouveler la session</button></div>' : ''}
+    ${px0DmFailed ? '<div class="warn-box mb-block">PX-0 n’a pas pu vous écrire en message privé : les alertes ne vous parviendraient pas. Sur Discord, rejoignez un serveur où se trouve PX-0 et autorisez les messages privés de ses membres.</div>' : ''}
     <div class="wish-layout">
       <section>
         <div class="row wish-filters">
@@ -2512,6 +2669,7 @@ PAGES.wishlist = async () => {
       <aside class="panel wish-side">
         <div class="wish-side-head"><h2>Votre liste</h2><button class="btn ghost" id="w-unlink">Délier</button></div>
         <div id="w-list"></div>
+        ${discordHtml(list.discord)}
       </aside>
     </div>`;
 
@@ -2592,6 +2750,7 @@ PAGES.wishlist = async () => {
     const remove = e.target.closest('[data-remove]');
     if (remove) return toggle(remove.dataset.remove);
     if (e.target.closest('#w-more-btn')) { shown += WISH_PAGE; drawGrid(); return; }
+    if (e.target.closest('#w-renew')) return px0Link({ renew: true });
     if (e.target.closest('#w-unlink')) {
       const ok = await ask({ title: 'Délier PX-0 ?', body: 'L’app n’enverra plus rien à PX-0. Votre liste reste chez PX-0 et les alertes continuent sur Discord.', ok: 'Délier' });
       if (!ok) return;

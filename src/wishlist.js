@@ -4,6 +4,7 @@ const { app } = require('electron');
 
 const PX0_URL = 'https://px0.feitanx.com';
 const SKIN_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const LINK_ID = /^[0-9a-f]{32}$/;
 
 const ERRORS = {
   full: (b) => `Votre liste est pleine (${b.max} skins au maximum).`,
@@ -11,6 +12,7 @@ const ERRORS = {
   rate_limited: () => 'Trop de modifications d’un coup : patientez une minute.',
   riot_unavailable: () => 'Riot ne répond pas pour le moment : réessayez dans quelques minutes.',
   token: () => 'Riot a refusé la session : reconnectez-vous dans le Riot Client.',
+  expired: () => 'Cette connexion a expiré : recommencez.',
 };
 
 class Wishlist {
@@ -18,13 +20,12 @@ class Wishlist {
     this.client = client;
   }
 
-  async request(method, skinId, retry = true) {
-    if (skinId !== undefined && !SKIN_ID.test(String(skinId))) throw new Error('Skin invalide.');
+  async request(method, path, retry = true) {
     const token = this.client.tokens?.access;
     if (!token) throw new Error('Compte non connecté. Lancez VALORANT et connectez-vous.');
     let res;
     try {
-      res = await fetch(`${PX0_URL}/valorant/wishlist${skinId ? `/${skinId}` : ''}`, {
+      res = await fetch(`${PX0_URL}/valorant/${path}`, {
         method,
         headers: { Authorization: `Bearer ${token}`, 'User-Agent': `PreciseGunplay/${app.getVersion()}` },
         signal: AbortSignal.timeout(15000),
@@ -36,22 +37,38 @@ class Wishlist {
     // Jeton renouvelé par le Riot Client entre deux vérifications : on reprend le nouveau une fois.
     if (res.status === 401 && retry) {
       await this.client.refreshTokens().catch(() => {});
-      return this.request(method, skinId, false);
+      return this.request(method, path, false);
     }
     if (res.ok || body?.linked === false) return body;
     throw new Error(ERRORS[body?.error]?.(body) || `PX-0 a renvoyé une erreur (${res.status}).`);
   }
 
+  skin(method, skinId) {
+    if (!SKIN_ID.test(String(skinId))) throw new Error('Skin invalide.');
+    return this.request(method, `wishlist/${skinId}`);
+  }
+
   get() {
-    return this.request('GET');
+    return this.request('GET', 'wishlist');
   }
 
   add(skinId) {
-    return this.request('PUT', skinId);
+    return this.skin('PUT', skinId);
   }
 
   remove(skinId) {
-    return this.request('DELETE', skinId);
+    return this.skin('DELETE', skinId);
+  }
+
+  // Connexion à PX-0 sans commande : Discord dans le navigateur (à qui écrire), puis QR code Riot Mobile (la session
+  // Riot qui dure). PX-0 tient l'état de la liaison ; l'app le relit jusqu'à la fin.
+  linkStart() {
+    return this.request('POST', 'link');
+  }
+
+  link(id, qr = false) {
+    if (!LINK_ID.test(String(id))) throw new Error('Connexion invalide.');
+    return this.request(qr ? 'POST' : 'GET', `link/${id}${qr ? '/qr' : ''}`);
   }
 }
 

@@ -36,10 +36,14 @@ Réglez aussi la mise à l'échelle de la carte graphique sur plein écran (AMD 
 
 Onglet **Liste de souhaits** : choisissez dans le catalogue (recherche, filtre par arme) les skins que vous attendez.
 La liste est celle de PX-0, le bot Discord : il envoie un message privé quand l'un d'eux arrive dans la boutique du jour
-ou le marché nocturne, même PC éteint. Il faut d'abord connecter son compte Riot à PX-0 avec `/valorant connexion`.
-Une fois la liste liée (bouton **Lier à PX-0**, ou dans les paramètres), l'app transmet à PX-0 le jeton de session du
-Riot Client à chaque lecture ou modification : PX-0 le fait vérifier par Riot pour savoir à quel compte il appartient,
-et ne le conserve pas. Les skins de la liste sont marqués d'une étoile dans la boutique.
+ou le marché nocturne, même PC éteint. Une fois la liste autorisée (bouton de l'onglet, ou dans les paramètres), l'app
+transmet à PX-0 le jeton de session du Riot Client à chaque lecture ou modification : PX-0 le fait vérifier par Riot
+pour savoir à quel compte il appartient, et ne le conserve pas. Les skins de la liste sont marqués d'une étoile dans la
+boutique.
+
+Un compte Riot que PX-0 ne connaît pas encore se connecte depuis l'onglet, sans `/valorant connexion` : connexion
+Discord dans le navigateur (PX-0 apprend à qui écrire), puis QR code Riot Mobile affiché dans l'app (PX-0 obtient la
+session Riot qui lui sert à lire la boutique chaque jour). Le même QR code renouvelle une session expirée.
 
 ## Lancer / compiler
 
