@@ -1000,11 +1000,13 @@ function recentCells(r) {
   if (r == null) return `${dash('', 'pkda')}<div class="pc num muted" title="Chargement de ses parties…"><span class="mini-loader"></span></div>${dash()}<div class="pc"></div>`;
   let stats;
   if (!r.n) {
-    const title = r.loading ? 'Chargement de ses parties de l’acte…' : 'Aucune partie dans ce mode cet acte';
+    const title = r.loading ? 'Chargement de ses parties de l’acte…' : r.noAct ? 'Acte en cours inconnu' : 'Aucune partie dans ce mode cet acte';
     stats = dash(title, 'pkda') + dash(title) + dash(title);
   } else {
     const n = (v) => Math.round(v);
-    const title = r.loading ? `Moyenne sur ${r.n} des ${r.total} parties de l’acte en cours (chargement…)` : `Moyenne sur ${r.n > 1 ? `ses ${r.n} parties` : 'sa seule partie'} de l’acte en cours`;
+    // Riot ne garde qu'une centaine de parties : au-delà, seules les plus récentes de l'acte comptent.
+    const act = r.capped ? 'dernières parties de l’acte en cours' : 'parties de l’acte en cours';
+    const title = r.loading ? `Moyenne sur ${r.n} des ${r.total} ${act} (chargement…)` : r.n > 1 ? `Moyenne sur ses ${r.n} ${act}` : 'Moyenne sur sa seule partie de l’acte en cours';
     const tone = r.loading ? 'muted' : r.kd >= 1.2 ? 'good' : r.kd < 0.8 ? 'bad' : '';
     stats = `<div class="pc num pkda ${r.loading ? 'muted' : ''}" title="${title}"><b>${n(r.kills)} / ${n(r.deaths)} / ${n(r.assists)}</b></div>
     <div class="pc num ${tone}" title="${title}">${r.kd.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
