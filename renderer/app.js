@@ -1015,23 +1015,21 @@ ${actionsLocked() ? '</div>' : ''}`;
 };
 
 // ---------- Partie en direct ----------
-// Colonnes K/D/A · K/D · HS (acte en cours) et 10 dernières parties : toujours quatre cellules pour que tout
+// Colonnes K/D · HS (acte en cours) et 10 dernières parties : toujours trois cellules pour que tout
 // reste aligné d'un joueur à l'autre. Pendant le chargement de l'acte, les moyennes provisoires restent grisées.
 function recentCells(r) {
-  const dash = (title = '', cls = '') => `<div class="pc num ${cls} muted"${title ? ` title="${title}"` : ''}>—</div>`;
-  if (r == null) return `${dash('', 'pkda')}<div class="pc num muted" title="Chargement de ses parties…"><span class="mini-loader"></span></div>${dash()}<div class="pc"></div>`;
+  const dash = (title = '') => `<div class="pc num muted"${title ? ` title="${title}"` : ''}>—</div>`;
+  if (r == null) return `<div class="pc num muted" title="Chargement de ses parties…"><span class="mini-loader"></span></div>${dash()}<div class="pc"></div>`;
   let stats;
   if (!r.n) {
     const title = r.loading ? 'Chargement de ses parties de l’acte…' : r.noAct ? 'Acte en cours inconnu' : 'Aucune partie dans ce mode cet acte';
-    stats = dash(title, 'pkda') + dash(title) + dash(title);
+    stats = dash(title) + dash(title);
   } else {
-    const n = (v) => Math.round(v);
     // Riot ne garde qu'une centaine de parties : au-delà, seules les plus récentes de l'acte comptent.
     const act = r.capped ? 'dernières parties de l’acte en cours' : 'parties de l’acte en cours';
     const title = r.loading ? `Moyenne sur ${r.n} des ${r.total} ${act} (chargement…)` : r.n > 1 ? `Moyenne sur ses ${r.n} ${act}` : 'Moyenne sur sa seule partie de l’acte en cours';
     const tone = r.loading ? 'muted' : r.kd >= 1.2 ? 'good' : r.kd < 0.8 ? 'bad' : '';
-    stats = `<div class="pc num pkda ${r.loading ? 'muted' : ''}" title="${title}"><b>${n(r.kills)} / ${n(r.deaths)} / ${n(r.assists)}</b></div>
-    <div class="pc num ${tone}" title="${title}">${r.kd.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+    stats = `<div class="pc num ${tone}" title="${title}">${r.kd.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
     <div class="pc num ${r.loading ? 'muted' : ''}" title="${title}">${r.hs != null ? `${Math.round(r.hs)} %` : '—'}</div>`;
   }
   return stats + formCell(r.form);
@@ -1069,7 +1067,7 @@ function teamHtml(side, title, players, { pregame = false, score = null } = {}) 
       <div class="player player-head">
         <div class="ph-title"><h2>${title}${score != null ? ` <span class="team-score">${score}</span>` : ''}</h2></div>
         ${pregame ? '<div></div>' : ''}
-        <div class="num pkda">K / D / A</div><div class="num">K/D</div><div class="num">HS</div><div class="ph-form">10 dernières</div><div class="ph-rank">Rang</div><div></div>
+        <div class="num">K/D</div><div class="num">HS</div><div class="ph-form">10 dernières</div><div class="ph-rank">Rang</div><div></div>
       </div>
       ${players.map((p) => playerRow(p, { pregame })).join('')}
     </div>`;
@@ -1132,7 +1130,7 @@ PAGES.live = async () => {
           }).join('')}</div>
         </div>`) : ''}
 
-      <div class="live-note muted">Dans le mode de la partie : K/D/A, K/D et HS en moyenne sur l’acte en cours, puis les résultats des 10 dernières parties, la plus récente à gauche.</div>
+      <div class="live-note muted">Dans le mode de la partie : K/D et HS en moyenne sur l’acte en cours, puis les résultats des 10 dernières parties, la plus récente à gauche.</div>
       ${teamHtml('ally', 'Votre équipe', d.allies, { pregame: d.state === 'pregame', score: d.score?.[0] })}
       ${d.enemies.length ? teamHtml('enemy', 'Adversaires', d.enemies, { score: d.score?.[1] }) : ''}`;
   }
