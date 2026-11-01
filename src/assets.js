@@ -4,7 +4,7 @@ const path = require('path');
 
 const BASE = 'https://valorant-api.com/v1';
 const LANG = 'fr-FR';
-const SCHEMA = 3; // à incrémenter quand la forme du cache change
+const SCHEMA = 4; // à incrémenter quand la forme du cache change
 // Compétences dans l'ordre des touches du jeu (C, Q, E, X) ; le passif n'a pas d'icône.
 const ABILITY_SLOTS = ['Grenade', 'Ability1', 'Ability2', 'Ultimate'];
 
@@ -82,6 +82,9 @@ class Assets {
         get('/weapons'),
       ]);
 
+    // Arme de chaque skin : /weapons/skins ne la donne pas, /weapons range les skins sous leur arme.
+    const weaponOfSkin = new Map(weapons.flatMap((w) => (w.skins || []).map((s) => [s.uuid, w.uuid])));
+
     const raw = {
       schema: SCHEMA,
       version,
@@ -105,6 +108,7 @@ class Assets {
         name: s.displayName,
         icon: s.levels?.[0]?.displayIcon || s.displayIcon || s.chromas?.[0]?.fullRender,
         tier: s.contentTierUuid,
+        weapon: weaponOfSkin.get(s.uuid) || null,
         levels: (s.levels || []).map((l) => l.uuid),
       })),
       contentTiers: contentTiers.map((t) => ({ uuid: t.uuid, name: t.devName, color: `#${(t.highlightColor || 'ffffffff').slice(0, 6)}`, icon: t.displayIcon, rank: t.rank })),
@@ -189,7 +193,7 @@ class Assets {
       case ITEM_TYPES.skin: {
         const s = this.skinByLevel.get(id) || this.skinById.get(id);
         const tier = s && this.tierByUuid.get(String(s.tier).toLowerCase());
-        return { kind: 'Skin', name: s?.name || 'Skin inconnu', icon: s?.icon, color: tier?.color, tierIcon: tier?.icon };
+        return { kind: 'Skin', skinId: s?.uuid || null, name: s?.name || 'Skin inconnu', icon: s?.icon, color: tier?.color, tierIcon: tier?.icon };
       }
       case ITEM_TYPES.buddy: {
         const b = this.buddyById.get(id);

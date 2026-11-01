@@ -4,6 +4,7 @@ const path = require('path');
 const DEFAULTS = {
   regionOverride: '',
   notifications: true,
+  px0: false, // liste de souhaits liée à PX-0 (le jeton du Riot Client lui est alors transmis)
   autolock: {
     enabled: false,
     mode: 'select', // 'select' (survol uniquement) ou 'lock' (verrouillage)

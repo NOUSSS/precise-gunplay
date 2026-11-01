@@ -174,6 +174,8 @@ const ICONS = {
   party: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.5a5 5 0 0 1 6 5"/>',
   friends: '<path d="M4 5h16v11H9l-5 4z"/>',
   stats: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  wishlist: '<path d="M12 3.2l2.7 5.5 6 .9-4.35 4.25 1.03 6L12 17l-5.38 2.85 1.03-6L3.3 9.6l6-.9z"/>',
+  starOn: '<path fill="currentColor" d="M12 3.2l2.7 5.5 6 .9-4.35 4.25 1.03 6L12 17l-5.38 2.85 1.03-6L3.3 9.6l6-.9z"/>',
   collection: '<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M3 15l5-5 4 4 3-3 6 6"/>',
   stretch: '<rect x="2.5" y="4" width="19" height="13" rx="1.5"/><path d="M8 21h8M12 17v4M6.5 10.5h11M6.5 10.5l2-2M6.5 10.5l2 2M17.5 10.5l-2-2M17.5 10.5l-2 2"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
@@ -183,6 +185,7 @@ const icon = (name) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColo
 const NAV = [
   ['home', 'Accueil'],
   ['store', 'Boutique'],
+  ['wishlist', 'Liste de souhaits'],
   ['agent', 'Agent auto'],
   ['stretch', 'Résolution étirée'],
   ['live', 'Partie en direct'],
@@ -196,6 +199,18 @@ const NAV = [
   ['settings', 'Paramètres'],
 ];
 
+// Onglets nouveaux : un point rouge jusqu'à la première visite.
+const NEW_PAGES_KEY = 'pg-new-pages-seen';
+const NEW_PAGES = ['wishlist'];
+let newPagesSeen = [];
+try { newPagesSeen = JSON.parse(localStorage.getItem(NEW_PAGES_KEY) || '[]'); } catch { /* stockage indisponible */ }
+const isNewPage = (page) => NEW_PAGES.includes(page) && !newPagesSeen.includes(page);
+function markPageSeen(page) {
+  if (!isNewPage(page)) return;
+  newPagesSeen.push(page);
+  try { localStorage.setItem(NEW_PAGES_KEY, JSON.stringify(newPagesSeen)); } catch { /* facultatif */ }
+}
+
 function renderNav() {
   const autolockOn = state.settings?.autolock?.enabled && !actionsLocked();
   $('#nav').innerHTML = NAV.map((n) =>
@@ -203,7 +218,8 @@ function renderNav() {
       ? '<div class="nav-sep"></div>'
       : `<button class="nav-item ${state.page === n[0] ? 'active' : ''}" data-page="${n[0]}">${icon(n[0])}${n[1]}${
           (n[0] === 'agent' && autolockOn) || (n[0] === 'stretch' && state.settings?.stretch?.enabled) ? '<span class="nav-dot" title="Activé"></span>' : ''
-        }${n[0] === 'friends' && unreadTotal() ? `<span class="nav-badge">${unreadTotal()}</span>` : ''}</button>`
+        }${n[0] === 'friends' && unreadTotal() ? `<span class="nav-badge">${unreadTotal()}</span>` : ''}${
+          isNewPage(n[0]) ? '<span class="nav-dot new" title="Nouveau"></span>' : ''}</button>`
   ).join('');
   syncNavPill();
 }
@@ -340,6 +356,7 @@ function navigate(page) {
   state.timers.forEach(clearInterval);
   state.timers = [];
   state.page = page;
+  markPageSeen(page);
   state.renderId++;
   content.onclick = content.onchange = null;
   renderNav();
@@ -737,11 +754,13 @@ PAGES.home = async () => {
 };
 
 // ---------- Boutique ----------
-function offerCard(o, { small = false } = {}) {
+function offerCard(o, { small = false, wished = false } = {}) {
+  const flags = (o.percent ? `<div class="discount">−${o.percent} %</div>` : '')
+    + (wished ? `<span class="wish-star on" title="Dans votre liste de souhaits">${icon('starOn')}</span>` : '');
   return `
     <div class="offer ${small ? 'small' : ''}" style="${o.color ? `--tier:${o.color}` : ''}">
       ${o.tierIcon ? `<img class="tier-icon" src="${o.tierIcon}" alt="">` : ''}
-      ${o.percent ? `<div class="discount">−${o.percent} %</div>` : ''}
+      ${flags ? `<div class="flags">${flags}</div>` : ''}
       <div class="art">${o.icon ? `<img src="${o.icon}" alt="" loading="lazy">` : ''}</div>
       <div class="oname">${esc(o.name)}</div>
       ${o.kind && o.kind !== 'Skin' ? `<div class="kind">${esc(o.kind)}</div>` : ''}
@@ -751,8 +770,11 @@ function offerCard(o, { small = false } = {}) {
 
 PAGES.store = async () => {
   const alive = guard();
-  const s = await call('store');
+  // La liste de souhaits PX-0, si elle est liée, marque ses skins ; sans elle la boutique s'affiche quand même.
+  const [s, wl] = await Promise.all([call('store'), state.settings.px0 ? call('wishlist').catch(() => null) : null]);
   if (!alive()) return;
+  const wanted = new Set(wl?.linked ? wl.skins : []);
+  const card = (o) => offerCard(o, { wished: wanted.has(o.skinId) });
   content.innerHTML = `
     <div class="page-head">
       <h1>Boutique</h1>
@@ -764,11 +786,11 @@ PAGES.store = async () => {
     </div>
 
     <h2>Offres du jour <span class="timer">Renouvellement dans <b data-ends="${s.dailyEndsAt}">${fmtDuration(s.dailyEndsAt - Date.now())}</b></span></h2>
-    <div class="offers">${s.daily.map((o) => offerCard(o)).join('') || '<div class="muted">Aucune offre.</div>'}</div>
+    <div class="offers">${s.daily.map(card).join('') || '<div class="muted">Aucune offre.</div>'}</div>
 
     ${s.night ? `
       <h2>Marché nocturne <span class="timer">Fin dans <b data-ends="${s.night.endsAt}">${fmtDuration(s.night.endsAt - Date.now())}</b></span></h2>
-      <div class="offers">${s.night.offers.map((o) => offerCard(o)).join('')}</div>` : ''}
+      <div class="offers">${s.night.offers.map(card).join('')}</div>` : ''}
 
     ${s.bundles.length ? `<h2>Packs en vedette</h2>` : ''}
     ${s.bundles.map((b) => `
@@ -2394,6 +2416,195 @@ PAGES.collection = async () => {
   draw();
 };
 
+// ---------- Liste de souhaits ----------
+// La liste vit chez PX-0, le bot Discord : il prévient en message privé quand un de ces skins arrive en boutique,
+// même PC éteint. Catalogue à gauche, liste à droite (fixe au défilement : rien ne bouge sous le curseur).
+const WISH_PAGE = 60; // skins du catalogue affichés à la fois
+const WEAPON_ORDER = ['Sidearm', 'SMG', 'Shotgun', 'Rifle', 'Sniper', 'Heavy', 'Melee'];
+const weaponCategory = (w) => String(w?.category || '').split('::').pop();
+const weaponOf = (id) => (id && state.assets.weapons?.find((x) => x.uuid.toLowerCase() === String(id).toLowerCase())) || null;
+// Le nom d'un skin d'arme commence par l'arme (« Vandal (Pilleur) ») ; celui d'un couteau ne le dit pas.
+const isMelee = (s) => weaponCategory(weaponOf(s?.weapon)) === 'Melee';
+// Recherche sans accents ni casse : « reaver vand » trouve « Vandal Pilleur » comme « Reaver Vandal ».
+const fold = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+function wishIntro() {
+  content.innerHTML = `
+    <div class="page-head"><h1>Liste de souhaits</h1></div>
+    <div class="panel wish-intro">
+      <p>Votre liste de souhaits est celle de PX-0, le bot Discord : il vous envoie un message privé dès qu’un de ces skins arrive dans votre boutique du jour ou votre marché nocturne, même quand ce PC est éteint.</p>
+      <p>Compte déjà connecté avec <b>/valorant connexion</b> ? Rien à refaire sur Discord : autorisez simplement l’app à échanger avec PX-0, une seule fois.</p>
+      <p class="muted">L’app transmet alors à PX-0 le jeton de session du Riot Client, pour que Riot lui confirme votre compte. PX-0 ne le conserve pas et ne s’en sert pour rien d’autre.</p>
+      <button class="btn primary" id="w-link">Autoriser et afficher ma liste</button>
+    </div>`;
+  $('#w-link').onclick = async () => {
+    state.settings = await call('settings-set', { px0: true });
+    navigate('wishlist');
+  };
+}
+
+async function unlinkPx0() {
+  state.settings = await call('settings-set', { px0: false });
+}
+
+PAGES.wishlist = async () => {
+  const alive = guard();
+  if (!state.settings.px0) return wishIntro();
+  let list, catalog, store;
+  try {
+    [list, catalog, store] = await Promise.all([call('wishlist'), call('wishlist-catalog'), call('store').catch(() => null)]);
+  } catch (e) {
+    if (!alive()) return;
+    content.innerHTML = `<div class="page-head"><h1>Liste de souhaits</h1></div>${errorBox(e.message)}
+      <div class="row mt-block"><button class="btn" id="w-retry">${ICON_RETRY}Réessayer</button></div>`;
+    $('#w-retry').onclick = () => navigate('wishlist');
+    return;
+  }
+  if (!alive()) return;
+
+  if (!list.linked) {
+    const me = `${state.status.name || ''}#${state.status.tag || ''}`;
+    content.innerHTML = `
+      <div class="page-head"><h1>Liste de souhaits</h1></div>
+      <div class="empty">
+        <h2>Aucun compte PX-0 pour ${esc(me)}</h2>
+        <div>Sur Discord, lancez <b>/valorant connexion</b> avec PX-0 et connectez ce compte Riot, puis revenez ici.</div>
+        <div class="connect-actions mt-block"><button class="btn primary" id="w-retry">${ICON_RETRY}Réessayer</button><button class="btn ghost" id="w-unlink">Délier PX-0</button></div>
+      </div>`;
+    $('#w-retry').onclick = () => navigate('wishlist');
+    $('#w-unlink').onclick = async () => { await unlinkPx0(); navigate('wishlist'); };
+    return;
+  }
+
+  const byId = new Map(catalog.map((s) => [s.uuid, s]));
+  const inShop = new Set([...(store?.daily || []), ...(store?.night?.offers || [])].map((o) => o.skinId).filter(Boolean));
+  let mine = list.skins;
+  let query = '';
+  let weapon = '';
+  let shown = WISH_PAGE;
+  let pending = 0;
+  let queue = Promise.resolve();
+
+  const weapons = (state.assets.weapons || [])
+    .filter((w) => catalog.some((s) => s.weapon === w.uuid))
+    .sort((a, b) => WEAPON_ORDER.indexOf(weaponCategory(a)) - WEAPON_ORDER.indexOf(weaponCategory(b)) || a.name.localeCompare(b.name, 'fr'));
+  const groups = WEAPON_ORDER.map((c) => [c, weapons.filter((w) => weaponCategory(w) === c)]).filter(([, ws]) => ws.length);
+
+  content.innerHTML = `
+    <div class="page-head">
+      <h1>Liste de souhaits <span class="h1-count" id="w-count"></span></h1>
+      <span class="muted">Alertes PX-0 pour ${esc(list.riotName || 'votre compte')}</span>
+    </div>
+    ${list.status === 'expired' ? '<div class="warn-box mb-block">La session Riot de PX-0 a expiré : les alertes sont en pause. Sur Discord, relancez <b>/valorant connexion</b> pour les reprendre.</div>' : ''}
+    <div class="wish-layout">
+      <section>
+        <div class="row wish-filters">
+          <input type="search" id="w-search" placeholder="Rechercher un skin">
+          <select id="w-weapon" class="pill-select">
+            <option value="">Toutes les armes</option>
+            ${groups.map(([c, ws]) => `<optgroup label="${esc(WEAPON_CATEGORY[c] || c)}">${ws.map((w) => `<option value="${w.uuid}">${esc(weaponCategory(w) === 'Melee' ? 'Couteau' : w.name)}</option>`).join('')}</optgroup>`).join('')}
+          </select>
+          <span class="muted" id="w-found"></span>
+        </div>
+        <div class="offers wish-grid" id="w-grid"></div>
+        <div id="w-more"></div>
+      </section>
+      <aside class="panel wish-side">
+        <div class="wish-side-head"><h2>Votre liste</h2><button class="btn ghost" id="w-unlink">Délier</button></div>
+        <div id="w-list"></div>
+      </aside>
+    </div>`;
+
+  const card = (s) => {
+    const on = mine.includes(s.uuid);
+    const title = s.owned ? 'Déjà dans votre collection' : on ? 'Retirer de la liste' : 'Ajouter à la liste';
+    return `
+      <button class="offer small wish-card" data-skin="${s.uuid}" style="${s.color ? `--tier:${s.color}` : ''}" title="${title}" ${s.owned ? 'disabled' : ''}>
+        ${s.owned ? '' : `<span class="wish-star ${on ? 'on' : ''}">${icon(on ? 'starOn' : 'wishlist')}</span>`}
+        ${s.tierIcon ? `<img class="tier-icon" src="${s.tierIcon}" alt="">` : ''}
+        <div class="art">${s.icon ? `<img src="${s.icon}" alt="" loading="lazy">` : ''}</div>
+        <div class="oname">${esc(s.name)}</div>
+        ${s.owned || isMelee(s) ? `<div class="kind">${s.owned ? 'Possédé' : 'Couteau'}</div>` : ''}
+      </button>`;
+  };
+
+  function drawList() {
+    $('#w-count').textContent = `${mine.length}/${list.max}`;
+    const rows = mine.map((id) => {
+      const s = byId.get(id);
+      const shop = inShop.has(id);
+      return `
+        <div class="wish-row" style="${s?.color ? `--tier:${s.color}` : ''}">
+          <div class="wish-thumb">${s?.icon ? `<img src="${s.icon}" alt="" loading="lazy">` : ''}</div>
+          <div class="wish-name"><div>${esc(s?.name || 'Skin retiré du jeu')}</div>${shop || isMelee(s) ? `<div class="${shop ? 'in-shop' : ''}">${shop ? 'Dans votre boutique' : 'Couteau'}</div>` : ''}</div>
+          <button class="btn ghost icon-btn" data-remove="${id}" title="Retirer de la liste" aria-label="Retirer de la liste">${ICON_CLOSE}</button>
+        </div>`;
+    });
+    $('#w-list').innerHTML = rows.join('') || '<div class="muted wish-none">Aucun skin pour l’instant. Cliquez sur un skin du catalogue pour l’ajouter.</div>';
+  }
+
+  function drawGrid() {
+    const words = fold(query).split(/\s+/).filter(Boolean);
+    const found = catalog.filter((s) => (!weapon || s.weapon === weapon) && words.every((w) => fold(`${s.name} ${isMelee(s) ? 'couteau' : ''}`).includes(w)));
+    $('#w-found').textContent = `${fmtNum(found.length)} skin${found.length > 1 ? 's' : ''}`;
+    $('#w-grid').innerHTML = found.slice(0, shown).map(card).join('') || '<div class="muted">Aucun skin ne correspond.</div>';
+    $('#w-more').innerHTML = found.length > shown ? '<button class="btn wish-more" id="w-more-btn">Afficher plus</button>' : '';
+  }
+
+  // Une carte du catalogue change sur place : la grille ne bouge pas pendant qu'on coche.
+  function syncCard(id) {
+    const el = $(`#w-grid [data-skin="${id}"]`);
+    const s = byId.get(id);
+    if (el && s) el.outerHTML = card(s);
+  }
+
+  function toggle(id) {
+    const on = mine.includes(id);
+    if (!on && mine.length >= list.max) return toast(`Votre liste est pleine (${list.max} skins au maximum).`, 'error');
+    mine = on ? mine.filter((x) => x !== id) : [...mine, id];
+    drawList();
+    syncCard(id);
+    pending++;
+    // Une modification à la fois, dans l'ordre des clics ; la liste de PX-0 fait foi une fois tout envoyé.
+    queue = queue.then(async () => {
+      try {
+        const r = await call(on ? 'wishlist-remove' : 'wishlist-add', id);
+        if (--pending === 0 && alive() && r?.skins) {
+          const changed = [...mine, ...r.skins].filter((x) => mine.includes(x) !== r.skins.includes(x));
+          mine = r.skins;
+          drawList();
+          changed.forEach(syncCard);
+        }
+      } catch (e) {
+        pending--;
+        toast(e.message, 'error');
+        if (!alive()) return;
+        mine = on ? [...mine, id] : mine.filter((x) => x !== id);
+        drawList();
+        syncCard(id);
+      }
+    });
+  }
+
+  content.onclick = async (e) => {
+    const add = e.target.closest('[data-skin]');
+    if (add && !add.disabled) return toggle(add.dataset.skin);
+    const remove = e.target.closest('[data-remove]');
+    if (remove) return toggle(remove.dataset.remove);
+    if (e.target.closest('#w-more-btn')) { shown += WISH_PAGE; drawGrid(); return; }
+    if (e.target.closest('#w-unlink')) {
+      const ok = await ask({ title: 'Délier PX-0 ?', body: 'L’app n’enverra plus rien à PX-0. Votre liste reste chez PX-0 et les alertes continuent sur Discord.', ok: 'Délier' });
+      if (!ok) return;
+      await unlinkPx0();
+      navigate('wishlist');
+    }
+  };
+  $('#w-search').oninput = (e) => { query = e.target.value; shown = WISH_PAGE; drawGrid(); };
+  $('#w-weapon').onchange = (e) => { weapon = e.target.value; shown = WISH_PAGE; drawGrid(); };
+  drawList();
+  drawGrid();
+};
+
 // ---------- Paramètres ----------
 // ================= Résolution étirée =================
 const RATIOS = { '4:3': 4 / 3, '5:4': 5 / 4, '16:10': 16 / 10, '3:2': 3 / 2, '16:9': 16 / 9 };
@@ -2711,6 +2922,10 @@ PAGES.settings = async () => {
         <label class="switch"><input type="checkbox" id="s-notif" ${s.notifications ? 'checked' : ''}><span></span></label>
       </div>
       <div class="setting-row">
+        <div class="label"><div>Liste de souhaits PX-0</div><div>Transmet à PX-0 le jeton de session du Riot Client à chaque lecture ou modification de la liste, pour que Riot lui confirme votre compte. PX-0 ne le conserve pas.</div></div>
+        <label class="switch"><input type="checkbox" id="s-px0" ${s.px0 ? 'checked' : ''}><span></span></label>
+      </div>
+      <div class="setting-row">
         <div class="label"><div>Lancer au démarrage de Windows</div><div>Ouvre Precise Gunplay à l’ouverture de la session Windows.</div></div>
         <label class="switch"><input type="checkbox" id="s-login" ${s.openAtLogin ? 'checked' : ''}><span></span></label>
       </div>
@@ -2731,7 +2946,7 @@ PAGES.settings = async () => {
     <h2>À propos</h2>
     <div class="panel about">
       <b>Precise Gunplay</b> v${esc(state.update?.current || '')}, compagnon non officiel pour VALORANT. Code source : github.com/NOUSSS/precise-gunplay<br>
-      Votre compte est lié via la session locale du Riot Client : l’app ne voit jamais votre mot de passe et ne stocke aucun jeton.<br>
+      Votre compte est lié via la session locale du Riot Client : l’app ne voit jamais votre mot de passe et ne stocke aucun jeton. Seule la liste de souhaits, une fois liée à PX-0, lui transmet le jeton de session.<br>
       Precise Gunplay n’est ni approuvé ni affilié à Riot Games. VALORANT et Riot Games sont des marques de Riot Games, Inc.
     </div>`;
   $('#s-region').onchange = async (e) => {
@@ -2740,6 +2955,7 @@ PAGES.settings = async () => {
   };
   $('#s-notif').onchange = async (e) => { state.settings = await call('settings-set', { notifications: e.target.checked }); };
   $('#s-login').onchange = async (e) => { state.settings = await call('settings-set', { openAtLogin: e.target.checked }); };
+  $('#s-px0').onchange = async (e) => { state.settings = await call('settings-set', { px0: e.target.checked }); };
   $('#s-assets').onclick = async (e) => {
     e.target.disabled = true;
     try { state.assets = withAssets(await call('assets-refresh')); state.owned = null; toast('Données du jeu rechargées.'); }
