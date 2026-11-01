@@ -993,16 +993,33 @@ ${actionsLocked() ? '</div>' : ''}`;
 };
 
 // ---------- Partie en direct ----------
-// Colonnes K/D/A · K/D · HS : toujours trois cellules pour que tout reste aligné d'un joueur à l'autre.
+// Colonnes K/D/A · K/D · HS (acte en cours) et 10 dernières parties : toujours quatre cellules pour que tout
+// reste aligné d'un joueur à l'autre. Pendant le chargement de l'acte, les moyennes provisoires restent grisées.
 function recentCells(r) {
-  if (r == null) return '<div class="pc num muted" title="Chargement de ses derniers matchs…"><span class="mini-loader"></span></div><div class="pc num muted">—</div><div class="pc num muted">—</div>';
-  if (!r.n) return '<div class="pc num muted" title="Aucun match récent">—</div><div class="pc num muted">—</div><div class="pc num muted">—</div>';
-  const n = (v) => Math.round(v);
-  const title = `Moyenne sur ses ${r.n} derniers matchs (${r.wins} victoire${r.wins > 1 ? 's' : ''})`;
-  const kdClass = r.kd >= 1.2 ? 'good' : r.kd < 0.8 ? 'bad' : '';
-  return `<div class="pc num" title="${title}"><b>${n(r.kills)} / ${n(r.deaths)} / ${n(r.assists)}</b></div>
-    <div class="pc num ${kdClass}" title="${title}">${r.kd.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-    <div class="pc num" title="${title}">${r.hs != null ? `${Math.round(r.hs)} %` : '—'}</div>`;
+  const dash = (title = '', cls = '') => `<div class="pc num ${cls} muted"${title ? ` title="${title}"` : ''}>—</div>`;
+  if (r == null) return `${dash('', 'pkda')}<div class="pc num muted" title="Chargement de ses parties…"><span class="mini-loader"></span></div>${dash()}<div class="pc"></div>`;
+  let stats;
+  if (!r.n) {
+    const title = r.loading ? 'Chargement de ses parties de l’acte…' : 'Aucune partie dans ce mode cet acte';
+    stats = dash(title, 'pkda') + dash(title) + dash(title);
+  } else {
+    const n = (v) => Math.round(v);
+    const title = r.loading ? `Moyenne sur ${r.n} des ${r.total} parties de l’acte en cours (chargement…)` : `Moyenne sur ${r.n > 1 ? `ses ${r.n} parties` : 'sa seule partie'} de l’acte en cours`;
+    const tone = r.loading ? 'muted' : r.kd >= 1.2 ? 'good' : r.kd < 0.8 ? 'bad' : '';
+    stats = `<div class="pc num pkda ${r.loading ? 'muted' : ''}" title="${title}"><b>${n(r.kills)} / ${n(r.deaths)} / ${n(r.assists)}</b></div>
+    <div class="pc num ${tone}" title="${title}">${r.kd.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+    <div class="pc num ${r.loading ? 'muted' : ''}" title="${title}">${r.hs != null ? `${Math.round(r.hs)} %` : '—'}</div>`;
+  }
+  return stats + formCell(r.form);
+}
+
+// Résultats des dernières parties, la plus récente à gauche (« pending » : pas encore connu).
+function formCell(form = []) {
+  if (!form.length) return '<div class="pc pform muted">—</div>';
+  const count = (res) => form.filter((x) => x === res).length;
+  const [w, l, d] = [count('win'), count('loss'), count('draw')];
+  const title = `${w} victoire${w > 1 ? 's' : ''}, ${l} défaite${l > 1 ? 's' : ''}${d ? `, ${d} égalité${d > 1 ? 's' : ''}` : ''} sur ${form.length > 1 ? `ses ${form.length} dernières parties` : 'sa dernière partie'}${count('pending') ? ' (chargement…)' : ''}`;
+  return `<div class="pc pform" title="${title}"><div class="form mini">${form.map((x) => `<span class="form-dot ${x}"></span>`).join('')}</div></div>`;
 }
 
 function playerRow(p, { pregame = false } = {}) {
@@ -1017,7 +1034,7 @@ function playerRow(p, { pregame = false } = {}) {
       </div>
       ${pregame ? `<div class="pc">${p.state ? `<span class="pstate ${p.state}">${p.state === 'locked' ? 'Verrouillé' : 'Survol'}</span>` : ''}</div>` : ''}
       ${recentCells(p.recent)}
-      ${rankHtml(p.rank)}
+      ${p.rank ? rankHtml(p.rank) : '<div class="rank muted" title="Chargement du rang…"><span class="mini-loader"></span></div>'}
       <div class="pc">${p.isMe ? '' : trackerBtn(p.name, p.tag, p.hidden)}</div>
     </div>`;
 }
@@ -1028,7 +1045,7 @@ function teamHtml(side, title, players, { pregame = false, score = null } = {}) 
       <div class="player player-head">
         <div class="ph-title"><h2>${title}${score != null ? ` <span class="team-score">${score}</span>` : ''}</h2></div>
         ${pregame ? '<div></div>' : ''}
-        <div class="num">K / D / A</div><div class="num">K/D</div><div class="num">HS</div><div class="ph-rank">Rang</div><div></div>
+        <div class="num pkda">K / D / A</div><div class="num">K/D</div><div class="num">HS</div><div class="ph-form">10 dernières</div><div class="ph-rank">Rang</div><div></div>
       </div>
       ${players.map((p) => playerRow(p, { pregame })).join('')}
     </div>`;
@@ -1091,7 +1108,7 @@ PAGES.live = async () => {
           }).join('')}</div>
         </div>`) : ''}
 
-      <div class="live-note muted">K/D/A, K/D et HS : moyenne sur les 3 derniers matchs de chaque joueur dans ce mode (pas la partie en cours).</div>
+      <div class="live-note muted">Dans le mode de la partie : K/D/A, K/D et HS en moyenne sur l’acte en cours, puis les résultats des 10 dernières parties, la plus récente à gauche.</div>
       ${teamHtml('ally', 'Votre équipe', d.allies, { pregame: d.state === 'pregame', score: d.score?.[0] })}
       ${d.enemies.length ? teamHtml('enemy', 'Adversaires', d.enemies, { score: d.score?.[1] }) : ''}`;
   }

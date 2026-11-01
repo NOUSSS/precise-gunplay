@@ -65,11 +65,14 @@ class Services {
     this.client = client;
     this.assets = assets;
     this.rankCache = new Map();
+    this.rankPending = new Map();
     this.matchCache = new Map();
     this.matchPending = new Map();
     this.recent = new Map(); // stats récentes des joueurs croisés en partie
-    this.recentQueue = [];
-    this.recentRunning = 0;
+    this.records = new Map(); // résumé de chaque joueur d'un match téléchargé (« puuid:matchId »)
+    this.detailTasks = []; // téléchargements de matchs pour ces stats
+    this.detailRunning = 0;
+    this.detailSeq = 0;
     this.stats = null; // branché par main.js (calcul des résumés de match)
     this.liveScore = null; // dernier score lu pour la partie en cours { matchId, score }
   }
@@ -96,11 +99,32 @@ class Services {
 
   async rank(puuid) {
     const hit = this.rankCache.get(puuid);
-    if (hit && Date.now() - hit.at < 5 * 60 * 1000) return hit.value;
-    const mmr = await this.client.getMMR(puuid).catch(() => null);
-    const value = this.rankFromMMR(mmr);
-    this.rankCache.set(puuid, { at: Date.now(), value });
-    return value;
+    if (hit && Date.now() - hit.at < (hit.failed ? 30 * 1000 : 5 * 60 * 1000)) return hit.value;
+    if (!this.rankPending.has(puuid)) {
+      const load = this.client.getMMR(puuid).catch(() => null).then((mmr) => {
+        const value = this.rankFromMMR(mmr);
+        this.rankCache.set(puuid, { at: Date.now(), value, failed: !mmr });
+        return value;
+      });
+      this.rankPending.set(puuid, load.finally(() => this.rankPending.delete(puuid)));
+    }
+    return this.rankPending.get(puuid);
+  }
+
+  /**
+   * Rang en cache (même périmé), sinon null : chargé en arrière-plan, la page n'attend pas la limite de Riot.
+   * Un rang ne change pas pendant une partie : lu une fois par match.
+   */
+  rankNow(puuid, matchId) {
+    const hit = this.rankCache.get(puuid);
+    const age = hit ? Date.now() - hit.at : Infinity;
+    if (hit?.failed) {
+      if (age >= 30 * 1000) this.rank(puuid); // refusé par Riot : nouvel essai, sans afficher « Non classé »
+      return null;
+    }
+    if (hit && (hit.matchId === matchId || age < 5 * 60 * 1000)) hit.matchId = matchId;
+    else this.rank(puuid).then(() => (this.rankCache.get(puuid).matchId = matchId));
+    return hit?.value ?? null;
   }
 
   async names(puuids) {
@@ -238,9 +262,11 @@ class Services {
   }
 
   // ---------- Partie en direct ----------
-  async decorate(players, partyMembers = new Set(), queue = null) {
-    const names = await this.names(players.map((p) => p.puuid));
-    const ranks = await Promise.all(players.map((p) => this.rank(p.puuid)));
+  async decorate(players, partyMembers, queue, matchId) {
+    // Stats lancées avant les rangs, qui partagent une limite de Riot plus basse avec l'historique RR.
+    for (const p of players) this.recentStats(p.puuid, queue, matchId);
+    const names = await this.namesCached(players.map((p) => p.puuid));
+    const ranks = players.map((p) => this.rankNow(p.puuid, matchId));
     return players.map((p, i) => {
       const n = names.get(p.puuid) || {};
       const isMe = p.puuid === this.client.puuid;
@@ -256,7 +282,7 @@ class Services {
         agentId: agent?.uuid || null,
         state: p.state || null,
         rank: ranks[i],
-        recent: this.recentStats(p.puuid, queue),
+        recent: this.recentStats(p.puuid, queue, matchId),
       };
     });
   }
@@ -321,7 +347,8 @@ class Services {
         const allies = await this.decorate(
           (m.AllyTeam?.Players || []).map((p) => ({ puuid: p.Subject, agent: p.CharacterID, state: p.CharacterSelectionState, identity: p.PlayerIdentity })),
           party,
-          m.QueueID
+          m.QueueID,
+          m.ID
         );
         const parties = this.matchParties(pr, party);
         labelParties(allies, (p) => parties.get(p.puuid), () => 'ally');
@@ -343,10 +370,12 @@ class Services {
       if (m) {
         const [party, pr] = await Promise.all([this.partyMemberSet(), c.getPresences().catch(() => null)]);
         const myTeam = (m.Players || []).find((p) => p.Subject === c.puuid)?.TeamID;
+        // Ton équipe d'abord : ses stats sont chargées en premier.
         const all = await this.decorate(
-          (m.Players || []).map((p) => ({ puuid: p.Subject, agent: p.CharacterID, identity: p.PlayerIdentity, team: p.TeamID })),
+          [...(m.Players || [])].sort((x, y) => (y.TeamID === myTeam) - (x.TeamID === myTeam)).map((p) => ({ puuid: p.Subject, agent: p.CharacterID, identity: p.PlayerIdentity, team: p.TeamID })),
           party,
-          m.MatchmakingData?.QueueID
+          m.MatchmakingData?.QueueID,
+          m.MatchID
         );
         const teamOf = new Map((m.Players || []).map((p) => [p.Subject, p.TeamID]));
         const prev = this.liveScore;
@@ -375,7 +404,8 @@ class Services {
   }
 
   // ---------- Historique ----------
-  async matchDetails(id) {
+  /** keep = false : ne garde pas le match complet en mémoire (téléchargements en masse). */
+  async matchDetails(id, keep = true) {
     if (this.matchCache.has(id)) return this.matchCache.get(id);
     // Deux demandes simultanées du même match (ex : deux coéquipiers) ne font qu'une requête.
     if (!this.matchPending.has(id)) {
@@ -385,7 +415,7 @@ class Services {
       );
     }
     const d = await this.matchPending.get(id);
-    if (d) {
+    if (d && keep) {
       this.matchCache.set(id, d);
       // Garde seulement les 60 derniers matchs complets en mémoire.
       if (this.matchCache.size > 60) this.matchCache.delete(this.matchCache.keys().next().value);
@@ -393,54 +423,148 @@ class Services {
     return d;
   }
 
-  // ---------- Stats récentes des joueurs (partie en direct) ----------
-  /** Renvoie les stats en cache ou lance leur calcul en arrière-plan (null en attendant). */
-  recentStats(puuid, queue) {
+  // ---------- Stats des joueurs (partie en direct) ----------
+  // Dans le mode de la partie : K/D/A, K/D et HS sur l'acte en cours, résultats des 10 dernières parties.
+  // Riot limite le détail des matchs à ~65 par minute : les carrés passent d'abord.
+  //  1. En compétition, l'historique RR (une requête par joueur) donne tout de suite victoire ou défaite.
+  //  2. Les détails des 10 dernières parties sont téléchargés en alternant les joueurs (la plus récente de
+  //     chacun, puis la suivante…) : chaque ligne se remplit au même rythme et corrige les carrés provisoires.
+  //  3. Le reste de l'acte vient ensuite, pour les moyennes.
+
+  /**
+   * Renvoie les stats en cache ou lance leur calcul en arrière-plan (null en attendant). L'historique d'un
+   * joueur ne bouge pas pendant la partie : relu à chaque nouveau match (détails déjà vus gardés en cache).
+   */
+  recentStats(puuid, queue, matchId) {
     const key = `${puuid}:${queue || ''}`;
     const hit = this.recent.get(key);
-    if (hit && Date.now() - hit.at < 15 * 60 * 1000) return hit.value;
-    this.recent.set(key, { at: Date.now(), value: null });
-    this.recentQueue.push({ key, puuid, queue });
-    this.pumpRecent();
-    return null;
+    if (hit?.matchId === matchId) return hit.value;
+    // Les anciennes stats restent affichées pendant leur mise à jour.
+    const entry = { matchId, value: hit?.value ?? null, puuid, queue: queue || null, form: [], actIds: [], rr: new Map(), done: false };
+    this.recent.set(key, entry);
+    this.prepareRecent(entry).catch(() => this.recent.get(key) === entry && this.recent.delete(key)); // retenté au prochain rafraîchissement
+    return entry.value;
   }
 
-  pumpRecent() {
-    while (this.recentRunning < 2 && this.recentQueue.length) {
-      const job = this.recentQueue.shift();
-      this.recentRunning++;
-      this.loadRecent(job.puuid, job.queue)
-        .then((value) => this.recent.set(job.key, { at: Date.now(), value }))
-        .catch(() => this.recent.delete(job.key)) // retenté au prochain rafraîchissement
+  async prepareRecent(entry) {
+    const { puuid } = entry;
+    // En parallèle de l'historique, sauf pour toi (tes matchs sont déjà dans le cache de l'onglet Stats).
+    if (entry.queue === 'competitive' && puuid !== this.client.puuid) {
+      this.client
+        .getCompetitiveUpdates(0, 10, puuid)
+        .then((res) => {
+          (res?.Matches || []).forEach((m, i) => {
+            // Une égalité rapporte peu de RR, une victoire en Immortel aussi : de 0 à ±5, le détail du match
+            // tranche, téléchargé avant tout le reste.
+            const rr = m.RankedRatingEarned || 0;
+            if (Math.abs(rr) > 5) entry.rr.set(m.MatchID, rr > 0 ? 'win' : 'loss');
+            else this.queueDetail({ prio: -1, order: i, entry, id: m.MatchID });
+          });
+          if (!entry.form.length) entry.form = (res?.Matches || []).map((m) => m.MatchID);
+          this.publishRecent(entry);
+        })
+        .catch(() => {});
+    }
+    const since = this.assets.currentAct()?.start || 0;
+    let queue = entry.queue;
+    let list = await this.historyPage(puuid, queue, 0);
+    if (!list.length && queue) list = await this.historyPage(puuid, (queue = null), 0); // rien dans ce mode : toutes files
+    entry.form = list.slice(0, 10).map((m) => m.MatchID);
+    entry.actIds = list.filter((m) => m.GameStartTime >= since).map((m) => m.MatchID);
+    this.publishRecent(entry);
+    entry.form.forEach((id, i) => this.queueDetail({ prio: 0, order: i, entry, id }));
+    // Reste de l'acte : pages suivantes de l'historique, puis détails, une fois tous les carrés servis.
+    const more = list.length === 20 && list[19].GameStartTime >= since;
+    this.queueDetail({ prio: 1, order: this.detailSeq++, entry, run: () => this.loadRecentAct(entry, queue, since, more) });
+  }
+
+  async loadRecentAct(entry, queue, since, more) {
+    for (let page = 1; more && page < 5; page++) {
+      const list = await this.historyPage(entry.puuid, queue, page).catch(() => []);
+      entry.actIds.push(...list.filter((m) => m.GameStartTime >= since).map((m) => m.MatchID));
+      more = list.length === 20 && list[19].GameStartTime >= since;
+    }
+    const left = entry.actIds.filter((id) => !entry.form.includes(id));
+    left.forEach((id) => this.queueDetail({ prio: 1, order: this.detailSeq++, entry, id }));
+    // Dernière tâche du joueur : l'acte est complet une fois ses détails passés.
+    this.queueDetail({ prio: 1, order: this.detailSeq++, entry, run: async () => { entry.done = true; this.publishRecent(entry); } });
+  }
+
+  /**
+   * File commune des téléchargements : résultats douteux du RR (prio -1), carrés (prio 0, la plus récente de
+   * chaque joueur d'abord), puis acte (prio 1).
+   */
+  queueDetail(task) {
+    task.seq = this.detailSeq++;
+    this.detailTasks.push(task);
+    this.pumpDetails();
+  }
+
+  pumpDetails() {
+    while (this.detailRunning < 4 && this.detailTasks.length) {
+      const task = this.detailTasks.reduce((best, t) => (taskOrder(t, best) < 0 ? t : best));
+      this.detailTasks.splice(this.detailTasks.indexOf(task), 1);
+      const { entry } = task;
+      if (this.recent.get(`${entry.puuid}:${entry.queue || ''}`) !== entry) continue; // remplacé entre-temps
+      // Carré déjà donné par le RR : le détail ne sert plus qu'aux moyennes, s'il est de l'acte.
+      if (task.prio === 0 && entry.rr.has(task.id)) {
+        if (entry.actIds.includes(task.id)) this.queueDetail({ ...task, prio: 1, order: this.detailSeq++ });
+        continue;
+      }
+      this.detailRunning++;
+      (task.run ? task.run() : this.matchRecord(task.id, entry.puuid).then(() => this.publishRecent(entry)))
+        .catch(() => {})
         .finally(() => {
-          this.recentRunning--;
-          this.pumpRecent();
+          this.detailRunning--;
+          this.pumpDetails();
         });
     }
   }
 
-  async loadRecent(puuid, queue) {
-    let h = queue ? await this.client.getMatchHistory(0, 3, queue, puuid) : null;
-    if (!h?.History?.length) h = await this.client.getMatchHistory(0, 3, undefined, puuid);
-    const ids = (h?.History || []).slice(0, 3).map((m) => m.MatchID);
-    const recs = [];
-    for (const id of ids) {
-      const d = await this.matchDetails(id).catch(() => null);
-      const r = d && this.stats?.record(d, puuid);
-      if (r) recs.push(r);
+  /** Résumé d'un joueur dans un match : cache de l'onglet Stats pour toi, sinon téléchargé (null si indisponible). */
+  async matchRecord(id, puuid) {
+    const hit = this.cachedRecord(id, puuid);
+    if (hit) return hit;
+    const d = await this.matchDetails(id, false).catch(() => null);
+    if (!d || !this.stats) return null;
+    // Tous les joueurs suivis d'un coup : les membres d'un même groupe ont les mêmes parties.
+    const tracked = new Set([...this.recent.values()].map((e) => e.puuid));
+    for (const p of d.players || []) {
+      if (!p.isObserver && tracked.has(p.subject)) this.records.set(`${p.subject}:${id}`, this.stats.record(d, p.subject));
     }
-    if (!recs.length) return { n: 0 };
+    while (this.records.size > 5000) this.records.delete(this.records.keys().next().value);
+    return this.cachedRecord(id, puuid);
+  }
+
+  cachedRecord(id, puuid) {
+    const k = `${puuid}:${id}`;
+    return this.records.get(k) || this.stats?.cache.matches[k] || null;
+  }
+
+  /** Une page de 20 parties de l'historique d'un joueur, de la plus récente à la plus ancienne. */
+  async historyPage(puuid, queue, page) {
+    const h = await this.client.getMatchHistory(page * 20, (page + 1) * 20, queue || undefined, puuid);
+    return h?.History || [];
+  }
+
+  publishRecent(entry) {
+    if (!entry.form.length && !entry.actIds.length && !entry.done) return;
+    const recs = entry.actIds.map((id) => this.cachedRecord(id, entry.puuid)).filter(Boolean);
     const sum = (k) => recs.reduce((s, r) => s + (r[k] || 0), 0);
     const shots = sum('head') + sum('body') + sum('leg');
-    return {
+    entry.value = {
+      // Carré par partie : résultat exact du détail, sinon celui de l'historique RR, sinon en attente.
+      form: entry.form.map((id) => this.cachedRecord(id, entry.puuid)?.result || entry.rr.get(id) || 'pending'),
       n: recs.length,
-      kills: sum('kills') / recs.length,
-      deaths: sum('deaths') / recs.length,
-      assists: sum('assists') / recs.length,
-      kd: sum('kills') / Math.max(1, sum('deaths')),
-      acs: sum('combat') / Math.max(1, sum('rounds')),
-      hs: shots ? (sum('head') / shots) * 100 : null,
-      wins: recs.filter((r) => r.result === 'win').length,
+      total: entry.actIds.length,
+      loading: !entry.done,
+      ...(recs.length && {
+        kills: sum('kills') / recs.length,
+        deaths: sum('deaths') / recs.length,
+        assists: sum('assists') / recs.length,
+        kd: sum('kills') / Math.max(1, sum('deaths')),
+        hs: shots ? (sum('head') / shots) * 100 : null,
+      }),
     };
   }
 
@@ -694,6 +818,7 @@ class Services {
 }
 
 const CID_RE = /^[\w-]+@[\w.-]+$/;
+const taskOrder = (a, b) => a.prio - b.prio || a.order - b.order || a.seq - b.seq;
 const CHAT_MAX = 500;
 
 module.exports = { Services, myPresence };
