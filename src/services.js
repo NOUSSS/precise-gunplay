@@ -448,7 +448,7 @@ class Services {
   }
 
   // ---------- Stats des joueurs (partie en direct) ----------
-  // Dans le mode de la partie : K/D/A, K/D et HS sur l'acte en cours, résultats des 10 dernières parties.
+  // Dans le mode de la partie : K/D et HS sur l'acte en cours, résultats des 10 dernières parties.
   // Riot limite le détail des matchs à ~65 par minute : les carrés passent d'abord.
   //  1. En compétition, l'historique RR (une requête par joueur) donne tout de suite victoire ou défaite.
   //  2. Les détails des 10 dernières parties sont téléchargés en alternant les joueurs (la plus récente de
@@ -613,9 +613,6 @@ class Services {
       capped: entry.capped,
       noAct: entry.noAct,
       ...(recs.length && {
-        kills: sum('kills') / recs.length,
-        deaths: sum('deaths') / recs.length,
-        assists: sum('assists') / recs.length,
         kd: sum('kills') / Math.max(1, sum('deaths')),
         hs: shots ? (sum('head') / shots) * 100 : null,
       }),

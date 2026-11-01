@@ -604,8 +604,9 @@ kbd + kbd { margin-left: 4px; }
 .team.enemy h2 { color: var(--red-text); }
 .team-score { font-size: 18px; color: var(--text); }
 /* Grille commune : chaque colonne a la même largeur pour tous les joueurs des deux équipes. */
-.player { display: grid; grid-template-columns: 44px minmax(140px, 1fr) 100px 56px 56px 140px 170px 56px; align-items: center; gap: 12px; background: var(--panel); border: 1px solid var(--line); padding: 8px 12px 8px 8px; border-radius: var(--radius-sm); margin-bottom: 6px; transition: background-color var(--dur) var(--ease); }
-.team.pregame .player { grid-template-columns: 44px minmax(140px, 1fr) 90px 100px 56px 56px 140px 170px 56px; }
+.player { display: grid; grid-template-columns: 44px minmax(140px, 1fr) 56px 56px 140px 170px 56px; align-items: center; gap: 12px; background: var(--panel); border: 1px solid var(--line); padding: 8px 12px 8px 8px; border-radius: var(--radius-sm); margin-bottom: 6px; transition: background-color var(--dur) var(--ease); }
+/* Sélection d'agent : une colonne de plus pour l'état */
+.team.pregame .player { grid-template-columns: 44px minmax(140px, 1fr) 90px 56px 56px 140px 170px 56px; }
 .player-head { background: transparent !important; border-color: transparent !important; box-shadow: none !important; padding-top: 0; padding-bottom: 2px; margin-bottom: 2px; font-size: 12px; color: var(--muted); }
 .player-head .ph-title { grid-column: span 2; }
 .player-head :is(.ph-rank, .ph-form) { padding-left: 12px; }
@@ -635,11 +636,10 @@ kbd + kbd { margin-left: 4px; }
 .form.mini { gap: 3px; }
 .form.mini .form-dot { width: 10px; height: 10px; border-radius: 2px; }
 .form-dot.pending { background: var(--panel-3); }
-/* Fenêtre étroite : colonnes resserrées ; en sélection d'agent, la colonne K/D/A laisse la place à l'état */
+/* Fenêtre étroite : colonnes resserrées */
 @media (max-width: 1300px) {
-  .player { grid-template-columns: 44px minmax(110px, 1fr) 90px 48px 48px 108px 130px 56px; gap: 10px; }
+  .player { grid-template-columns: 44px minmax(110px, 1fr) 48px 48px 108px 130px 56px; gap: 10px; }
   .team.pregame .player { grid-template-columns: 44px minmax(110px, 1fr) 80px 48px 48px 108px 130px 56px; }
-  .team.pregame .player .pkda { display: none; }
   .player-head :is(.ph-rank, .ph-form), .player .pform, .player .rank { padding-left: 10px; }
   .form.mini { gap: 2px; }
   .form.mini .form-dot { width: 8px; height: 8px; }
