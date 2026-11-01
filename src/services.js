@@ -73,6 +73,7 @@ class Services {
     this.detailTasks = []; // téléchargements de matchs pour ces stats
     this.detailRunning = 0;
     this.detailSeq = 0;
+    this.liveMatchId = null; // partie affichée : seuls ses joueurs sont servis par la file
     this.stats = null; // branché par main.js (calcul des résumés de match)
     this.liveScore = null; // dernier score lu pour la partie en cours { matchId, score }
   }
@@ -101,9 +102,13 @@ class Services {
     const hit = this.rankCache.get(puuid);
     if (hit && Date.now() - hit.at < (hit.failed ? 30 * 1000 : 5 * 60 * 1000)) return hit.value;
     if (!this.rankPending.has(puuid)) {
-      const load = this.client.getMMR(puuid).catch(() => null).then((mmr) => {
+      // Refus de Riot (exception) : réessayé ; pas de MMR (404, null) : « Non classé ».
+      const load = this.client.getMMR(puuid).then(
+        (mmr) => ({ mmr, failed: false }),
+        () => ({ mmr: null, failed: true })
+      ).then(({ mmr, failed }) => {
         const value = this.rankFromMMR(mmr);
-        this.rankCache.set(puuid, { at: Date.now(), value, failed: !mmr });
+        this.rankCache.set(puuid, { at: Date.now(), value, failed });
         return value;
       });
       this.rankPending.set(puuid, load.finally(() => this.rankPending.delete(puuid)));
@@ -263,6 +268,7 @@ class Services {
 
   // ---------- Partie en direct ----------
   async decorate(players, partyMembers, queue, matchId) {
+    this.liveMatchId = matchId;
     // Stats lancées avant les rangs, qui partagent une limite de Riot plus basse avec l'historique RR.
     for (const p of players) this.recentStats(p.puuid, queue, matchId);
     const names = await this.namesCached(players.map((p) => p.puuid));
@@ -430,6 +436,7 @@ class Services {
   //  2. Les détails des 10 dernières parties sont téléchargés en alternant les joueurs (la plus récente de
   //     chacun, puis la suivante…) : chaque ligne se remplit au même rythme et corrige les carrés provisoires.
   //  3. Le reste de l'acte vient ensuite, pour les moyennes.
+  // Seuls les joueurs de la partie affichée sont servis : ceux de la précédente sortent de la file.
 
   /**
    * Renvoie les stats en cache ou lance leur calcul en arrière-plan (null en attendant). L'historique d'un
@@ -438,11 +445,15 @@ class Services {
   recentStats(puuid, queue, matchId) {
     const key = `${puuid}:${queue || ''}`;
     const hit = this.recent.get(key);
-    if (hit?.matchId === matchId) return hit.value;
+    if (hit?.matchId === matchId && !(hit.failedAt && Date.now() - hit.failedAt >= 30 * 1000)) return hit.value;
     // Les anciennes stats restent affichées pendant leur mise à jour.
-    const entry = { matchId, value: hit?.value ?? null, puuid, queue: queue || null, form: [], actIds: [], rr: new Map(), done: false };
+    const entry = {
+      matchId, puuid, queue: queue || null, value: hit?.value ?? null, ready: false,
+      form: [], rr: new Map(), actIds: [], listed: false, capped: false, noAct: false, failed: new Set(),
+    };
     this.recent.set(key, entry);
-    this.prepareRecent(entry).catch(() => this.recent.get(key) === entry && this.recent.delete(key)); // retenté au prochain rafraîchissement
+    // Riot en panne ou limite dépassée : nouvel essai au bout de 30 s, pas à chaque rafraîchissement.
+    this.prepareRecent(entry).catch(() => (entry.failedAt = Date.now()));
     return entry.value;
   }
 
@@ -453,41 +464,51 @@ class Services {
       this.client
         .getCompetitiveUpdates(0, 10, puuid)
         .then((res) => {
-          (res?.Matches || []).forEach((m, i) => {
+          const list = res?.Matches || [];
+          list.forEach((m, i) => {
             // Une égalité rapporte peu de RR, une victoire en Immortel aussi : de 0 à ±5, le détail du match
             // tranche, téléchargé avant tout le reste.
             const rr = m.RankedRatingEarned || 0;
             if (Math.abs(rr) > 5) entry.rr.set(m.MatchID, rr > 0 ? 'win' : 'loss');
             else this.queueDetail({ prio: -1, order: i, entry, id: m.MatchID });
           });
-          if (!entry.form.length) entry.form = (res?.Matches || []).map((m) => m.MatchID);
+          if (!entry.ready && list.length) {
+            entry.form = list.map((m) => m.MatchID);
+            entry.ready = true;
+          }
           this.publishRecent(entry);
         })
         .catch(() => {});
     }
-    const since = this.assets.currentAct()?.start || 0;
+    const act = this.assets.currentAct();
     let queue = entry.queue;
     let list = await this.historyPage(puuid, queue, 0);
     if (!list.length && queue) list = await this.historyPage(puuid, (queue = null), 0); // rien dans ce mode : toutes files
     entry.form = list.slice(0, 10).map((m) => m.MatchID);
-    entry.actIds = list.filter((m) => m.GameStartTime >= since).map((m) => m.MatchID);
+    entry.ready = true;
+    // Acte en cours inconnu (données du jeu en retard sur un nouvel acte) : pas de moyennes plutôt que fausses.
+    if (!act) entry.noAct = true;
+    else entry.actIds = list.filter((m) => m.GameStartTime >= act.start).map((m) => m.MatchID);
     this.publishRecent(entry);
     entry.form.forEach((id, i) => this.queueDetail({ prio: 0, order: i, entry, id }));
     // Reste de l'acte : pages suivantes de l'historique, puis détails, une fois tous les carrés servis.
-    const more = list.length === 20 && list[19].GameStartTime >= since;
-    this.queueDetail({ prio: 1, order: this.detailSeq++, entry, run: () => this.loadRecentAct(entry, queue, since, more) });
+    if (act) {
+      const more = list.length === 20 && list[19].GameStartTime >= act.start;
+      this.queueDetail({ prio: 1, order: this.detailSeq++, entry, run: () => this.loadRecentAct(entry, queue, act.start, more) });
+    }
   }
 
   async loadRecentAct(entry, queue, since, more) {
+    // Riot ne garde qu'une centaine de parties : 5 pages au plus.
     for (let page = 1; more && page < 5; page++) {
       const list = await this.historyPage(entry.puuid, queue, page).catch(() => []);
       entry.actIds.push(...list.filter((m) => m.GameStartTime >= since).map((m) => m.MatchID));
       more = list.length === 20 && list[19].GameStartTime >= since;
     }
-    const left = entry.actIds.filter((id) => !entry.form.includes(id));
-    left.forEach((id) => this.queueDetail({ prio: 1, order: this.detailSeq++, entry, id }));
-    // Dernière tâche du joueur : l'acte est complet une fois ses détails passés.
-    this.queueDetail({ prio: 1, order: this.detailSeq++, entry, run: async () => { entry.done = true; this.publishRecent(entry); } });
+    entry.capped = more;
+    entry.listed = true;
+    entry.actIds.filter((id) => !entry.form.includes(id)).forEach((id) => this.queueDetail({ prio: 1, order: this.detailSeq++, entry, id }));
+    this.publishRecent(entry);
   }
 
   /**
@@ -505,20 +526,31 @@ class Services {
       const task = this.detailTasks.reduce((best, t) => (taskOrder(t, best) < 0 ? t : best));
       this.detailTasks.splice(this.detailTasks.indexOf(task), 1);
       const { entry } = task;
-      if (this.recent.get(`${entry.puuid}:${entry.queue || ''}`) !== entry) continue; // remplacé entre-temps
+      // Joueur d'une autre partie, ou stats relancées entre-temps : abandonné.
+      if (entry.matchId !== this.liveMatchId || this.recent.get(`${entry.puuid}:${entry.queue || ''}`) !== entry) continue;
       // Carré déjà donné par le RR : le détail ne sert plus qu'aux moyennes, s'il est de l'acte.
       if (task.prio === 0 && entry.rr.has(task.id)) {
         if (entry.actIds.includes(task.id)) this.queueDetail({ ...task, prio: 1, order: this.detailSeq++ });
         continue;
       }
       this.detailRunning++;
-      (task.run ? task.run() : this.matchRecord(task.id, entry.puuid).then(() => this.publishRecent(entry)))
+      (task.run ? task.run() : this.runDetail(task))
         .catch(() => {})
         .finally(() => {
           this.detailRunning--;
           this.pumpDetails();
         });
     }
+  }
+
+  async runDetail(task) {
+    const { entry, id } = task;
+    if (!(await this.matchRecord(id, entry.puuid))) {
+      // Détail indisponible : un second essai après les autres joueurs, puis abandon (compté comme chargé).
+      if (!task.retried) this.queueDetail({ ...task, order: task.prio === 1 ? this.detailSeq++ : task.order + 10, retried: true });
+      else entry.failed.add(id);
+    }
+    this.publishRecent(entry);
   }
 
   /** Résumé d'un joueur dans un match : cache de l'onglet Stats pour toi, sinon téléchargé (null si indisponible). */
@@ -548,16 +580,20 @@ class Services {
   }
 
   publishRecent(entry) {
-    if (!entry.form.length && !entry.actIds.length && !entry.done) return;
+    if (!entry.ready) return;
     const recs = entry.actIds.map((id) => this.cachedRecord(id, entry.puuid)).filter(Boolean);
     const sum = (k) => recs.reduce((s, r) => s + (r[k] || 0), 0);
     const shots = sum('head') + sum('body') + sum('leg');
+    // Acte complet : liste connue et chaque partie résumée ou abandonnée.
+    const done = entry.noAct || (entry.listed && entry.actIds.every((id) => entry.failed.has(id) || this.cachedRecord(id, entry.puuid)));
     entry.value = {
       // Carré par partie : résultat exact du détail, sinon celui de l'historique RR, sinon en attente.
       form: entry.form.map((id) => this.cachedRecord(id, entry.puuid)?.result || entry.rr.get(id) || 'pending'),
       n: recs.length,
       total: entry.actIds.length,
-      loading: !entry.done,
+      loading: !done,
+      capped: entry.capped,
+      noAct: entry.noAct,
       ...(recs.length && {
         kills: sum('kills') / recs.length,
         deaths: sum('deaths') / recs.length,
