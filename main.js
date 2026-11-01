@@ -161,6 +161,9 @@ function registerIpc() {
   handle('wishlist', px0(() => wishlist.get()));
   handle('wishlist-add', px0((skinId) => wishlist.add(skinId)));
   handle('wishlist-remove', px0((skinId) => wishlist.remove(skinId)));
+  handle('px0-link-start', px0(() => wishlist.linkStart()));
+  handle('px0-link', px0((id) => wishlist.link(id)));
+  handle('px0-link-qr', px0((id) => wishlist.link(id, true)));
   handle('wishlist-catalog', () => services.wishlistCatalog());
   handle('stats-data', () => stats.data());
   handle('stats-sync', () => { stats.sync(); return stats.state; });
