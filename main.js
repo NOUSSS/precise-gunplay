@@ -12,12 +12,13 @@ const { CLIENT_ACTIONS_DISABLED, CLIENT_ACTIONS_MESSAGE, assertClientActionsAllo
 const { Updater } = require('./src/updater');
 const { Stats } = require('./src/stats');
 const { Stretch } = require('./src/stretch');
+const { Wishlist } = require('./src/wishlist');
 
 app.setAppUserModelId('com.nouss.precisegunplay');
 
 let win = null;
 const client = new RiotClient();
-let assets, settings, services, autolock, updater, stats, stretch;
+let assets, settings, services, autolock, updater, stats, stretch, wishlist;
 let status = { connected: false, message: 'Recherche du Riot Client…' };
 let connecting = false;
 
@@ -152,6 +153,15 @@ function registerIpc() {
   handle('chat-messages', (cid) => services.chatMessages(cid));
   handle('chat-read', (cid, id) => { assertClientActionsAllowed(); return services.chatRead(cid, id); });
   handle('chat-send', (cid, text) => { assertClientActionsAllowed(); return services.chatSend(cid, text); });
+  // Liste de souhaits PX-0 : rien ne part vers PX-0 tant que la liaison n'est pas activée.
+  const px0 = (fn) => (...args) => {
+    if (!settings.get().px0) throw new Error('Liste de souhaits PX-0 non liée.');
+    return fn(...args);
+  };
+  handle('wishlist', px0(() => wishlist.get()));
+  handle('wishlist-add', px0((skinId) => wishlist.add(skinId)));
+  handle('wishlist-remove', px0((skinId) => wishlist.remove(skinId)));
+  handle('wishlist-catalog', () => services.wishlistCatalog());
   handle('stats-data', () => stats.data());
   handle('stats-sync', () => { stats.sync(); return stats.state; });
 
@@ -210,6 +220,7 @@ app.whenReady().then(() => {
   assets = new Assets(dataDir);
   settings = new Settings(dataDir);
   services = new Services(client, assets);
+  wishlist = new Wishlist(client);
   stats = new Stats(client, assets, services, dataDir);
   services.stats = stats;
   stats.on('state', (s) => send('stats-sync', s));

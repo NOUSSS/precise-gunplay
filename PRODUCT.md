@@ -19,7 +19,7 @@ Joueurs et joueuses de VALORANT sur PC Windows, francophones, qui veulent voir l
 
 ## Product Purpose
 
-Precise Gunplay est un compagnon VALORANT pour Windows. Il lit les API locales du Riot Client pour afficher : accueil (profil, rang, agent favori, derniers matchs), boutique (offres du jour, marché nocturne, packs, accessoires), partie en direct (joueurs, rangs, stats, groupes repérés), historique, statistiques (K/D, ADR, HS %, KAST, évolution du RR, par mode, agent et carte), groupe, amis, collection, et la résolution étirée automatique.
+Precise Gunplay est un compagnon VALORANT pour Windows. Il lit les API locales du Riot Client pour afficher : accueil (profil, rang, agent favori, derniers matchs), boutique (offres du jour, marché nocturne, packs, accessoires), liste de souhaits (partagée avec PX-0, le bot Discord, qui envoie les alertes en message privé), partie en direct (joueurs, rangs, stats, groupes repérés), historique, statistiques (K/D, ADR, HS %, KAST, évolution du RR, par mode, agent et carte), groupe, amis, collection, et la résolution étirée automatique.
 
 Le succès : télécharger l'installeur, l'installer, et que l'app reste ouverte à côté du jeu.
 

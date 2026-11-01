@@ -266,6 +266,24 @@ class Services {
     return [...seen.values()].sort((x, y) => y.tierRank - x.tierRank || x.name.localeCompare(y.name, 'fr'));
   }
 
+  // Skins que la boutique peut proposer (ceux qui ont une rareté), avec ceux que le compte possède déjà.
+  async wishlistCatalog() {
+    const res = await this.client.getEntitlements('skin').catch(() => null);
+    const owned = new Set();
+    for (const e of res?.Entitlements || []) {
+      const skin = this.assets.skinByLevel.get(String(e.ItemID).toLowerCase());
+      if (skin) owned.add(skin.uuid);
+    }
+    return this.assets.data.skins
+      .filter((s) => s.tier)
+      .map((s) => {
+        const tier = this.assets.tierByUuid.get(String(s.tier).toLowerCase());
+        return { uuid: s.uuid, name: s.name, icon: s.icon, weapon: s.weapon, color: tier?.color, tierIcon: tier?.icon, owned: owned.has(s.uuid) };
+      })
+      // Par nom : les skins d'une même arme se suivent (« Vandal (…) »).
+      .sort((x, y) => x.name.localeCompare(y.name, 'fr'));
+  }
+
   // ---------- Partie en direct ----------
   async decorate(players, partyMembers, queue, matchId) {
     this.liveMatchId = matchId;

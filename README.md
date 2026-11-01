@@ -32,6 +32,15 @@ tâches planifiées dans le dossier « Precise Gunplay » du Planificateur de t�
 script, la page propose de la renouveler. L'app ne touche jamais au processus du jeu.
 Réglez aussi la mise à l'échelle de la carte graphique sur plein écran (AMD : Mise à l'échelle GPU ; NVIDIA : Plein écran, effectuée sur le GPU).
 
+## Liste de souhaits
+
+Onglet **Liste de souhaits** : choisissez dans le catalogue (recherche, filtre par arme) les skins que vous attendez.
+La liste est celle de PX-0, le bot Discord : il envoie un message privé quand l'un d'eux arrive dans la boutique du jour
+ou le marché nocturne, même PC éteint. Il faut d'abord connecter son compte Riot à PX-0 avec `/valorant connexion`.
+Une fois la liste liée (bouton **Lier à PX-0**, ou dans les paramètres), l'app transmet à PX-0 le jeton de session du
+Riot Client à chaque lecture ou modification : PX-0 le fait vérifier par Riot pour savoir à quel compte il appartient,
+et ne le conserve pas. Les skins de la liste sont marqués d'une étoile dans la boutique.
+
 ## Lancer / compiler
 
 ```bash
