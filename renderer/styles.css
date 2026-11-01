@@ -532,11 +532,11 @@ kbd + kbd { margin-left: 4px; }
 .team.enemy h2 { color: var(--red-text); }
 .team-score { font-size: 18px; color: var(--text); }
 /* Grille commune : chaque colonne a la même largeur pour tous les joueurs des deux équipes. */
-.player { display: grid; grid-template-columns: 44px minmax(140px, 1fr) 110px 64px 64px 170px 56px; align-items: center; gap: 12px; background: var(--panel); border: 1px solid var(--line); padding: 8px 12px 8px 8px; border-radius: var(--radius-sm); margin-bottom: 6px; transition: background-color var(--dur) var(--ease); }
-.team.pregame .player { grid-template-columns: 44px minmax(140px, 1fr) 90px 110px 64px 64px 170px 56px; }
+.player { display: grid; grid-template-columns: 44px minmax(140px, 1fr) 100px 56px 56px 140px 170px 56px; align-items: center; gap: 12px; background: var(--panel); border: 1px solid var(--line); padding: 8px 12px 8px 8px; border-radius: var(--radius-sm); margin-bottom: 6px; transition: background-color var(--dur) var(--ease); }
+.team.pregame .player { grid-template-columns: 44px minmax(140px, 1fr) 90px 100px 56px 56px 140px 170px 56px; }
 .player-head { background: transparent !important; border-color: transparent !important; box-shadow: none !important; padding-top: 0; padding-bottom: 2px; margin-bottom: 2px; font-size: 12px; color: var(--muted); }
 .player-head .ph-title { grid-column: span 2; }
-.player-head .ph-rank { padding-left: 12px; }
+.player-head :is(.ph-rank, .ph-form) { padding-left: 12px; }
 .player-head .num { font-size: 12px; }
 .player .pc { min-width: 0; }
 .player .num { text-align: right; font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -558,6 +558,20 @@ kbd + kbd { margin-left: 4px; }
 .player .pstate.locked { background: var(--teal); color: #032b24; }
 .rank { display: flex; align-items: center; gap: 6px; font-size: 12px; min-width: 120px; }
 .player .rank { min-width: 0; gap: 8px; padding-left: 12px; }
+/* Dix dernières parties : un carré par partie, la plus récente à gauche */
+.player .pform { padding-left: 12px; }
+.form.mini { gap: 3px; }
+.form.mini .form-dot { width: 10px; height: 10px; border-radius: 2px; }
+.form-dot.pending { background: var(--panel-3); }
+/* Fenêtre étroite : colonnes resserrées ; en sélection d'agent, la colonne K/D/A laisse la place à l'état */
+@media (max-width: 1300px) {
+  .player { grid-template-columns: 44px minmax(110px, 1fr) 90px 48px 48px 108px 130px 56px; gap: 10px; }
+  .team.pregame .player { grid-template-columns: 44px minmax(110px, 1fr) 80px 48px 48px 108px 130px 56px; }
+  .team.pregame .player .pkda { display: none; }
+  .player-head :is(.ph-rank, .ph-form), .player .pform, .player .rank { padding-left: 10px; }
+  .form.mini { gap: 2px; }
+  .form.mini .form-dot { width: 8px; height: 8px; }
+}
 .player .rank > div { display: flex; flex-direction: column; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .player .pname div + div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mini-loader { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--line); border-top-color: var(--red); border-radius: 50%; animation: spin .8s linear infinite; }
