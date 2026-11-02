@@ -15,6 +15,10 @@ const { Stretch } = require('./src/stretch');
 const { Wishlist } = require('./src/wishlist');
 
 app.setAppUserModelId('com.nouss.precisegunplay');
+// Rendu logiciel : pour une interface presque statique, le processus GPU de Chromium coûtait ~170 Mo de
+// mémoire (300 Mo et plus sur l'historique) sans rien faire gagner en CPU, défilement compris. La carte
+// graphique reste aussi entièrement au jeu.
+app.disableHardwareAcceleration();
 
 let win = null;
 const client = new RiotClient();
@@ -204,6 +208,8 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // Pas de correcteur orthographique (dictionnaires téléchargés puis gardés en mémoire) : rien à corriger ici.
+      spellcheck: false,
     },
   });
   win.removeMenu();
@@ -221,6 +227,8 @@ function createWindow() {
 app.whenReady().then(() => {
   const dataDir = app.getPath('userData');
   assets = new Assets(dataDir);
+  // Nouvelle version du jeu : données téléchargées après coup, l'interface prend la nouvelle liste.
+  assets.on('updated', () => send('assets', assets.summary()));
   settings = new Settings(dataDir);
   services = new Services(client, assets);
   wishlist = new Wishlist(client);
@@ -231,7 +239,7 @@ app.whenReady().then(() => {
   autolock = new AutoLock(client, settings, assets);
   updater = new Updater();
   updater.on('state', (s) => send('update', s));
-  // Vérifie les mises à jour immédiatement, avant tout le reste du démarrage.
+  // Programme la vérification des mises à jour avant tout le reste du démarrage.
   updater.start();
 
   autolock.on('event', (evt) => {

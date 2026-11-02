@@ -8,8 +8,9 @@ const LOCALAPPDATA = process.env.LOCALAPPDATA || '';
 const LOCKFILE = path.join(LOCALAPPDATA, 'Riot Games', 'Riot Client', 'Config', 'lockfile');
 const SHOOTER_LOG = path.join(LOCALAPPDATA, 'VALORANT', 'Saved', 'Logs', 'ShooterGame.log');
 
-// Le Riot Client utilise un certificat auto-signé sur 127.0.0.1.
-const agent = new https.Agent({ rejectUnauthorized: false });
+// Le Riot Client utilise un certificat auto-signé sur 127.0.0.1. Connexions gardées ouvertes : sans elles,
+// chaque requête (plusieurs par minute) refait une poignée de main TLS complète.
+const agent = new https.Agent({ rejectUnauthorized: false, keepAlive: true });
 
 function readLockfile() {
   try {
@@ -29,7 +30,7 @@ function readShooterLog() {
   }
 }
 
-function localRequest(lock, method, urlPath, body) {
+function localRequest(lock, method, urlPath, body, retry = true) {
   return new Promise((resolve, reject) => {
     const req = https.request(
       {
@@ -59,7 +60,14 @@ function localRequest(lock, method, urlPath, body) {
         });
       }
     );
-    req.on('error', reject);
+    req.on('error', (e) => {
+      // Connexion gardée ouverte puis fermée par le Riot Client entre deux requêtes : une lecture est
+      // retentée une fois sur une nouvelle connexion.
+      if (retry && method === 'GET' && req.reusedSocket && e.code === 'ECONNRESET') {
+        return resolve(localRequest(lock, method, urlPath, body, false));
+      }
+      reject(e);
+    });
     req.setTimeout(5000, () => req.destroy(new Error('Délai dépassé (API locale)')));
     if (body !== undefined) req.write(JSON.stringify(body));
     req.end();
