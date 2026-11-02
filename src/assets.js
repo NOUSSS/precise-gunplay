@@ -1,12 +1,18 @@
 // Données visuelles (agents, skins, cartes, rangs...) depuis valorant-api.com, mises en cache sur disque.
+const { EventEmitter } = require('events');
 const fs = require('fs');
 const path = require('path');
+const { pathToFileURL } = require('url');
+const { nativeImage } = require('electron');
 
 const BASE = 'https://valorant-api.com/v1';
 const LANG = 'fr-FR';
 const SCHEMA = 4; // à incrémenter quand la forme du cache change
 // Compétences dans l'ordre des touches du jeu (C, Q, E, X) ; le passif n'a pas d'icône.
 const ABILITY_SLOTS = ['Grenade', 'Ability1', 'Ability2', 'Ultimate'];
+// Icônes d'agent fournies en 1024 × 1024 (400 Ko) et affichées à 110 px au plus, souvent par centaines
+// (tableaux des scores) : une copie réduite sur disque pèse 16 fois moins une fois décodée.
+const AGENT_ICON_SIZE = 256;
 
 const ITEM_TYPES = {
   skin: 'e7c63390-eda7-46e0-bb7a-a6abdacd2433',
@@ -25,16 +31,33 @@ const CURRENCIES = {
   '85ca954a-41f2-ce94-9b45-8ca3dd39a00d': 'kc',
 };
 
-async function get(endpoint) {
+async function get(endpoint, options) {
   const sep = endpoint.includes('?') ? '&' : '?';
-  const res = await fetch(`${BASE}${endpoint}${sep}language=${LANG}`);
+  const res = await fetch(`${BASE}${endpoint}${sep}language=${LANG}`, options);
   if (!res.ok) throw new Error(`valorant-api.com ${res.status} (${endpoint})`);
   return (await res.json()).data;
 }
 
-class Assets {
+// Version du jeu : demandée au démarrage par le cache des données et par la connexion (en-tête
+// X-Riot-ClientVersion), une seule requête pour les deux. Un échec n'est pas gardé.
+let versionReq = null;
+let versionAt = 0;
+function gameVersion() {
+  if (!versionReq || Date.now() - versionAt > 60 * 1000) {
+    versionAt = Date.now();
+    versionReq = get('/version', { signal: AbortSignal.timeout(8000) }).catch(() => {
+      versionReq = null;
+      return null;
+    });
+  }
+  return versionReq;
+}
+
+class Assets extends EventEmitter {
   constructor(cacheDir) {
+    super();
     this.cacheFile = path.join(cacheDir, 'assets-cache.json');
+    this.iconDir = path.join(cacheDir, 'agent-icons');
     this.ready = null;
     this.data = null;
   }
@@ -50,21 +73,32 @@ class Assets {
   }
 
   async _load(force) {
-    let version = null;
-    try {
-      version = (await get('/version')).version;
-    } catch { /* hors ligne : on utilisera le cache */ }
-
     if (!force) {
+      let cached = null;
       try {
-        const cached = JSON.parse(fs.readFileSync(this.cacheFile, 'utf8'));
-        if (cached && cached.schema === SCHEMA && (!version || cached.version === version)) {
-          this.index(cached);
-          return;
-        }
+        cached = JSON.parse(await fs.promises.readFile(this.cacheFile, 'utf8'));
       } catch { /* pas de cache */ }
+      if (cached?.schema === SCHEMA) {
+        // Le cache sert tout de suite, sans attendre le réseau ; s'il date d'une version précédente du
+        // jeu, les nouvelles données le remplacent dès qu'elles sont prêtes. Vérification une fois la
+        // fenêtre ouverte : le premier fetch bloque ~40 ms le temps de charger son moteur (undici).
+        this.index(cached);
+        setTimeout(() => this.renew(cached.version), 2000);
+        return;
+      }
     }
+    await this.download((await gameVersion())?.version || null);
+  }
 
+  renew(cachedVersion) {
+    gameVersion()
+      .then((v) => {
+        if (v?.version && v.version !== cachedVersion) return this.download(v.version).then(() => this.emit('updated'));
+      })
+      .catch(() => { /* hors ligne ou valorant-api.com en panne : le cache reste */ });
+  }
+
+  async download(version) {
     const [agents, skins, contentTiers, maps, compTiers, bundles, cards, sprays, buddies, titles, seasons, flex, weapons] =
       await Promise.all([
         get('/agents?isPlayableCharacter=true'),
@@ -156,6 +190,33 @@ class Assets {
     for (const s of raw.sprays) for (const l of s.levels) this.sprayById.set(l.toLowerCase(), s);
     this.buddyById = byId(raw.buddies);
     for (const b of raw.buddies) for (const l of b.levels) this.buddyById.set(l.toLowerCase(), b);
+    this.localAgentIcons(raw.agents);
+  }
+
+  // Icônes déjà réduites : utilisées tout de suite. Les autres sont préparées en arrière-plan pour le
+  // prochain lancement (l'icône d'origine sert en attendant).
+  localAgentIcons(agents) {
+    const missing = [];
+    for (const a of agents) {
+      const file = path.join(this.iconDir, `${a.uuid}.png`);
+      if (fs.existsSync(file)) a.icon = pathToFileURL(file).href;
+      else if (a.icon) missing.push({ url: a.icon, file });
+    }
+    if (missing.length) this.shrinkAgentIcons(missing).catch(() => {});
+  }
+
+  async shrinkAgentIcons(list) {
+    fs.mkdirSync(this.iconDir, { recursive: true });
+    for (const { url, file } of list) {
+      const res = await fetch(url).catch(() => null);
+      if (!res?.ok) continue;
+      const img = nativeImage.createFromBuffer(Buffer.from(await res.arrayBuffer()));
+      if (img.isEmpty()) continue;
+      const small = img.getSize().width > AGENT_ICON_SIZE ? img.resize({ width: AGENT_ICON_SIZE, quality: 'best' }) : img;
+      // Fichier temporaire puis renommage : un arrêt en cours d'écriture ne laisse pas d'icône tronquée.
+      fs.writeFileSync(`${file}.tmp`, small.toPNG());
+      fs.renameSync(`${file}.tmp`, file);
+    }
   }
 
   /** Données légères envoyées à l'interface. */
@@ -225,4 +286,4 @@ class Assets {
   }
 }
 
-module.exports = { Assets, ITEM_TYPES, CURRENCIES };
+module.exports = { Assets, ITEM_TYPES, CURRENCIES, gameVersion };

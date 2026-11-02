@@ -8,11 +8,12 @@ const { EventEmitter } = require('events');
 const fs = require('fs');
 const path = require('path');
 const { app, shell, BrowserWindow } = require('electron');
-const { autoUpdater } = require('electron-updater');
 
 const REPO = 'NOUSSS/precise-gunplay';
 const RELEASES_URL = `https://github.com/${REPO}/releases/latest`;
 const CHECK_EVERY = 2 * 60 * 60 * 1000;
+// electron-updater met ~80 ms à se charger : première vérification juste après l'ouverture de la fenêtre.
+const FIRST_CHECK_MS = 2000;
 const LOG_MAX = 256 * 1024;
 
 function newer(a, b) {
@@ -34,13 +35,19 @@ class Updater extends EventEmitter {
     this.logFile = path.join(app.getPath('userData'), 'updater.log');
     this.attemptFile = path.join(app.getPath('userData'), 'update-attempt.json');
     this.failedVersion = this.readAttempt();
+    this.log('info', `Démarrage v${this.state.current}${this.failedVersion ? `, échec précédent de la v${this.failedVersion}` : ''}`);
+  }
+
+  // Chargé au premier usage seulement (première vérification ou clic sur « Vérifier »).
+  get autoUpdater() {
+    if (this.loaded) return this.loaded;
+    const { autoUpdater } = require('electron-updater');
     autoUpdater.logger = {
       info: (m) => this.log('info', m),
       warn: (m) => this.log('warn', m),
       error: (m) => this.log('error', m),
       debug: () => {},
     };
-    this.log('info', `Démarrage v${this.state.current}${this.failedVersion ? `, échec précédent de la v${this.failedVersion}` : ''}`);
     autoUpdater.autoDownload = true;
     autoUpdater.autoInstallOnAppQuit = true;
     autoUpdater.on('checking-for-update', () => this.set({ status: 'checking' }));
@@ -50,6 +57,7 @@ class Updater extends EventEmitter {
     autoUpdater.on('update-downloaded', (info) =>
       this.set({ status: 'ready', latest: info.version, retry: info.version === this.failedVersion }));
     autoUpdater.on('error', (e) => this.set({ status: 'error', error: e?.message || String(e) }));
+    return (this.loaded = autoUpdater);
   }
 
   log(level, msg) {
@@ -79,7 +87,7 @@ class Updater extends EventEmitter {
 
   start() {
     if (!app.isPackaged) return;
-    this.check();
+    setTimeout(() => this.check(), FIRST_CHECK_MS);
     setInterval(() => this.check(), CHECK_EVERY);
   }
 
@@ -87,7 +95,7 @@ class Updater extends EventEmitter {
     if (!app.isPackaged) return this.state;
     if (['checking', 'downloading', 'ready'].includes(this.state.status)) return this.state;
     if (!this.portable) {
-      await autoUpdater.checkForUpdates().catch((e) => this.set({ status: 'error', error: e.message }));
+      await this.autoUpdater.checkForUpdates().catch((e) => this.set({ status: 'error', error: e.message }));
       return this.state;
     }
     this.set({ status: 'checking' });
@@ -117,7 +125,7 @@ class Updater extends EventEmitter {
         fs.writeFileSync(this.attemptFile, JSON.stringify({ version: this.state.latest }));
       } catch {}
       setImmediate(() => {
-        autoUpdater.quitAndInstall(silent, true);
+        this.autoUpdater.quitAndInstall(silent, true);
         for (const w of BrowserWindow.getAllWindows()) w.hide();
       });
     } else shell.openExternal(RELEASES_URL);

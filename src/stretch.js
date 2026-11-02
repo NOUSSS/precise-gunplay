@@ -18,6 +18,8 @@ const { myPresence } = require('./services');
 const LAUNCHER = 'valorant.exe';
 const GAME = 'valorant-win64-shipping.exe';
 const TICK_MS = 250;
+// Liste des processus relue toutes les 250 ms seulement quand le lanceur ou le jeu tourne ; sinon chaque seconde.
+const IDLE_STEP_MS = 1000;
 const SESSION_MS = 2000; // une requête core-game toutes les 2 s au plus, uniquement jeu lancé
 const TEST_MS = 3000;
 const PRESENCE_TRUST_MS = 10000; // la présence suit core-game avec du retard : elle ne le contredit pas aussitôt
@@ -439,6 +441,7 @@ class Stretch extends EventEmitter {
     this.screensOff = 0; // écrans désactivés par la dernière tâche « off »
     this.screensFailed = []; // écrans que la dernière tâche « off » n'a pas pu préparer
     this.windowIssue = null; // le jeu n'a pas suivi la résolution étirée : message gardé jusqu'au prochain succès
+    this.nextStep = 0;
     this.resetGame();
     this.res = null; // 'native' | 'stretched' | null (inconnu)
     this.phase = 'off';
@@ -698,11 +701,15 @@ class Stretch extends EventEmitter {
   }
 
   tick() {
-    if (this.ticking) return;
+    if (this.ticking || Date.now() < this.nextStep) return;
     this.ticking = true;
     this.exclusive(() => this.step())
       .catch((e) => this.notify(e.message, 'error'))
-      .finally(() => { this.ticking = false; });
+      .finally(() => {
+        this.ticking = false;
+        const watching = this.gameRunning || this.launcherSeen || this.ignoreUntilExit;
+        this.nextStep = watching ? 0 : Date.now() + IDLE_STEP_MS - TICK_MS;
+      });
   }
 
   async step() {

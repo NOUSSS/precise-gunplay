@@ -91,7 +91,7 @@ const state = {
   settings: null,
   owned: null,
   page: 'home',
-  timers: [],
+  timers: new Map(), // rafraîchissements de la page : id → { fn, missed }
   renderId: 0,
   update: null,
   unread: {}, // { pid: nombre de messages non lus }
@@ -152,16 +152,41 @@ document.addEventListener('click', (e) => {
   call('open-external', b.dataset.tracker).catch(() => {});
 }, true);
 
-// Nettoie les rafraîchissements automatiques quand on change de page.
-function every(ms, fn) {
-  const id = setInterval(fn, ms);
-  state.timers.push(id);
+// Rafraîchissements automatiques de la page, nettoyés quand on change de page. Fenêtre réduite ou cachée :
+// ils sautent leur tour, puis repartent dès qu'elle revient. « background » : ils continuent, la page
+// prépare des données pour plus tard.
+function every(ms, fn, { background = false } = {}) {
+  const timer = { fn, missed: false };
+  const id = setInterval(() => {
+    timer.missed = !background && document.hidden;
+    if (!timer.missed) fn();
+  }, ms);
+  state.timers.set(id, timer);
   return id;
 }
 
-// Comptes à rebours : tout élément [data-ends] se met à jour chaque seconde.
+function stopEvery(id) {
+  clearInterval(id);
+  state.timers.delete(id);
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  for (const timer of state.timers.values()) {
+    if (!timer.missed) continue;
+    timer.missed = false;
+    timer.fn();
+  }
+  refreshUnread();
+});
+
+// Comptes à rebours : tout élément [data-ends] se met à jour chaque seconde (rien à faire fenêtre cachée).
 setInterval(() => {
-  for (const el of $$('[data-ends]')) el.textContent = fmtDuration(Number(el.dataset.ends) - Date.now());
+  if (document.hidden) return;
+  for (const el of $$('[data-ends]')) {
+    const text = fmtDuration(Number(el.dataset.ends) - Date.now());
+    if (el.textContent !== text) el.textContent = text;
+  }
 }, 1000);
 
 // ================= Navigation =================
@@ -251,7 +276,7 @@ function applyUnread() {
 }
 const unreadTotal = () => Object.values(state.unread).reduce((a, b) => a + b, 0);
 async function refreshUnread() {
-  if (!state.status.connected) return;
+  if (!state.status.connected || document.hidden) return;
   try { rawUnread = await call('chat-unread'); applyUnread(); } catch { /* chat indisponible */ }
 }
 
@@ -353,8 +378,7 @@ const needsAuth = (page) => page !== 'settings' && page !== 'stretch';
 function navigate(page) {
   state.onUnread = null;
   state.onStretch = null;
-  state.timers.forEach(clearInterval);
-  state.timers = [];
+  for (const id of state.timers.keys()) stopEvery(id);
   state.page = page;
   markPageSeen(page);
   state.renderId++;
@@ -412,7 +436,9 @@ function reveal(cls) {
   clearTimeout(revealTimer);
   revealTimer = setTimeout(() => content.classList.remove(cls), 1000);
 }
-new MutationObserver(() => {
+new MutationObserver((records) => {
+  // Le texte des comptes à rebours change chaque seconde : rien à recalculer pour lui.
+  if (records.every((r) => r.target.dataset?.ends !== undefined)) return;
   syncChips();
   const pending = state.entering ? 'enter' : state.refreshing ? 'refresh' : null;
   // L'entrée attend que la page ait quitté son loader ; un rafraîchissement attend aussi ceux d'une sous-partie (#hlist).
@@ -1078,17 +1104,23 @@ PAGES.live = async () => {
   let pick = null;
   let owned = await ownedAgents();
   let last = null;
+  let lastSig = null; // rien de changé depuis le dernier rafraîchissement : la page n'est pas reconstruite
 
   async function refresh() {
     let data;
     try {
       data = await call('live');
     } catch (e) {
+      lastSig = null;
       if (alive()) content.innerHTML = errorBox(e.message);
       return;
     }
     if (!alive()) return;
     last = data;
+    // La fin de la sélection varie de quelques millisecondes à chaque lecture : elle ne compte pas.
+    const sig = JSON.stringify({ ...data, endsAt: undefined });
+    if (sig === lastSig) return;
+    lastSig = sig;
     draw();
   }
 
@@ -1166,7 +1198,9 @@ PAGES.live = async () => {
   };
 
   await refresh();
-  every(2500, refresh);
+  // En jeu, l'app est cachée : chaque lecture lance quand même le calcul des stats des nouveaux joueurs,
+  // prêtes quand on revient sur la page.
+  every(2500, refresh, { background: true });
 };
 
 // ---------- Historique ----------
@@ -2053,16 +2087,21 @@ PAGES.party = async () => {
   const alive = guard();
   let busy = false;
   let last = null;
+  let lastSig = null; // groupe inchangé : la page n'est pas reconstruite (ni la liste des modes refermée)
 
   async function refresh() {
     if (busy) return;
     try {
       last = await call('party');
     } catch (e) {
+      lastSig = null;
       if (alive()) content.innerHTML = errorBox(e.message);
       return;
     }
-    if (alive()) draw();
+    const sig = JSON.stringify(last);
+    if (!alive() || sig === lastSig) return;
+    lastSig = sig;
+    draw();
   }
 
   function draw() {
@@ -2109,6 +2148,7 @@ PAGES.party = async () => {
     busy = true;
     try { await fn(); } catch (e) { toast(e.message, 'error'); }
     busy = false;
+    lastSig = null; // action refusée : la page revient à l'état réel du groupe
     refresh();
   };
   content.onchange = (e) => {
@@ -2523,7 +2563,7 @@ function px0Link({ renew = false } = {}) {
   }
 
   function fail(message) {
-    clearInterval(timer);
+    stopEvery(timer);
     drawn = '';
     $('#w-link').innerHTML = `${errorBox(message)}
       <div class="row mt-block"><button class="btn" data-link="restart">${ICON_RETRY}Recommencer</button><button class="btn ghost" data-link="${renew ? 'cancel' : 'unlink'}">${renew ? 'Annuler' : 'Délier PX-0'}</button></div>`;
@@ -2544,7 +2584,7 @@ function px0Link({ renew = false } = {}) {
     applied = n;
     view = next;
     if (view.step === 'done') {
-      clearInterval(timer);
+      stopEvery(timer);
       px0DmFailed = view.dmOk === false;
       toast(`Alertes boutique activées pour ${view.riotName || me}.`, 'info');
       return navigate('wishlist');
@@ -2567,7 +2607,7 @@ function px0Link({ renew = false } = {}) {
     if (++ticks % 3 === 0 && alive()) {
       const list = await call('wishlist').catch(() => null);
       if (alive() && list?.linked && list.status === 'ok') {
-        clearInterval(timer);
+        stopEvery(timer);
         toast(`Alertes boutique activées pour ${list.riotName || me}.`, 'info');
         navigate('wishlist');
       }
@@ -2579,7 +2619,7 @@ function px0Link({ renew = false } = {}) {
     view = null;
     opened = false;
     drawn = '';
-    clearInterval(timer);
+    stopEvery(timer);
     $('#w-link').innerHTML = loader();
     await apply(call('px0-link-start'));
     if (alive() && view && view.step !== 'done') timer = every(2000, poll);
@@ -3140,6 +3180,10 @@ PAGES.settings = async () => {
   setInterval(refreshUnread, 8000);
   setInterval(refreshProfile, 5 * 60 * 1000);
   window.api.on('status', onStatus);
+  window.api.on('assets', (a) => {
+    state.assets = withAssets(a);
+    state.owned = null;
+  });
   window.api.on('update', onUpdate);
   onUpdate(await call('update-state'));
   window.api.on('autolock-event', (evt) => toast(evt.message, evt.type === 'error' ? 'error' : 'info'));
