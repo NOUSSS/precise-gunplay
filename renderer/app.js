@@ -134,7 +134,14 @@ function partyAttrs(p) {
   if (!p.party) return { cls: '', style: '' };
   return { cls: 'in-party', style: `style="--pc:${PARTY_COLORS[(p.partyIdx || 0) % PARTY_COLORS.length]}"` };
 }
-const partyTag = (p) => (p.party ? ` · <span class="party-tag" title="Joue en groupe avec les autres « Groupe ${p.party} »">Groupe ${p.party}</span>` : '');
+// Groupe deviné (partie en direct) : même groupe lors de la dernière partie jouée ensemble, comme sur Tracker.
+const partyTag = (p) => {
+  if (!p.party) return '';
+  const title = p.partyGuess
+    ? `Sans doute en groupe avec les autres « Groupe ${p.party} » : ils étaient ensemble lors de leur dernière partie commune`
+    : `Joue en groupe avec les autres « Groupe ${p.party} »`;
+  return ` · <span class="party-tag" title="${title}">Groupe ${p.party}</span>`;
+};
 
 // Lien vers le profil Tracker d'un joueur (jamais pour un joueur en mode anonyme).
 function trackerBtn(name, tag, hidden = false) {
@@ -378,6 +385,8 @@ const needsAuth = (page) => page !== 'settings' && page !== 'stretch';
 function navigate(page) {
   state.onUnread = null;
   state.onStretch = null;
+  state.leave?.(); // la page quittée arrête ce qu'elle faisait tourner côté app
+  state.leave = null;
   for (const id of state.timers.keys()) stopEvery(id);
   state.page = page;
   markPageSeen(page);
@@ -411,19 +420,24 @@ function syncNavPill() {
 }
 
 // Groupes de choix (filtres, modes) : souvent recréés au clic, ils repartent de la dernière position connue.
+// Toutes les positions sont lues avant d'en poser une : une seule mise en page, même avec beaucoup de groupes.
 const chipPos = new Map();
 function syncChips() {
-  $$('.chip-group', content).forEach((g, i) => {
+  const groups = $$('.chip-group', content).map((g, i) => {
     const on = g.querySelector('button.on');
-    if (!on) return g.style.setProperty('--pill-o', '0');
-    const key = `${state.page}:${g.id || i}`;
-    const pos = { x: on.offsetLeft, w: on.offsetWidth };
+    return { g, key: `${state.page}:${g.id || i}`, pos: on && { x: on.offsetLeft, w: on.offsetWidth } };
+  });
+  for (const { g, key, pos } of groups) {
+    if (!pos) {
+      g.style.setProperty('--pill-o', '0');
+      continue;
+    }
     const prev = chipPos.get(key);
     chipPos.set(key, pos);
     const fresh = !g.style.getPropertyValue('--pill-w');
     if (fresh && prev) placePill(g, prev, true);
     placePill(g, pos, fresh && !prev);
-  });
+  }
 }
 
 // Animations de contenu : `enter` au premier vrai rendu d'une page (le loader passé), `refresh` après un changement
@@ -780,11 +794,11 @@ PAGES.home = async () => {
 };
 
 // ---------- Boutique ----------
+const wishStar = () => `<span class="wish-star on" title="Dans votre liste de souhaits">${icon('starOn')}</span>`;
 function offerCard(o, { small = false, wished = false } = {}) {
-  const flags = (o.percent ? `<div class="discount">−${o.percent} %</div>` : '')
-    + (wished ? `<span class="wish-star on" title="Dans votre liste de souhaits">${icon('starOn')}</span>` : '');
+  const flags = (o.percent ? `<div class="discount">−${o.percent} %</div>` : '') + (wished ? wishStar() : '');
   return `
-    <div class="offer ${small ? 'small' : ''}" style="${o.color ? `--tier:${o.color}` : ''}">
+    <div class="offer ${small ? 'small' : ''}" ${o.skinId ? `data-skin="${esc(o.skinId)}"` : ''} style="${o.color ? `--tier:${o.color}` : ''}">
       ${o.tierIcon ? `<img class="tier-icon" src="${o.tierIcon}" alt="">` : ''}
       ${flags ? `<div class="flags">${flags}</div>` : ''}
       <div class="art">${o.icon ? `<img src="${o.icon}" alt="" loading="lazy">` : ''}</div>
@@ -796,8 +810,11 @@ function offerCard(o, { small = false, wished = false } = {}) {
 
 PAGES.store = async () => {
   const alive = guard();
-  // La liste de souhaits PX-0, si elle est liée, marque ses skins ; sans elle la boutique s'affiche quand même.
-  const [s, wl] = await Promise.all([call('store'), state.settings.px0 ? call('wishlist').catch(() => null) : null]);
+  // La liste de souhaits PX-0, si elle est liée, marque ses skins. Elle ne retarde pas la boutique : arrivée
+  // après elle, elle pose ses étoiles sur les offres déjà affichées.
+  let wl = null;
+  const wishlist = state.settings.px0 ? call('wishlist').then((r) => (wl = r), () => null) : null;
+  const s = await call('store');
   if (!alive()) return;
   const wanted = new Set(wl?.linked ? wl.skins : []);
   const card = (o) => offerCard(o, { wished: wanted.has(o.skinId) });
@@ -839,6 +856,21 @@ PAGES.store = async () => {
     ${s.accessories?.offers.length ? `
       <h2>Boutique d’accessoires <span class="timer">Renouvellement dans <b data-ends="${s.accessories.endsAt}">${fmtDuration(s.accessories.endsAt - Date.now())}</b></span></h2>
       <div class="offers">${s.accessories.offers.map((o) => offerCard(o, { small: true })).join('')}</div>` : ''}`;
+
+  if (!wishlist || wl) return;
+  await wishlist;
+  if (!alive() || !wl?.linked) return;
+  const late = new Set(wl.skins);
+  for (const el of $$('.offer[data-skin]', content)) {
+    if (!late.has(el.dataset.skin)) continue;
+    let flags = el.querySelector('.flags');
+    if (!flags) {
+      flags = document.createElement('div');
+      flags.className = 'flags';
+      el.querySelector('.art').before(flags);
+    }
+    flags.insertAdjacentHTML('beforeend', wishStar());
+  }
 };
 
 // ---------- Agent auto ----------
@@ -1102,11 +1134,28 @@ function teamHtml(side, title, players, { pregame = false, score = null } = {}) 
 PAGES.live = async () => {
   const alive = guard();
   let pick = null;
-  let owned = await ownedAgents();
   let last = null;
   let lastSig = null; // rien de changé depuis le dernier rafraîchissement : la page n'est pas reconstruite
+  // Agents débloqués : demandés en parallèle de la première lecture, ils ne servent qu'à la sélection d'agent.
+  let owned = state.owned || new Set();
+  if (!state.owned) {
+    ownedAgents().then((o) => {
+      owned = o;
+      if (alive() && last?.state === 'pregame') draw();
+    });
+  }
+  state.leave = () => call('live-leave').catch(() => {}); // plus de stats de joueurs à préparer
 
+  // Une lecture à la fois : quand Riot tarde, les tours suivants passent au lieu de s'empiler. Après une
+  // action (verrouillage, esquive), la lecture suivante attend celle en cours pour voir le nouvel état.
+  let reading = null;
   async function refresh() {
+    while (reading) await reading;
+    reading = read().finally(() => { reading = null; });
+    return reading;
+  }
+
+  async function read() {
     let data;
     try {
       data = await call('live');
@@ -1200,7 +1249,7 @@ PAGES.live = async () => {
   await refresh();
   // En jeu, l'app est cachée : chaque lecture lance quand même le calcul des stats des nouveaux joueurs,
   // prêtes quand on revient sur la page.
-  every(2500, refresh, { background: true });
+  every(2500, () => reading || refresh(), { background: true });
 };
 
 // ---------- Historique ----------
@@ -1214,32 +1263,59 @@ PAGES.history = async () => {
   const FILTERS = [['', 'Tous'], ['competitive', 'Compétition'], ['unrated', 'Non classé'], ['swiftplay', 'Vélocité'], ['deathmatch', 'Combat à mort'], ['premier', 'Premier']];
 
   // En-tête et filtres ne sont posés qu'une fois : un changement de filtre ne recharge que #hlist
-  // (pas de saut d'affichage, et la pastille des filtres glisse sans être recréée).
+  // (pas de saut d'affichage, et la pastille des filtres glisse sans être recréée). La liste gardée sur disque
+  // s'affiche tout de suite ; celle de Riot ne la remplace que si de nouvelles parties la changent.
   let loadId = 0;
-  async function load() {
+  let shown = new Map(); // matchs affichés, par id
+  async function load(refresh = false) {
     const id = ++loadId;
-    const box = $('#hlist');
-    if (box) box.innerHTML = loader(); else content.innerHTML = loader();
-    let body;
+    const current = () => alive() && id === loadId;
+    const saved = await call('history-cached', filter || undefined).catch(() => null);
+    if (!current()) return;
+    if (refresh) state.refreshing = true;
+    if (saved) put(listHtml(saved), saved);
+    else if ($('#hlist')) $('#hlist').innerHTML = loader();
+    else content.innerHTML = loader();
+    let list;
     try {
-      const list = await call('history', filter || undefined);
-      const wins = list.filter((m) => m.result === 'win').length;
-      const k = list.reduce((s, m) => s + m.kills, 0), dth = list.reduce((s, m) => s + m.deaths, 0);
-      body = list.length ? `
-        <div class="wallet mb-block">
-          <div class="coin">${list.length} <span class="muted">matchs</span></div>
-          <div class="coin"><span class="${tone((wins / list.length) * 100, 50)}">${Math.round((wins / list.length) * 100)} %</span> <span class="muted">victoires</span></div>
-          <div class="coin">${f2(k / Math.max(1, dth))} <span class="muted">K/D</span></div>
-          <div class="coin">${Math.round(list.reduce((s, m) => s + m.acs, 0) / list.length)} <span class="muted">ACS moyen</span></div>
-        </div>
-        ${list.map(matchHtml).join('')}` : '<div class="empty"><h2>Aucun match</h2><div>Jouez une partie dans ce mode pour la voir ici.</div></div>';
+      list = await call('history', filter || undefined);
     } catch (e) {
-      body = errorBox(e.message);
+      if (!current()) return;
+      return saved ? toast(e.message, 'error') : put(errorBox(e.message));
     }
-    if (!alive() || id !== loadId) return;
-    const current = $('#hlist');
-    if (current) current.innerHTML = body;
+    if (!current() || JSON.stringify(list) === JSON.stringify(saved)) return;
+    const open = new Set($$('#hlist .match.open').map((el) => el.dataset.id));
+    put(listHtml(list), list);
+    $$('#hlist .match').filter((el) => open.has(el.dataset.id)).forEach((el) => toggleMatch(el, true));
+  }
+
+  function put(body, list = []) {
+    shown = new Map(list.map((m) => [m.id, m]));
+    const box = $('#hlist');
+    if (box) box.innerHTML = body;
     else content.innerHTML = head() + `<div id="hlist" class="${sbView === 'all' ? 'sb-all' : ''}">${body}</div>`;
+  }
+
+  function listHtml(list) {
+    if (!list.length) return '<div class="empty"><h2>Aucun match</h2><div>Jouez une partie dans ce mode pour la voir ici.</div></div>';
+    const wins = list.filter((m) => m.result === 'win').length;
+    const k = list.reduce((sum, m) => sum + m.kills, 0), dth = list.reduce((sum, m) => sum + m.deaths, 0);
+    return `
+      <div class="wallet mb-block">
+        <div class="coin">${list.length} <span class="muted">matchs</span></div>
+        <div class="coin"><span class="${tone((wins / list.length) * 100, 50)}">${Math.round((wins / list.length) * 100)} %</span> <span class="muted">victoires</span></div>
+        <div class="coin">${f2(k / Math.max(1, dth))} <span class="muted">K/D</span></div>
+        <div class="coin">${Math.round(list.reduce((sum, m) => sum + m.acs, 0) / list.length)} <span class="muted">ACS moyen</span></div>
+      </div>
+      ${list.map(matchHtml).join('')}`;
+  }
+
+  // Le tableau des scores n'est créé qu'à la première ouverture du match : la liste se construit bien plus vite.
+  function toggleMatch(el, open = !el.classList.contains('open')) {
+    const pad = el.querySelector('.sb-pad');
+    const m = shown.get(el.dataset.id);
+    if (open && m && !pad.firstElementChild) pad.innerHTML = scoreboardHtml(m);
+    el.classList.toggle('open', open);
   }
 
   const head = () => `
@@ -1320,7 +1396,7 @@ PAGES.history = async () => {
     const t = tierOf(m.tier);
     const label = { win: 'Victoire', loss: 'Défaite', draw: 'Égalité' }[m.result];
     return `
-      <div class="match ${m.result}">
+      <div class="match ${m.result}" data-id="${esc(m.id)}">
         <div class="match-row" data-toggle>
           <div class="bar"></div>
           ${m.map?.listIcon ? `<img class="mimg" src="${m.map.listIcon}" alt="" loading="lazy">` : '<div></div>'}
@@ -1335,7 +1411,7 @@ PAGES.history = async () => {
           <div>${t?.icon && m.tier ? `<img src="${t.icon}" alt="" title="${esc(t.name)}" class="mtier">` : ''}</div>
           <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
         </div>
-        <div class="scoreboard"><div class="sb-inner"><div class="sb-pad">${scoreboardHtml(m)}</div></div></div>
+        <div class="scoreboard"><div class="sb-inner"><div class="sb-pad"></div></div></div>
       </div>`;
   }
 
@@ -1345,8 +1421,7 @@ PAGES.history = async () => {
       if (f.dataset.filter === filter) return;
       filter = f.dataset.filter;
       $$('#hfilter button').forEach((b) => b.classList.toggle('on', b === f));
-      state.refreshing = true;
-      return load();
+      return load(true);
     }
     const v = e.target.closest('[data-sbview]');
     if (v) {
@@ -1357,7 +1432,7 @@ PAGES.history = async () => {
       return;
     }
     const row = e.target.closest('[data-toggle]');
-    if (row) row.parentElement.classList.toggle('open');
+    if (row) toggleMatch(row.parentElement);
   };
   await load();
 };
