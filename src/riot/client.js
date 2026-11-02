@@ -1,5 +1,6 @@
 // Client des API VALORANT (serveurs PD / GLZ de Riot) authentifié via le Riot Client local.
 const { readLockfile, readShooterLog, localRequest } = require('./local');
+const { gameVersion } = require('../assets');
 
 const CLIENT_PLATFORM =
   'ew0KCSJwbGF0Zm9ybVR5cGUiOiAiUEMiLA0KCSJwbGF0Zm9ybU9TIjogIldpbmRvd3MiLA0KCSJwbGF0Zm9ybU9TVmVyc2lvbiI6ICIxMC4wLjE5MDQyLjEuMjU2LjY0Yml0IiwNCgkicGxhdGZvcm1DaGlwc2V0IjogIlVua25vd24iDQp9';
@@ -113,11 +114,8 @@ class RiotClient {
   }
 
   async detectVersion() {
-    try {
-      const res = await fetch('https://valorant-api.com/v1/version');
-      const json = await res.json();
-      if (json?.data?.riotClientVersion) return json.data.riotClientVersion;
-    } catch { /* ignoré */ }
+    const v = await gameVersion();
+    if (v?.riotClientVersion) return v.riotClientVersion;
     const m = /CI server version: (.+)/.exec(readShooterLog());
     if (m) return m[1].trim();
     return 'release-09.00-shipping-0-0';
