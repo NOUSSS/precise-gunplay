@@ -80,6 +80,7 @@ public static class PgStretch
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] static extern bool Process32FirstW(IntPtr snap, ref PROCESSENTRY32W pe);
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] static extern bool Process32NextW(IntPtr snap, ref PROCESSENTRY32W pe);
     [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr h);
+    [DllImport("ntdll.dll")] static extern int NtQuerySystemInformation(int infoClass, IntPtr buffer, int length, out int needed);
 
     static DEVMODE NewDevMode()
     {
@@ -95,8 +96,57 @@ public static class PgStretch
 
     const string GAME_EXE = "valorant-win64-shipping.exe";
 
-    // Processus en cours, noms en minuscules -> identifiants (instantané Toolhelp).
+    // Processus en cours, noms en minuscules -> identifiants. Lecture directe de la liste des processus
+    // du noyau, celle que l'instantané Toolhelp recopie avant de la rendre entrée par entrée (trois fois
+    // plus lent) ; Toolhelp reste en secours.
     static Dictionary<string, List<uint>> Processes()
+    {
+        Dictionary<string, List<uint>> found = IntPtr.Size == 8 ? KernelProcesses() : null;
+        return found ?? ToolhelpProcesses();
+    }
+
+    const int SYSTEM_PROCESS_INFORMATION = 5;
+    const int STATUS_INFO_LENGTH_MISMATCH = unchecked((int)0xC0000004);
+    static IntPtr procBuf = IntPtr.Zero;
+    static int procBufSize = 512 * 1024;
+
+    static Dictionary<string, List<uint>> KernelProcesses()
+    {
+        for (int tries = 0; tries < 4; tries++)
+        {
+            if (procBuf == IntPtr.Zero) procBuf = Marshal.AllocHGlobal(procBufSize);
+            int needed;
+            int status = NtQuerySystemInformation(SYSTEM_PROCESS_INFORMATION, procBuf, procBufSize, out needed);
+            if (status == STATUS_INFO_LENGTH_MISMATCH)
+            {
+                // Tampon trop petit (beaucoup de threads) : agrandi avec de la marge, puis gardé.
+                Marshal.FreeHGlobal(procBuf);
+                procBuf = IntPtr.Zero;
+                procBufSize = Math.Max(needed, procBufSize) + 128 * 1024;
+                continue;
+            }
+            if (status != 0) return null;
+            Dictionary<string, List<uint>> found = new Dictionary<string, List<uint>>();
+            for (int offset = 0; ; )
+            {
+                // SYSTEM_PROCESS_INFORMATION en 64 bits : entrée suivante à 0, nom (UNICODE_STRING :
+                // longueur en octets à 56, texte à 64) et identifiant à 80.
+                IntPtr e = IntPtr.Add(procBuf, offset);
+                IntPtr text = Marshal.ReadIntPtr(e, 64);
+                string n = text == IntPtr.Zero ? "" : Marshal.PtrToStringUni(text, (Marshal.ReadInt16(e, 56) & 0xFFFF) / 2).ToLowerInvariant();
+                List<uint> pids;
+                if (!found.TryGetValue(n, out pids)) found[n] = pids = new List<uint>();
+                pids.Add((uint)Marshal.ReadIntPtr(e, 80).ToInt64());
+                int next = Marshal.ReadInt32(e, 0);
+                if (next == 0) break;
+                offset += next;
+            }
+            return found;
+        }
+        return null;
+    }
+
+    static Dictionary<string, List<uint>> ToolhelpProcesses()
     {
         Dictionary<string, List<uint>> found = new Dictionary<string, List<uint>>();
         IntPtr snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
@@ -124,7 +174,12 @@ public static class PgStretch
     static IntPtr GameWindow(Dictionary<string, List<uint>> procs)
     {
         List<uint> pids;
-        if (!procs.TryGetValue(GAME_EXE, out pids)) return IntPtr.Zero;
+        return procs.TryGetValue(GAME_EXE, out pids) ? LargestWindow(pids) : IntPtr.Zero;
+    }
+    static IntPtr GameWindow() { return GameWindow(Processes()); }
+
+    static IntPtr LargestWindow(List<uint> pids)
+    {
         IntPtr hwnd = IntPtr.Zero;
         long best = -1;
         EnumWindows((h, l) =>
@@ -139,15 +194,34 @@ public static class PgStretch
         }, IntPtr.Zero);
         return hwnd;
     }
-    static IntPtr GameWindow() { return GameWindow(Processes()); }
+
+    // L'instantané des processus coûte quelques millisecondes (la recherche de fenêtres, cinquante fois
+    // moins) et la boucle le demandait 4 fois par seconde pendant toute la partie. Tant que le jeu garde
+    // une fenêtre visible, il n'est refait que toutes les 2 s : entre deux, les identifiants du jeu du
+    // dernier instantané suffisent, et le lanceur garde son dernier état. Sans fenêtre : instantané à
+    // chaque fois, comme avant.
+    const int SNAPSHOT_MS = 2000;
+    static List<uint> gamePids = null;
+    static DateTime snapshotAt = DateTime.MinValue;
+    static Dictionary<string, bool> lastRun = new Dictionary<string, bool>();
 
     public static string Procs(string[] names)
     {
-        Dictionary<string, List<uint>> procs = Processes();
-        // La fenêtre du jeu se ferme ~15-20 s avant la fin du processus : elle sert à restaurer plus tôt.
-        IntPtr hwnd = GameWindow(procs);
+        IntPtr hwnd = IntPtr.Zero;
+        if (gamePids != null && Array.IndexOf(names, GAME_EXE) >= 0 && (DateTime.UtcNow - snapshotAt).TotalMilliseconds < SNAPSHOT_MS)
+            hwnd = LargestWindow(gamePids);
+        if (hwnd == IntPtr.Zero)
+        {
+            Dictionary<string, List<uint>> procs = Processes();
+            snapshotAt = DateTime.UtcNow;
+            procs.TryGetValue(GAME_EXE, out gamePids);
+            // La fenêtre du jeu se ferme ~15-20 s avant la fin du processus : elle sert à restaurer plus tôt.
+            hwnd = gamePids != null ? LargestWindow(gamePids) : IntPtr.Zero;
+            foreach (string n in names) lastRun[n] = procs.ContainsKey(n);
+        }
+        bool on;
         StringBuilder sb = new StringBuilder("{\"run\":[");
-        for (int i = 0; i < names.Length; i++) sb.Append(i > 0 ? "," : "").Append(procs.ContainsKey(names[i]) ? "true" : "false");
+        for (int i = 0; i < names.Length; i++) sb.Append(i > 0 ? "," : "").Append(lastRun.TryGetValue(names[i], out on) && on ? "true" : "false");
         sb.Append("],\"window\":").Append(hwnd != IntPtr.Zero ? "true" : "false");
         // Taille de la fenêtre et écran qui l'affiche (lecture seule) : plus grande que l'écran, le jeu
         // n'a pas suivi la résolution.
@@ -525,7 +599,8 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
   $a = $line.Trim().Split(' ')
   try {
     switch ($a[0]) {
-      'procs' { $out = [PgStretch]::Procs([string[]]($a | Select-Object -Skip 1)) }
+      # Appelée plusieurs fois par seconde : pas de cmdlet du pipeline (Select-Object), bien plus lent.
+      'procs' { $out = [PgStretch]::Procs([string[]]$a[1..($a.Length - 1)]) }
       'display' { $out = [PgStretch]::Display($a[1], $a[2]) }
       'screens' {
         # Noms commerciaux (« VG24VQR ») lus dans l'EDID via WMI, par identifiant d'écran.

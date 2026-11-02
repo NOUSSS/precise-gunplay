@@ -3,6 +3,7 @@ const { EventEmitter } = require('events');
 const { CLIENT_ACTIONS_DISABLED } = require('./restrictions');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const GAME_CHECK_MS = 5000;
 
 class AutoLock extends EventEmitter {
   constructor(client, settings, assets) {
@@ -13,6 +14,24 @@ class AutoLock extends EventEmitter {
     this.busy = false;
     this.done = new Set(); // parties déjà traitées
     this.attempts = new Map();
+    this.gameCheckAt = 0;
+    this.gameOpen = true;
+  }
+
+  // Jeu fermé : inutile d'interroger les serveurs de Riot chaque seconde. La session VALORANT du
+  // Riot Client (API locale) est relue toutes les 5 s ; sans réponse, on interroge comme avant.
+  async gameRunning() {
+    if (Date.now() < this.gameCheckAt) return this.gameOpen;
+    this.gameCheckAt = Date.now() + GAME_CHECK_MS;
+    try {
+      const sessions = await this.client.local('GET', '/product-session/v1/external-sessions');
+      this.gameOpen = Object.values(sessions || {}).some(
+        (s) => s?.productId === 'valorant' || (s?.launchConfiguration?.arguments || []).some((a) => /^-ares-deployment=/.test(a))
+      );
+    } catch {
+      this.gameOpen = true;
+    }
+    return this.gameOpen;
   }
 
   start() {
@@ -29,6 +48,7 @@ class AutoLock extends EventEmitter {
     this.busy = true;
     let matchId = null;
     try {
+      if (!(await this.gameRunning())) return;
       const player = await this.client.getPregamePlayer();
       matchId = player?.MatchID;
       if (!matchId || this.done.has(matchId)) return;

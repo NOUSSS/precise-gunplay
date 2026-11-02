@@ -54,6 +54,49 @@ function decodePresence(p) {
   }
 }
 
+/**
+ * Détail d'un match réduit à ce que lisent les résumés (Stats.record, summarizeMatch). La réponse brute
+ * (positions de tous les joueurs à chaque élimination, économie, compétences…) pèse bien plus lourd.
+ */
+function compactMatch(d) {
+  const rounds = d.roundResults || [];
+  const kill = (k, round) => ({
+    round,
+    roundTime: k.roundTime,
+    timeSinceRoundStartMillis: k.timeSinceRoundStartMillis,
+    killer: k.killer,
+    victim: k.victim,
+    assistants: k.assistants,
+    finishingDamage: k.finishingDamage && { damageType: k.finishingDamage.damageType, damageItem: k.finishingDamage.damageItem },
+  });
+  // Anciens matchs sans liste globale : les éliminations sont relevées manche par manche, comme dans record().
+  const kills = d.kills?.length
+    ? d.kills.map((k) => kill(k, k.round))
+    : rounds.flatMap((r, i) => (r.playerStats || []).flatMap((p) => (p.kills || []).map((k) => kill(k, r.roundNum ?? i))));
+  const mi = d.matchInfo || {};
+  return {
+    matchInfo: {
+      matchId: mi.matchId, mapId: mi.mapId, queueID: mi.queueID, queueId: mi.queueId, seasonId: mi.seasonId,
+      gameStartMillis: mi.gameStartMillis, gameLengthMillis: mi.gameLengthMillis,
+    },
+    players: (d.players || []).map((p) => ({
+      subject: p.subject, teamId: p.teamId, characterId: p.characterId, isObserver: p.isObserver,
+      competitiveTier: p.competitiveTier, partyId: p.partyId, accountLevel: p.accountLevel, gameName: p.gameName, tagLine: p.tagLine,
+      stats: p.stats && { score: p.stats.score, roundsPlayed: p.stats.roundsPlayed, kills: p.stats.kills, deaths: p.stats.deaths, assists: p.stats.assists },
+    })),
+    teams: (d.teams || []).map((t) => ({ teamId: t.teamId, won: t.won, roundsWon: t.roundsWon })),
+    kills,
+    roundResults: rounds.map((r) => ({
+      roundNum: r.roundNum,
+      winningTeam: r.winningTeam,
+      playerStats: (r.playerStats || []).map((ps) => ({
+        subject: ps.subject,
+        damage: (ps.damage || []).map((h) => ({ receiver: h.receiver, damage: h.damage, headshots: h.headshots, bodyshots: h.bodyshots, legshots: h.legshots })),
+      })),
+    })),
+  };
+}
+
 /** Notre propre présence VALORANT, décodée (null si absente). */
 function myPresence(pr, puuid) {
   const p = (pr?.presences || []).find((x) => x.puuid === puuid && x.product === 'valorant');
@@ -432,10 +475,11 @@ class Services {
   async matchDetails(id, keep = true) {
     if (this.matchCache.has(id)) return this.matchCache.get(id);
     // Deux demandes simultanées du même match (ex : deux coéquipiers) ne font qu'une requête.
+    // Seule la version réduite est gardée : la réponse brute est libérée aussitôt.
     if (!this.matchPending.has(id)) {
       this.matchPending.set(
         id,
-        this.client.getMatchDetails(id).finally(() => this.matchPending.delete(id))
+        this.client.getMatchDetails(id).then((d) => d && compactMatch(d)).finally(() => this.matchPending.delete(id))
       );
     }
     const d = await this.matchPending.get(id);
@@ -469,7 +513,10 @@ class Services {
       matchId, puuid, queue: queue || null, value: hit?.value ?? null, ready: false,
       form: [], rr: new Map(), actIds: [], listed: false, capped: false, noAct: false, failed: new Set(),
     };
+    // Joueurs des parties passées oubliés au-delà de 200 : la partie en cours est toujours la plus récente.
+    this.recent.delete(key);
     this.recent.set(key, entry);
+    if (this.recent.size > 200) this.recent.delete(this.recent.keys().next().value);
     // Riot en panne ou limite dépassée : nouvel essai au bout de 30 s, pas à chaque rafraîchissement.
     this.prepareRecent(entry).catch(() => (entry.failedAt = Date.now()));
     return entry.value;
