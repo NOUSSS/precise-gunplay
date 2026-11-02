@@ -23,6 +23,15 @@ function rateBucket(urlPath) {
   return '/' + String(urlPath).split('/')[1];
 }
 
+// Requêtes de fond (synchronisation des stats) : une à la fois par famille d'endpoint, espacées, jamais
+// pendant qu'une page attend la même famille, et pas au-delà de BACKGROUND_PER_MINUTE requêtes de la famille
+// (pages comprises) sur la dernière minute. Riot accepte ~65 détails de match par minute : une page garde
+// toujours de la marge et ne patiente pas derrière une pause que le fond aurait provoquée.
+const BACKGROUND_GAP_MS = 1200;
+const BACKGROUND_PER_MINUTE = 40;
+const REQUEST_TIMEOUT_MS = 20000;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 class RiotError extends Error {
   constructor(code, message) {
     super(message);
@@ -45,6 +54,9 @@ class RiotClient {
     this.version = null;
     // Pause imposée par Riot, par famille d'endpoint (ex : /match-details) pour ne pas bloquer le reste.
     this.rateLimits = new Map();
+    this.busy = new Map(); // requêtes des pages en cours, par famille
+    this.lanes = new Map(); // requêtes de fond : { tail, next } par famille
+    this.sent = new Map(); // heures d'envoi de la dernière minute, par famille
   }
 
   get connected() {
@@ -130,28 +142,77 @@ class RiotClient {
     };
   }
 
-  async request(base, method, urlPath, body, retry = true, attempt = 0) {
+  /** `background` : requête de fond, servie après celles des pages (voir BACKGROUND_GAP_MS). */
+  async request(base, method, urlPath, body, { background = false } = {}) {
+    const bucket = rateBucket(urlPath);
+    const busy = this.busy;
+    if (background) await this.backgroundTurn(bucket);
+    else busy.set(bucket, (busy.get(bucket) || 0) + 1);
+    try {
+      return await this.send(base, method, urlPath, body, bucket);
+    } finally {
+      if (!background) busy.set(bucket, busy.get(bucket) - 1);
+    }
+  }
+
+  /** Tour d'une requête de fond : après la précédente de sa famille, espacée d'elle, quand aucune page n'attend. */
+  backgroundTurn(bucket) {
+    const busy = this.busy;
+    let lane = this.lanes.get(bucket);
+    if (!lane) this.lanes.set(bucket, (lane = { tail: Promise.resolve(), next: 0 }));
+    lane.tail = lane.tail.then(async () => {
+      for (;;) {
+        const sent = this.sentLastMinute(bucket);
+        const full = sent.length >= BACKGROUND_PER_MINUTE ? sent[sent.length - BACKGROUND_PER_MINUTE] + 60000 : 0;
+        const wait = Math.max(this.rateLimits.get(bucket) || 0, lane.next, full) - Date.now();
+        if (wait > 0) await sleep(wait);
+        else if (busy.get(bucket)) await sleep(200);
+        else break;
+      }
+      lane.next = Date.now() + BACKGROUND_GAP_MS;
+    });
+    return lane.tail;
+  }
+
+  /** Heures d'envoi des requêtes de la famille sur la dernière minute (pages et fond). */
+  sentLastMinute(bucket) {
+    let sent = this.sent.get(bucket);
+    if (!sent) this.sent.set(bucket, (sent = []));
+    while (sent.length && sent[0] <= Date.now() - 60000) sent.shift();
+    return sent;
+  }
+
+  async send(base, method, urlPath, body, bucket, retry = true, attempt = 0) {
     if (!this.connected) throw new RiotError('NOT_CONNECTED', 'Compte non connecté.');
     // Si Riot a demandé d'attendre pour cette famille d'endpoint, toutes ses requêtes patientent ensemble.
-    const bucket = rateBucket(urlPath);
     const wait = (this.rateLimits.get(bucket) || 0) - Date.now();
-    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    if (wait > 0) await sleep(wait);
     if (Date.now() - this.tokensAt > 4 * 60 * 1000) {
       await this.refreshTokens().catch(() => {});
     }
-    const res = await fetch(base + urlPath, {
-      method,
-      headers: { ...this.headers(), ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
-    const text = await res.text();
+    if (!this.connected) throw new RiotError('NOT_CONNECTED', 'Compte non connecté.');
+    this.sentLastMinute(bucket).push(Date.now());
+    // Sans délai, une connexion bloquée laisserait la page sur son chargement.
+    let res, text;
+    try {
+      res = await fetch(base + urlPath, {
+        method,
+        headers: { ...this.headers(), ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      text = await res.text();
+    } catch (e) {
+      if (e.name === 'TimeoutError') throw new RiotError('TIMEOUT', 'Riot ne répond pas : réessayez dans un instant.');
+      throw e;
+    }
     let data = null;
     try { data = text ? JSON.parse(text) : null; } catch { data = text; }
 
     const authError = res.status === 401 || (res.status === 400 && /BAD_CLAIMS|TOKEN|AUTH/i.test(data?.errorCode || ''));
     if (authError && retry) {
       await this.refreshTokens();
-      return this.request(base, method, urlPath, body, false);
+      return this.send(base, method, urlPath, body, bucket, false);
     }
     if (res.status === 429 && attempt < 5) {
       // Limite de requêtes Riot : on respecte le délai demandé (souvent jusqu'à 60 s) puis on réessaie.
@@ -159,7 +220,7 @@ class RiotClient {
       const until = Math.max(this.rateLimits.get(bucket) || 0, Date.now() + delay + 500);
       this.rateLimits.set(bucket, until);
       this.onRateLimit?.(bucket, until);
-      return this.request(base, method, urlPath, body, retry, attempt + 1);
+      return this.send(base, method, urlPath, body, bucket, retry, attempt + 1);
     }
     if (res.status === 404) return null;
     if (!res.ok) {
@@ -168,8 +229,8 @@ class RiotClient {
     return data;
   }
 
-  pd(method, p, body) {
-    return this.request(`https://pd.${this.shard}.a.pvp.net`, method, p, body);
+  pd(method, p, body, opts) {
+    return this.request(`https://pd.${this.shard}.a.pvp.net`, method, p, body, opts);
   }
 
   glz(method, p, body) {
@@ -192,8 +253,8 @@ class RiotClient {
     return (await this.pd('GET', `/personalization/v3/players/${this.puuid}/playerloadout`))
       || this.pd('GET', `/personalization/v2/players/${this.puuid}/playerloadout`);
   }
-  getMMR(puuid = this.puuid) {
-    return this.pd('GET', `/mmr/v1/players/${puuid}`);
+  getMMR(puuid = this.puuid, opts) {
+    return this.pd('GET', `/mmr/v1/players/${puuid}`, undefined, opts);
   }
 
   // ---- Boutique ----
@@ -212,19 +273,19 @@ class RiotClient {
   }
 
   // ---- Historique ----
-  getMatchHistory(start = 0, end = 10, queue, puuid = this.puuid) {
+  getMatchHistory(start = 0, end = 10, queue, puuid = this.puuid, opts) {
     const q = queue ? `&queue=${encodeURIComponent(queue)}` : '';
-    return this.pd('GET', `/match-history/v1/history/${puuid}?startIndex=${start}&endIndex=${end}${q}`);
+    return this.pd('GET', `/match-history/v1/history/${puuid}?startIndex=${start}&endIndex=${end}${q}`, undefined, opts);
   }
   rateLimitedUntil(bucket) {
     const until = this.rateLimits.get(bucket) || 0;
     return until > Date.now() ? until : null;
   }
-  getCompetitiveUpdates(start = 0, end = 20, puuid = this.puuid) {
-    return this.pd('GET', `/mmr/v1/players/${puuid}/competitiveupdates?startIndex=${start}&endIndex=${end}&queue=competitive`);
+  getCompetitiveUpdates(start = 0, end = 20, puuid = this.puuid, opts) {
+    return this.pd('GET', `/mmr/v1/players/${puuid}/competitiveupdates?startIndex=${start}&endIndex=${end}&queue=competitive`, undefined, opts);
   }
-  getMatchDetails(matchId) {
-    return this.pd('GET', `/match-details/v1/matches/${matchId}`);
+  getMatchDetails(matchId, opts) {
+    return this.pd('GET', `/match-details/v1/matches/${matchId}`, undefined, opts);
   }
 
   // ---- Sélection d'agent ----

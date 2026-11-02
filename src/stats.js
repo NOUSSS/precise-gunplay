@@ -13,6 +13,11 @@ const TRADE_WINDOW_MS = 5000;
 const PAGE = 20; // l'historique Riot renvoie au plus 20 éléments par requête
 const MAX_PAGES = 15;
 const WORKERS = 3;
+// La synchronisation passe après les pages (voir RiotClient.backgroundTurn).
+const BACKGROUND = { background: true };
+// Riot en pause : la page reprend les derniers rangs connus plutôt que d'attendre.
+const PAGE_WAIT_MS = 1500;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 class Stats extends EventEmitter {
   constructor(client, assets, services, cacheDir) {
@@ -200,7 +205,7 @@ class Stats extends EventEmitter {
     const todo = [];
     let reachedEnd = false;
     for (let page = 0; page < MAX_PAGES; page++) {
-      const h = await this.client.getMatchHistory(page * PAGE, (page + 1) * PAGE);
+      const h = await this.client.getMatchHistory(page * PAGE, (page + 1) * PAGE, undefined, undefined, BACKGROUND);
       const list = (h?.History || []).map((m) => m.MatchID);
       const fresh = list.filter((id) => !this.hasMatch(puuid, id));
       todo.push(...fresh);
@@ -223,7 +228,7 @@ class Stats extends EventEmitter {
       while (queue.length && this.client.puuid === puuid) {
         const id = queue.shift();
         try {
-          const d = await this.services.matchDetails(id);
+          const d = await this.services.matchDetails(id, true, BACKGROUND);
           const r = d && this.record(d, puuid);
           if (r) {
             this.cache.matches[`${puuid}:${id}`] = r;
@@ -247,7 +252,7 @@ class Stats extends EventEmitter {
   async syncRR(puuid) {
     const known = new Map((this.cache.rr[puuid] || []).map((u) => [u.id, u]));
     for (let page = 0; page < MAX_PAGES; page++) {
-      const res = await this.client.getCompetitiveUpdates(page * PAGE, (page + 1) * PAGE).catch(() => null);
+      const res = await this.client.getCompetitiveUpdates(page * PAGE, (page + 1) * PAGE, undefined, BACKGROUND).catch(() => null);
       const list = res?.Matches || [];
       let fresh = 0;
       for (const m of list) {
@@ -270,16 +275,19 @@ class Stats extends EventEmitter {
 
   /** Rang par acte, à partir du MMR (un seul appel). */
   async actRanks(puuid) {
-    if (this.ranksCache?.puuid === puuid && Date.now() - this.ranksCache.at < 60000) return this.ranksCache.value;
-    const mmr = await this.client.getMMR(puuid).catch(() => null);
-    const out = {};
-    for (const [id, s] of Object.entries(mmr?.QueueSkills?.competitive?.SeasonalInfoBySeasonID || {})) {
-      let peak = s.CompetitiveTier || 0;
-      for (const t of Object.keys(s.WinsByTier || {})) peak = Math.max(peak, Number(t));
-      out[id] = { tier: s.CompetitiveTier || 0, rr: s.RankedRating || 0, wins: s.NumberOfWins || 0, games: s.NumberOfGames || 0, peak };
-    }
-    if (mmr) this.ranksCache = { puuid, at: Date.now(), value: out };
-    return out;
+    const known = this.ranksCache?.puuid === puuid ? this.ranksCache : null;
+    if (known && Date.now() - known.at < 60000) return known.value;
+    const load = this.client.getMMR(puuid).catch(() => null).then((mmr) => {
+      const out = {};
+      for (const [id, s] of Object.entries(mmr?.QueueSkills?.competitive?.SeasonalInfoBySeasonID || {})) {
+        let peak = s.CompetitiveTier || 0;
+        for (const t of Object.keys(s.WinsByTier || {})) peak = Math.max(peak, Number(t));
+        out[id] = { tier: s.CompetitiveTier || 0, rr: s.RankedRating || 0, wins: s.NumberOfWins || 0, games: s.NumberOfGames || 0, peak };
+      }
+      if (mmr) this.ranksCache = { puuid, at: Date.now(), value: out };
+      return mmr || !known ? out : known.value;
+    });
+    return known ? Promise.race([load, sleep(PAGE_WAIT_MS).then(() => known.value)]) : load;
   }
 
   /** Tout ce que la page Stats affiche, lu depuis le cache (instantané). */
@@ -290,7 +298,7 @@ class Stats extends EventEmitter {
       .filter(([k, r]) => k.startsWith(prefix) && r.v >= MIN_RECORD_VERSION)
       .map(([, r]) => r)
       .sort((a, b) => b.startedAt - a.startedAt);
-    const [actRanks, rank] = await Promise.all([this.actRanks(puuid), this.services.rank(puuid).catch(() => null)]);
+    const [actRanks, rank] = await Promise.all([this.actRanks(puuid), this.services.rankSoon(puuid).catch(() => null)]);
     return { records, rr: this.cache.rr[puuid] || [], actRanks, rank, sync: this.state };
   }
 }

@@ -150,7 +150,9 @@ function registerIpc() {
   handle('collection', () => services.collection());
   handle('owned-agents', () => services.ownedAgents());
   handle('live', () => services.live());
+  handle('live-leave', () => services.liveLeft(), { needsAuth: false });
   handle('history', (queue) => services.history(queue));
+  handle('history-cached', (queue) => services.historyCached(queue));
   handle('party', () => services.party());
   handle('friends', () => services.friends());
   handle('chat-unread', () => services.chatUnread());
@@ -230,7 +232,7 @@ app.whenReady().then(() => {
   // Nouvelle version du jeu : données téléchargées après coup, l'interface prend la nouvelle liste.
   assets.on('updated', () => send('assets', assets.summary()));
   settings = new Settings(dataDir);
-  services = new Services(client, assets);
+  services = new Services(client, assets, dataDir);
   wishlist = new Wishlist(client);
   stats = new Stats(client, assets, services, dataDir);
   services.stats = stats;
