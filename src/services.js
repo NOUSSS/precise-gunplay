@@ -1,5 +1,10 @@
 // Logique métier : transforme les réponses brutes de Riot en données prêtes à afficher.
 const { CURRENCIES, ITEM_TYPES } = require('./assets');
+const { HistoryStore } = require('./history');
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Une page n'attend pas plus longtemps une donnée déjà connue (rang) : au-delà, elle prend la dernière lue.
+const PAGE_WAIT_MS = 1500;
 
 // Agents gratuits (non listés dans les entitlements).
 const FREE_AGENTS = [
@@ -104,19 +109,25 @@ function myPresence(pr, puuid) {
 }
 
 class Services {
-  constructor(client, assets) {
+  constructor(client, assets, dataDir) {
     this.client = client;
     this.assets = assets;
+    this.historyStore = new HistoryStore(dataDir);
     this.rankCache = new Map();
     this.rankPending = new Map();
     this.matchCache = new Map();
     this.matchPending = new Map();
     this.recent = new Map(); // stats récentes des joueurs croisés en partie
     this.records = new Map(); // résumé de chaque joueur d'un match téléchargé (« puuid:matchId »)
+    this.partiesByMatch = new Map(); // groupe de chaque joueur d'un match téléchargé : id → Map(puuid → partyId)
+    this.partyLookups = new Map(); // matchs demandés pour repérer les groupes : id → -1 en cours, sinon essais
     this.detailTasks = []; // téléchargements de matchs pour ces stats
     this.detailRunning = 0;
     this.detailSeq = 0;
     this.liveMatchId = null; // partie affichée : seuls ses joueurs sont servis par la file
+    this.liveViewing = false; // page Partie en direct affichée : sa file avance, sinon elle attend son retour
+    this.liveMatch = null; // phase lue au dernier rafraîchissement { state, id, data } (data : partie en jeu, fixe)
+    this.liveParty = null; // ton groupe pendant la partie { matchId, members } : il ne change pas en cours de match
     this.stats = null; // branché par main.js (calcul des résumés de match)
     this.liveScore = null; // dernier score lu pour la partie en cours { matchId, score }
   }
@@ -159,6 +170,13 @@ class Services {
     return this.rankPending.get(puuid);
   }
 
+  /** Rang pour une page : celui de Riot s'il arrive vite, sinon le dernier connu (le frais sert à l'affichage suivant). */
+  rankSoon(puuid) {
+    const load = this.rank(puuid);
+    const known = this.rankCache.get(puuid);
+    return known && !known.failed ? Promise.race([load, sleep(PAGE_WAIT_MS).then(() => known.value)]) : load;
+  }
+
   /**
    * Rang en cache (même périmé), sinon null : chargé en arrière-plan, la page n'attend pas la limite de Riot.
    * Un rang ne change pas pendant une partie : lu une fois par match.
@@ -196,7 +214,7 @@ class Services {
       safe(c.getAccountXP()),
       safe(c.getLoadout()),
       safe(c.getWallet()),
-      safe(this.rank(c.puuid)),
+      safe(this.rankSoon(c.puuid)),
     ]);
     const id = loadout?.Identity || {};
     const card = id.PlayerCardID ? this.assets.cardById.get(id.PlayerCardID.toLowerCase()) : null;
@@ -329,6 +347,8 @@ class Services {
 
   // ---------- Partie en direct ----------
   async decorate(players, partyMembers, queue, matchId) {
+    // Nouvelle partie : les recherches de groupes de la précédente sont oubliées.
+    if (matchId !== this.liveMatchId) this.partyLookups.clear();
     this.liveMatchId = matchId;
     // Stats lancées avant les rangs, qui partagent une limite de Riot plus basse avec l'historique RR.
     for (const p of players) this.recentStats(p.puuid, queue, matchId);
@@ -354,14 +374,17 @@ class Services {
     });
   }
 
-  async partyMemberSet() {
+  /** Membres de ton groupe, lus une fois par partie (null si Riot n'a pas répondu : redemandés ensuite). */
+  async partyMemberSet(matchId) {
+    if (this.liveParty?.matchId === matchId) return this.liveParty.members;
     try {
       const pp = await this.client.getPartyPlayer();
-      if (!pp?.CurrentPartyID) return new Set();
-      const party = await this.client.getParty(pp.CurrentPartyID);
-      return new Set((party?.Members || []).map((m) => m.Subject));
+      const party = pp?.CurrentPartyID ? await this.client.getParty(pp.CurrentPartyID) : null;
+      const members = new Set((party?.Members || []).map((m) => m.Subject));
+      this.liveParty = { matchId, members };
+      return members;
     } catch {
-      return new Set();
+      return null;
     }
   }
 
@@ -378,8 +401,8 @@ class Services {
   }
 
   /**
-   * Groupe de chaque joueur de la partie (puuid → id de groupe), lu dans les présences : le client
-   * reçoit celles de tous les joueurs de la partie. Ton groupe vient aussi de l'API des groupes.
+   * Groupe connu de chaque joueur (puuid → id de groupe) : présences (Riot n'envoie plus que celles de tes
+   * amis) et ton groupe, lu dans l'API des groupes.
    */
   matchParties(pr, myParty = new Set()) {
     const parties = new Map();
@@ -394,6 +417,72 @@ class Services {
     return parties;
   }
 
+  /**
+   * Groupes de la partie. Ceux des présences et le tien sont sûrs ; pour les autres joueurs, comme Tracker,
+   * l'historique : deux coéquipiers qui étaient dans le même groupe lors de leur dernière partie commune y
+   * sont presque toujours encore (`partyGuess`). Un groupe qui joue ensemble pour la première fois échappe.
+   */
+  markParties(players, pr, myParty, teamOf, queue, matchId) {
+    const known = this.matchParties(pr, myParty);
+    const root = new Map(players.map((p) => [p.puuid, p.puuid]));
+    const find = (x) => (root.get(x) === x ? x : find(root.get(x)));
+    const join = (a, b) => root.set(find(a), find(b));
+    const first = new Map(); // id de groupe connu → premier joueur rencontré
+    const count = new Map(); // id de groupe connu → nombre de joueurs de la partie
+    for (const { puuid } of players) {
+      const k = known.get(puuid);
+      if (!k) continue;
+      count.set(k, (count.get(k) || 0) + 1);
+      if (first.has(k)) join(puuid, first.get(k));
+      else first.set(k, puuid);
+    }
+    // Ton groupe est connu en entier, et deux groupes connus le sont déjà : l'historique ne sert qu'aux autres.
+    const open = (p) => !myParty.has(p.puuid);
+    const guessable = (a, b) => open(a) && open(b) && !(known.has(a.puuid) && known.has(b.puuid));
+    for (const [a, b] of this.historyLinks(players, teamOf, queue, matchId, guessable)) join(a, b);
+    labelParties(players, (p) => find(p.puuid), teamOf);
+    for (const p of players) p.partyGuess = !!p.party && !(count.get(known.get(p.puuid)) > 1);
+  }
+
+  /** Paires de coéquipiers dans le même groupe lors de leur dernière partie commune (matchs manquants demandés). */
+  historyLinks(players, teamOf, queue, matchId, guessable) {
+    const ids = players.map((p) => this.recent.get(`${p.puuid}:${queue || ''}`)?.ids);
+    const links = [];
+    for (let i = 0; i < players.length; i++) {
+      for (let j = i + 1; j < players.length; j++) {
+        if (!ids[i] || !ids[j] || teamOf(players[i]) !== teamOf(players[j]) || !guessable(players[i], players[j])) continue;
+        const shared = ids[i].find((id) => id !== matchId && ids[j].includes(id));
+        if (!shared) continue;
+        const parties = this.partiesByMatch.get(shared);
+        if (!parties) {
+          this.lookupParties(shared);
+          continue;
+        }
+        const party = parties.get(players[i].puuid);
+        if (party && party === parties.get(players[j].puuid)) links.push([players[i].puuid, players[j].puuid]);
+      }
+    }
+    return links;
+  }
+
+  /** Télécharge une partie commune pour y lire les groupes, avant les stats (deux essais). */
+  lookupParties(id) {
+    const tries = this.partyLookups.get(id) ?? 0;
+    if (tries === -1 || tries >= 2) return;
+    this.partyLookups.set(id, -1);
+    this.queueDetail({
+      prio: -2,
+      order: 0,
+      matchId: this.liveMatchId,
+      dropped: () => this.partyLookups.delete(id),
+      run: async () => {
+        const d = await this.matchDetails(id, false).catch(() => null);
+        if (d) this.absorb(id, d);
+        this.partyLookups.set(id, d ? 2 : tries + 1);
+      },
+    });
+  }
+
   /** Score de la partie en cours [nous, eux], lu dans notre propre présence (mise à jour à chaque round). */
   myMatchScore(pr) {
     const d = myPresence(pr, this.client.puuid);
@@ -404,85 +493,125 @@ class Services {
     return ally != null && enemy != null ? [ally, enemy] : null;
   }
 
+  /**
+   * Partie affichée. En jeu, un rafraîchissement ne relit que la partie en cours et les présences (score) :
+   * joueurs, agents et groupe ne changent plus jusqu'à la fin.
+   */
   async live() {
-    const c = this.client;
-    const pre = await c.getPregamePlayer().catch(() => null);
-    if (pre?.MatchID) {
-      const m = await c.getPregameMatch(pre.MatchID);
-      if (m) {
-        const [party, pr] = await Promise.all([this.partyMemberSet(), c.getPresences().catch(() => null)]);
-        const allies = await this.decorate(
-          (m.AllyTeam?.Players || []).map((p) => ({ puuid: p.Subject, agent: p.CharacterID, state: p.CharacterSelectionState, identity: p.PlayerIdentity })),
-          party,
-          m.QueueID,
-          m.ID
-        );
-        const parties = this.matchParties(pr, party);
-        labelParties(allies, (p) => parties.get(p.puuid), () => 'ally');
-        return {
-          state: 'pregame',
-          matchId: m.ID,
-          map: this.assets.map(m.MapID),
-          queue: m.QueueID,
-          endsAt: Date.now() + (m.PhaseTimeRemainingNS || 0) / 1e6,
-          side: this.sideAt(m.AllyTeam?.TeamID, m.Mode),
-          allies,
-          enemies: [],
-        };
-      }
+    this.liveViewing = true;
+    try {
+      return await this.readLive();
+    } finally {
+      this.pumpDetails(); // file restée en attente pendant que la page était quittée
     }
-    const core = await c.getCoregamePlayer().catch(() => null);
-    if (core?.MatchID) {
-      const m = await c.getCoregameMatch(core.MatchID);
-      if (m) {
-        const [party, pr] = await Promise.all([this.partyMemberSet(), c.getPresences().catch(() => null)]);
-        const myTeam = (m.Players || []).find((p) => p.Subject === c.puuid)?.TeamID;
-        // Ton équipe d'abord : ses stats sont chargées en premier.
-        const all = await this.decorate(
-          [...(m.Players || [])].sort((x, y) => (y.TeamID === myTeam) - (x.TeamID === myTeam)).map((p) => ({ puuid: p.Subject, agent: p.CharacterID, identity: p.PlayerIdentity, team: p.TeamID })),
-          party,
-          m.MatchmakingData?.QueueID,
-          m.MatchID
-        );
-        const teamOf = new Map((m.Players || []).map((p) => [p.Subject, p.TeamID]));
-        const prev = this.liveScore;
-        let score = this.myMatchScore(pr);
-        // Présence encore figée sur le score du match précédent : on l'ignore jusqu'à sa mise à jour.
-        if (score && prev && prev.matchId !== m.MatchID && score[0] === prev.score[0] && score[1] === prev.score[1] && score[0] + score[1] > 0) score = null;
-        if (!score && prev?.matchId === m.MatchID) score = prev.score; // présence illisible : dernier score connu
-        if (score) this.liveScore = { matchId: m.MatchID, score };
-        const allies = all.filter((p) => teamOf.get(p.puuid) === myTeam);
-        const enemies = all.filter((p) => teamOf.get(p.puuid) !== myTeam);
-        const parties = this.matchParties(pr, party);
-        labelParties([...allies, ...enemies], (p) => parties.get(p.puuid), (p) => teamOf.get(p.puuid));
-        return {
-          state: 'ingame',
-          matchId: m.MatchID,
-          map: this.assets.map(m.MapID),
-          queue: m.MatchmakingData?.QueueID || null,
-          score,
-          side: this.sideAt(myTeam, m.ModeID, score || [0, 0]), // sans score : début de match
-          allies,
-          enemies,
-        };
+  }
+
+  async readLive() {
+    const c = this.client;
+    // En jeu, la sélection d'agent est finie : la partie est relue d'abord, seule la plupart du temps.
+    const phases = this.liveMatch?.state === 'ingame' ? ['ingame', 'pregame'] : ['pregame', 'ingame'];
+    let over = true; // Riot confirme qu'il n'y a plus de partie (une erreur ne conclut rien)
+    for (const phase of phases) {
+      const player = await (phase === 'ingame' ? c.getCoregamePlayer() : c.getPregamePlayer()).catch(() => undefined);
+      if (!player?.MatchID) {
+        if (player === undefined) over = false;
+        continue;
       }
+      const live = await (phase === 'ingame' ? this.liveIngame(player.MatchID) : this.livePregame(player.MatchID));
+      if (live) return live;
+      over = false;
+    }
+    // Partie terminée : la file des stats de ses joueurs s'arrête.
+    if (over) {
+      this.liveMatchId = null;
+      this.liveMatch = null;
     }
     return { state: 'idle' };
   }
 
+  async livePregame(matchId) {
+    const c = this.client;
+    const [m, party, pr] = await Promise.all([c.getPregameMatch(matchId), this.partyMemberSet(matchId), c.getPresences().catch(() => null)]);
+    if (!m) return null;
+    this.liveMatch = { state: 'pregame', id: m.ID };
+    const allies = await this.decorate(
+      (m.AllyTeam?.Players || []).map((p) => ({ puuid: p.Subject, agent: p.CharacterID, state: p.CharacterSelectionState, identity: p.PlayerIdentity })),
+      party || new Set(),
+      m.QueueID,
+      m.ID
+    );
+    this.markParties(allies, pr, party || new Set(), () => 'ally', m.QueueID, m.ID);
+    return {
+      state: 'pregame',
+      matchId: m.ID,
+      map: this.assets.map(m.MapID),
+      queue: m.QueueID,
+      endsAt: Date.now() + (m.PhaseTimeRemainingNS || 0) / 1e6,
+      side: this.sideAt(m.AllyTeam?.TeamID, m.Mode),
+      allies,
+      enemies: [],
+    };
+  }
+
+  async liveIngame(matchId) {
+    const c = this.client;
+    const known = this.liveMatch?.state === 'ingame' && this.liveMatch.id === matchId ? this.liveMatch.data : null;
+    const [m, party, pr] = await Promise.all([known || c.getCoregameMatch(matchId), this.partyMemberSet(matchId), c.getPresences().catch(() => null)]);
+    if (!m) return null;
+    this.liveMatch = { state: 'ingame', id: matchId, data: m };
+    const myTeam = (m.Players || []).find((p) => p.Subject === c.puuid)?.TeamID;
+    // Ton équipe d'abord : ses stats sont chargées en premier.
+    const all = await this.decorate(
+      [...(m.Players || [])].sort((x, y) => (y.TeamID === myTeam) - (x.TeamID === myTeam)).map((p) => ({ puuid: p.Subject, agent: p.CharacterID, identity: p.PlayerIdentity, team: p.TeamID })),
+      party || new Set(),
+      m.MatchmakingData?.QueueID,
+      m.MatchID
+    );
+    const teamOf = new Map((m.Players || []).map((p) => [p.Subject, p.TeamID]));
+    const prev = this.liveScore;
+    let score = this.myMatchScore(pr);
+    // Présence encore figée sur le score du match précédent : on l'ignore jusqu'à sa mise à jour.
+    if (score && prev && prev.matchId !== m.MatchID && score[0] === prev.score[0] && score[1] === prev.score[1] && score[0] + score[1] > 0) score = null;
+    if (!score && prev?.matchId === m.MatchID) score = prev.score; // présence illisible : dernier score connu
+    if (score) this.liveScore = { matchId: m.MatchID, score };
+    const allies = all.filter((p) => teamOf.get(p.puuid) === myTeam);
+    const enemies = all.filter((p) => teamOf.get(p.puuid) !== myTeam);
+    this.markParties([...allies, ...enemies], pr, party || new Set(), (p) => teamOf.get(p.puuid), m.MatchmakingData?.QueueID, m.MatchID);
+    return {
+      state: 'ingame',
+      matchId: m.MatchID,
+      map: this.assets.map(m.MapID),
+      queue: m.MatchmakingData?.QueueID || null,
+      score,
+      side: this.sideAt(myTeam, m.ModeID, score || [0, 0]), // sans score : début de match
+      allies,
+      enemies,
+    };
+  }
+
+  /** Page Partie en direct quittée : sa file attend son retour, les pages ouvertes entre-temps passent avant. */
+  liveLeft() {
+    this.liveViewing = false;
+  }
+
   // ---------- Historique ----------
-  /** keep = false : ne garde pas le match complet en mémoire (téléchargements en masse). */
-  async matchDetails(id, keep = true) {
+  /**
+   * keep = false : ne garde pas le match complet en mémoire (téléchargements en masse).
+   * opts.background : requête de fond (synchronisation des stats), servie après celles des pages.
+   */
+  async matchDetails(id, keep = true, opts) {
     if (this.matchCache.has(id)) return this.matchCache.get(id);
-    // Deux demandes simultanées du même match (ex : deux coéquipiers) ne font qu'une requête.
-    // Seule la version réduite est gardée : la réponse brute est libérée aussitôt.
-    if (!this.matchPending.has(id)) {
+    // Deux demandes simultanées du même match (ex : deux coéquipiers) ne font qu'une requête ; une page
+    // n'attend jamais celle d'une synchronisation de fond. Seule la version réduite est gardée : la réponse
+    // brute est libérée aussitôt.
+    const key = opts?.background && !this.matchPending.has(id) ? `bg:${id}` : id;
+    if (!this.matchPending.has(key)) {
       this.matchPending.set(
-        id,
-        this.client.getMatchDetails(id).then((d) => d && compactMatch(d)).finally(() => this.matchPending.delete(id))
+        key,
+        this.client.getMatchDetails(id, opts).then((d) => d && compactMatch(d)).finally(() => this.matchPending.delete(key))
       );
     }
-    const d = await this.matchPending.get(id);
+    const d = await this.matchPending.get(key);
     if (d && keep) {
       this.matchCache.set(id, d);
       // Garde seulement les 60 derniers matchs complets en mémoire.
@@ -549,7 +678,8 @@ class Services {
     let queue = entry.queue;
     let list = await this.historyPage(puuid, queue, 0);
     if (!list.length && queue) list = await this.historyPage(puuid, (queue = null), 0); // rien dans ce mode : toutes files
-    entry.form = list.slice(0, 10).map((m) => m.MatchID);
+    entry.ids = list.map((m) => m.MatchID); // parties communes : groupes probables (markParties)
+    entry.form = entry.ids.slice(0, 10);
     entry.ready = true;
     // Acte en cours inconnu (données du jeu en retard sur un nouvel acte) : pas de moyennes plutôt que fausses.
     if (!act) entry.noAct = true;
@@ -577,8 +707,8 @@ class Services {
   }
 
   /**
-   * File commune des téléchargements : résultats douteux du RR (prio -1), carrés (prio 0, la plus récente de
-   * chaque joueur d'abord), puis acte (prio 1).
+   * File commune des téléchargements : parties communes pour les groupes (prio -2), résultats douteux du RR
+   * (prio -1), carrés (prio 0, la plus récente de chaque joueur d'abord), puis acte (prio 1).
    */
   queueDetail(task) {
     task.seq = this.detailSeq++;
@@ -587,12 +717,19 @@ class Services {
   }
 
   pumpDetails() {
-    while (this.detailRunning < 4 && this.detailTasks.length) {
+    // Page quittée : la file attend son retour (voir liveLeft) plutôt que d'user la limite de Riot.
+    while (this.liveViewing && this.detailRunning < 4 && this.detailTasks.length) {
       const task = this.detailTasks.reduce((best, t) => (taskOrder(t, best) < 0 ? t : best));
       this.detailTasks.splice(this.detailTasks.indexOf(task), 1);
       const { entry } = task;
-      // Joueur d'une autre partie, ou stats relancées entre-temps : abandonné.
-      if (entry.matchId !== this.liveMatchId || this.recent.get(`${entry.puuid}:${entry.queue || ''}`) !== entry) continue;
+      // Partie terminée ou autre partie, ou stats du joueur relancées entre-temps : abandonné.
+      const stale = entry
+        ? entry.matchId !== this.liveMatchId || this.recent.get(`${entry.puuid}:${entry.queue || ''}`) !== entry
+        : task.matchId !== this.liveMatchId;
+      if (stale) {
+        task.dropped?.();
+        continue;
+      }
       // Carré déjà donné par le RR : le détail ne sert plus qu'aux moyennes, s'il est de l'acte.
       if (task.prio === 0 && entry.rr.has(task.id)) {
         if (entry.actIds.includes(task.id)) this.queueDetail({ ...task, prio: 1, order: this.detailSeq++ });
@@ -623,14 +760,22 @@ class Services {
     const hit = this.cachedRecord(id, puuid);
     if (hit) return hit;
     const d = await this.matchDetails(id, false).catch(() => null);
-    if (!d || !this.stats) return null;
+    if (!d) return null;
+    this.absorb(id, d);
+    return this.cachedRecord(id, puuid);
+  }
+
+  /** Ce qu'un match téléchargé apprend : groupes de ses joueurs, et résumé de chaque joueur suivi. */
+  absorb(id, d) {
+    this.partiesByMatch.set(id, new Map((d.players || []).map((p) => [p.subject, p.partyId])));
+    if (this.partiesByMatch.size > 2000) this.partiesByMatch.delete(this.partiesByMatch.keys().next().value);
+    if (!this.stats) return;
     // Tous les joueurs suivis d'un coup : les membres d'un même groupe ont les mêmes parties.
     const tracked = new Set([...this.recent.values()].map((e) => e.puuid));
     for (const p of d.players || []) {
       if (!p.isObserver && tracked.has(p.subject)) this.records.set(`${p.subject}:${id}`, this.stats.record(d, p.subject));
     }
     while (this.records.size > 5000) this.records.delete(this.records.keys().next().value);
-    return this.cachedRecord(id, puuid);
   }
 
   cachedRecord(id, puuid) {
@@ -670,13 +815,14 @@ class Services {
   async namesCached(puuids) {
     this.nameCache ||= new Map();
     const missing = [...new Set(puuids)].filter((id) => id && !this.nameCache.has(id));
-    for (let i = 0; i < missing.length; i += 50) {
-      const res = await this.client.getNames(missing.slice(i, i + 50)).catch(() => []);
-      for (const n of res || []) this.nameCache.set(n.Subject, { name: n.GameName || '', tag: n.TagLine || '' });
-    }
+    const batches = [];
+    for (let i = 0; i < missing.length; i += 50) batches.push(missing.slice(i, i + 50));
+    const found = await Promise.all(batches.map((b) => this.client.getNames(b).catch(() => [])));
+    for (const n of found.flat()) if (n) this.nameCache.set(n.Subject, { name: n.GameName || '', tag: n.TagLine || '' });
     return this.nameCache;
   }
 
+  /** Résumé gardé sur disque (voir HistoryStore) : pseudo vide s'il est inconnu, carte par son identifiant. */
   summarizeMatch(d, names = new Map()) {
     const me = d.players?.find((p) => p.subject === this.client.puuid);
     if (!me) return null;
@@ -695,10 +841,9 @@ class Services {
         const rounds = Math.max(1, r.rounds || p.stats?.roundsPlayed || 1);
         const shots = (r.head || 0) + (r.body || 0) + (r.leg || 0);
         const n = names.get(p.subject) || {};
-        const agent = this.assets.agentById.get(String(p.characterId || '').toLowerCase());
         return {
           puuid: p.subject,
-          name: n.name || p.gameName || agent?.name || 'Joueur',
+          name: n.name || p.gameName || '',
           tag: n.tag || p.tagLine || '',
           agentId: String(p.characterId || '').toLowerCase(),
           teamId: p.teamId,
@@ -732,7 +877,7 @@ class Services {
 
     return {
       id: d.matchInfo?.matchId,
-      map: this.assets.map(d.matchInfo?.mapId),
+      mapId: d.matchInfo?.mapId || null,
       queue: d.matchInfo?.queueID || d.matchInfo?.queueId || '',
       startedAt: d.matchInfo?.gameStartMillis,
       lengthMs: d.matchInfo?.gameLengthMillis,
@@ -761,12 +906,37 @@ class Services {
     };
   }
 
+  /** Résumé prêt à afficher : carte, et nom de l'agent pour un pseudo inconnu. */
+  present(s) {
+    const named = (p) => (p.name ? p : { ...p, name: this.assets.agentById.get(p.agentId)?.name || 'Joueur' });
+    return { ...s, map: this.assets.map(s.mapId), teams: s.teams.map((t) => ({ ...t, players: t.players.map(named) })) };
+  }
+
+  /**
+   * 15 derniers matchs du mode. Les résumés déjà faits viennent du disque : seules les nouvelles parties sont
+   * téléchargées (avant, chaque ouverture retéléchargeait les 15, et attendait toute pause imposée par Riot).
+   */
   async history(queue) {
+    const puuid = this.client.puuid;
     const h = await this.client.getMatchHistory(0, 15, queue);
-    const list = h?.History || [];
-    const details = (await Promise.all(list.map((m) => this.matchDetails(m.MatchID).catch(() => null)))).filter(Boolean);
-    const names = await this.namesCached(details.flatMap((d) => (d.players || []).map((p) => p.subject)));
-    return details.map((d) => this.summarizeMatch(d, names)).filter(Boolean);
+    const ids = (h?.History || []).map((m) => m.MatchID);
+    const saved = new Map(ids.map((id) => [id, this.historyStore.get(puuid, id)]).filter(([, s]) => s));
+    const details = (await Promise.all(ids.filter((id) => !saved.has(id)).map((id) => this.matchDetails(id).catch(() => null)))).filter(Boolean);
+    // Pseudos des nouvelles parties, et de ceux restés inconnus (service des noms en panne la dernière fois).
+    const unnamed = [...saved.values()].flatMap((s) => s.teams.flatMap((t) => t.players)).filter((p) => !p.name).map((p) => p.puuid);
+    const names = await this.namesCached([...details.flatMap((d) => (d.players || []).map((p) => p.subject)), ...unnamed]);
+    const named = (s) => (s.teams.every((t) => t.players.every((p) => p.name || !names.get(p.puuid)?.name))
+      ? s
+      : { ...s, teams: s.teams.map((t) => ({ ...t, players: t.players.map((p) => (p.name ? p : { ...p, ...names.get(p.puuid) })) })) });
+    const fresh = new Map(details.map((d) => this.summarizeMatch(d, names)).filter(Boolean).map((s) => [s.id, s]));
+    const list = ids.map((id) => (saved.has(id) ? named(saved.get(id)) : fresh.get(id))).filter(Boolean);
+    if (this.client.puuid === puuid) this.historyStore.put(puuid, queue, list);
+    return list.map((s) => this.present(s));
+  }
+
+  /** Dernière liste affichée pour ce mode, lue sur disque sans attendre Riot (null si jamais chargée). */
+  historyCached(queue) {
+    return this.historyStore.list(this.client.puuid, queue)?.map((s) => this.present(s)) || null;
   }
 
   // ---------- Groupe ----------
@@ -776,8 +946,10 @@ class Services {
     const p = await this.client.getParty(pp.CurrentPartyID);
     if (!p) return null;
     const members = p.Members || [];
-    const names = await this.names(members.map((m) => m.Subject));
-    const ranks = await Promise.all(members.map((m) => this.rank(m.Subject)));
+    const [names, ranks] = await Promise.all([
+      this.namesCached(members.map((m) => m.Subject)),
+      Promise.all(members.map((m) => this.rankSoon(m.Subject))),
+    ]);
     const me = members.find((m) => m.Subject === this.client.puuid);
     return {
       id: p.ID,
