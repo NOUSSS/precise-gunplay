@@ -2,7 +2,7 @@
   "name": "precise-gunplay",
   "productName": "Precise Gunplay",
   "version": "1.19.0",
-  "description": "Compagnon VALORANT pour Windows : boutique, sélection d'agent automatique, partie en direct, historique, groupe et amis.",
+  "description": "Compagnon VALORANT pour Windows : boutique, partie en direct, historique, groupe et amis.",
   "main": "main.js",
   "author": "NOUSSS",
   "license": "MIT",
@@ -22,7 +22,10 @@
       "main.js",
       "preload.js",
       "src/**/*",
-      "renderer/**/*"
+      "renderer/**/*",
+      "!renderer/DESIGN.md",
+      "!renderer/design.json",
+      "!renderer/.impeccable/**"
     ],
     "directories": {
       "output": "dist"
