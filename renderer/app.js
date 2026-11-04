@@ -63,7 +63,7 @@ function toast(message, type = 'info') {
   setTimeout(() => el.remove(), 5000);
 }
 
-// ---- Fonctions qui agissent sur le compte (sélection d'agent, groupe, messagerie) ----
+// ---- Fonctions qui agissent sur le compte (groupe, messagerie) ----
 // Désactivées côté app (voir src/restrictions.js) : on les affiche grisées, un clic explique pourquoi.
 const actionsLocked = () => state.restrictions?.clientActions === false;
 const lockedMessage = () => state.restrictions?.message || 'Fonction désactivée.';
@@ -89,7 +89,6 @@ const state = {
   status: { connected: false, message: 'Recherche du Riot Client…' },
   assets: null,
   settings: null,
-  owned: null,
   page: 'home',
   timers: new Map(), // rafraîchissements de la page : id → { fn, missed }
   renderId: 0,
@@ -203,7 +202,6 @@ setInterval(() => {
 const ICONS = {
   home: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
   store: '<path d="M4 7h16l-1.5 12.5a1 1 0 0 1-1 .5H6.5a1 1 0 0 1-1-.5zM9 7V5a3 3 0 0 1 6 0v2"/>',
-  agent: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>',
   live: '<circle cx="12" cy="12" r="3"/><path d="M6.3 6.3a8 8 0 0 0 0 11.4M17.7 6.3a8 8 0 0 1 0 11.4"/>',
   history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>',
   party: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.5a5 5 0 0 1 6 5"/>',
@@ -221,7 +219,6 @@ const NAV = [
   ['home', 'Accueil'],
   ['store', 'Boutique'],
   ['wishlist', 'Liste de souhaits'],
-  ['agent', 'Agent auto'],
   ['stretch', 'Résolution étirée'],
   ['live', 'Partie en direct'],
   ['history', 'Historique'],
@@ -247,12 +244,11 @@ function markPageSeen(page) {
 }
 
 function renderNav() {
-  const autolockOn = state.settings?.autolock?.enabled && !actionsLocked();
   $('#nav').innerHTML = NAV.map((n) =>
     n === 'sep'
       ? '<div class="nav-sep"></div>'
       : `<button class="nav-item ${state.page === n[0] ? 'active' : ''}" data-page="${n[0]}">${icon(n[0])}${n[1]}${
-          (n[0] === 'agent' && autolockOn) || (n[0] === 'stretch' && state.settings?.stretch?.enabled) ? '<span class="nav-dot" title="Activé"></span>' : ''
+          n[0] === 'stretch' && state.settings?.stretch?.enabled ? '<span class="nav-dot" title="Activé"></span>' : ''
         }${n[0] === 'friends' && unreadTotal() ? `<span class="nav-badge">${unreadTotal()}</span>` : ''}${
           isNewPage(n[0]) ? '<span class="nav-dot new" title="Nouveau"></span>' : ''}</button>`
   ).join('');
@@ -541,7 +537,6 @@ function onStatus(s) {
   if (s.connected !== was) {
     if (s.connected) {
       state.launchingUntil = 0;
-      state.owned = null;
       state.profile = null;
       if (state.page !== 'home') refreshProfile(); // l'accueil charge déjà le profil
       toast(`Compte lié : ${s.name || ''}#${s.tag || ''}`);
@@ -550,11 +545,6 @@ function onStatus(s) {
   } else if (!s.connected && needsAuth(state.page)) {
     renderConnect();
   }
-}
-
-async function ownedAgents() {
-  if (!state.owned) state.owned = new Set(await call('owned-agents').catch(() => state.assets.agents.map((a) => a.uuid)));
-  return state.owned;
 }
 
 // ================= Pages =================
@@ -876,10 +866,6 @@ PAGES.store = async () => {
   }
 };
 
-// ---------- Agent auto ----------
-// Une seule grille d'agents : elle édite la liste par défaut (ordre de priorité) ou l'agent d'une carte précise.
-const MAX_DEFAULT_AGENTS = 4;
-const defaultAgents = (al) => [al.agentId, ...(al.fallbacks || [])].filter(Boolean);
 // Fenêtre de confirmation intégrée à l'app : résout true (bouton principal) ou false (Annuler, Échap, clic à côté).
 function ask({ title, body, ok = 'OK', cancel = 'Annuler' }) {
   return new Promise((resolve) => {
@@ -901,179 +887,6 @@ function ask({ title, body, ok = 'OK', cancel = 'Annuler' }) {
     el.querySelector('[data-v="1"]').focus();
   });
 }
-
-const secs = (ms) => `${(Number(ms) / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} s`;
-const autolockReady = (al) => !!al.agentId || Object.values(al.perMap || {}).some(Boolean);
-
-PAGES.agent = async () => {
-  const alive = guard();
-  const owned = await ownedAgents();
-  if (!alive()) return;
-  let roleFilter = '';
-  let scope = ''; // '' = liste par défaut, sinon uuid de la carte
-  const roles = [...new Set(state.assets.agents.map((a) => a.role))].sort();
-  const maps = state.assets.maps.filter((m) => m.tactical);
-
-  const save = async (patch) => {
-    state.settings = await call('settings-set', { autolock: patch });
-    // Plus rien de configuré : on coupe pour ne pas laisser un interrupteur « ON » qui ne fait rien.
-    const al = state.settings.autolock;
-    if (al.enabled && !autolockReady(al)) state.settings = await call('settings-set', { autolock: { enabled: false } });
-    renderNav();
-    draw();
-  };
-  const saveDefaults = (list) => save({ agentId: list[0] || null, fallbacks: list.slice(1) });
-
-  function scopeTile(m) {
-    const al = state.settings.autolock;
-    const id = m?.uuid || '';
-    const picks = (m ? [al.perMap?.[id]] : defaultAgents(al)).map(agentOf).filter(Boolean);
-    return `<button class="scope ${m ? '' : 'default'} ${scope === id ? 'on' : ''}" data-scope="${id}"
-        style="${m ? `background-image:url('${m.listIcon || m.splash}')` : ''}">
-      <span class="sname">${m ? esc(m.name) : 'Par défaut'}</span>
-      <span class="spicks">${picks.length
-        ? picks.map((a) => `<img src="${a.icon}" alt="" title="${esc(a.name)}">`).join('')
-        : `<em>${m ? 'Liste par défaut' : 'Aucun agent'}</em>`}</span>
-    </button>`;
-  }
-
-  function draw() {
-    const al = state.settings.autolock;
-    const defaults = defaultAgents(al);
-    const map = maps.find((m) => m.uuid === scope);
-    const mapPick = map ? al.perMap?.[map.uuid] : null;
-    const defaultNames = esc(defaults.map((x) => agentOf(x)?.name).filter(Boolean).join(' → '));
-
-    const hint = map
-      ? mapPick
-        ? `Sur <b>${esc(map.name)}</b>, l’app prend <b>${esc(agentOf(mapPick)?.name)}</b>. S’il est déjà pris : ${defaults.length ? `liste par défaut (${defaultNames}).` : 'rien n’est fait.'}`
-        : defaults.length
-          ? `Aucun agent dédié : la liste par défaut s’applique (${defaultNames}). Cliquez sur un agent pour en choisir un pour cette carte.`
-          : `Aucun agent dédié et liste par défaut vide : rien n’est fait sur ${esc(map.name)}. Cliquez sur un agent pour en choisir un.`
-      : defaults.length
-        ? `Utilisée sur les cartes sans agent dédié, et en secours si l’agent de la carte est déjà pris. Le premier disponible dans l’ordre est choisi (${MAX_DEFAULT_AGENTS} max).`
-        : `Vide : l’app n’agit que sur les cartes où vous avez choisi un agent. Cliquez sur des agents pour les ajouter par ordre de priorité (${MAX_DEFAULT_AGENTS} max).`;
-    const canClear = map ? !!mapPick : defaults.length > 0;
-
-    const grid = state.assets.agents
-      .filter((a) => !roleFilter || a.role === roleFilter)
-      .map((a) => {
-        const has = owned.has(a.uuid.toLowerCase());
-        const order = map ? -1 : defaults.indexOf(a.uuid);
-        const on = map ? mapPick === a.uuid : order >= 0;
-        return `<button class="agent ${on ? 'on' : ''}" data-pick="${a.uuid}" ${has ? '' : 'disabled title="Agent non débloqué"'}>
-          ${order >= 0 ? `<span class="order">${order + 1}</span>` : ''}
-          <img src="${a.icon}" alt=""><span class="aname">${esc(a.name)}</span></button>`;
-      }).join('');
-
-    content.innerHTML = `
-      <div class="page-head">
-        <h1>Agent auto</h1>
-        ${lockZone(`<label class="switch" title="Activer / désactiver"><input type="checkbox" id="al-enabled" ${al.enabled && !actionsLocked() ? 'checked' : ''} ${lockAttr()}><span></span></label>`)}
-      </div>
-
-      ${actionsLocked() ? lockedNotice() : `<div class="warn-box">
-        Quand une partie est trouvée, Precise Gunplay choisit automatiquement votre agent pendant la phase de sélection.
-        L’app utilise les mêmes API que le client officiel, mais l’automatisation n’est pas approuvée par Riot :
-        le mode <b>Verrouiller</b> est le plus risqué vis-à-vis des conditions d’utilisation. Utilisez-le à vos risques ; le mode <b>Survoler</b> vous laisse confirmer vous-même.
-      </div>`}
-${actionsLocked() ? '<div class="locked-zone">' : ''}
-
-      <div class="panel mt-block">
-        <div class="setting-row">
-          <div class="label"><div>Mode</div><div>Survoler : l’agent est présélectionné, vous cliquez sur « Verrouiller ». Verrouiller : l’agent est validé directement.</div></div>
-          <div class="chip-group" id="al-mode">
-            <button data-mode="select" class="${al.mode === 'select' ? 'on' : ''}">Survoler</button>
-            <button data-mode="lock" class="${al.mode === 'lock' ? 'on' : ''}">Verrouiller</button>
-          </div>
-        </div>
-        <div class="setting-row">
-          <div class="label"><div>Délai avant sélection</div><div>Laisse le temps aux coéquipiers de choisir avant vous.</div></div>
-          <input type="range" id="al-delay" min="0" max="8000" step="250" value="${al.delayMs}">
-          <b id="al-delay-val" class="range-val">${secs(al.delayMs)}</b>
-        </div>
-        ${al.mode === 'lock' ? `
-        <div class="setting-row">
-          <div class="label"><div>Délai avant verrouillage</div><div>Temps entre le survol et le verrouillage. Un verrouillage instantané est plus facilement détecté comme automatique.</div></div>
-          <input type="range" id="al-lock-delay" min="0" max="2000" step="50" value="${al.lockDelayMs}">
-          <b id="al-lock-delay-val" class="range-val">${secs(al.lockDelayMs)}</b>
-        </div>` : ''}
-      </div>
-
-      <h2>Cartes</h2>
-      <div class="scopes">${scopeTile(null)}${maps.map(scopeTile).join('')}</div>
-
-      <div class="scope-head">
-        <div>
-          <h2>${map ? `Agent sur ${esc(map.name)}` : 'Liste par défaut'}</h2>
-          <div class="muted">${hint}</div>
-        </div>
-        ${canClear ? `<button class="btn ghost" data-clear="1">${map ? 'Retirer' : 'Vider la liste'}</button>` : ''}
-      </div>
-      <div class="chip-group role-filter" id="role-filter">
-        <button data-role="" class="${!roleFilter ? 'on' : ''}">Tous</button>
-        ${roles.map((r) => `<button data-role="${esc(r)}" class="${roleFilter === r ? 'on' : ''}">${esc(r)}</button>`).join('')}
-      </div>
-      <div class="agents">${grid}</div>
-${actionsLocked() ? '</div>' : ''}`;
-    if (actionsLocked()) return;
-
-    $('#al-enabled').onchange = (e) => {
-      if (e.target.checked && !autolockReady(state.settings.autolock)) {
-        e.target.checked = false;
-        return toast('Choisissez d’abord un agent, par défaut ou pour une carte.', 'error');
-      }
-      save({ enabled: e.target.checked });
-    };
-    $('#al-delay').oninput = (e) => ($('#al-delay-val').textContent = secs(e.target.value));
-    $('#al-delay').onchange = (e) => save({ delayMs: Number(e.target.value) });
-    if ($('#al-lock-delay')) {
-      $('#al-lock-delay').oninput = (e) => ($('#al-lock-delay-val').textContent = secs(e.target.value));
-      $('#al-lock-delay').onchange = (e) => save({ lockDelayMs: Number(e.target.value) });
-    }
-  }
-
-  content.onclick = (e) => {
-    const al = state.settings.autolock;
-    const t = e.target.closest('button');
-    if (!t || t.disabled) return;
-    if (t.dataset.mode) {
-      if (t.dataset.mode === 'lock' && al.mode !== 'lock') {
-        return ask({
-          title: 'Verrouillage automatique',
-          body: `Votre agent sera validé sans que vous ayez à cliquer. Un verrouillage instantané se repère facilement :
-            gardez un <b>délai avant sélection</b> et un <b>délai avant verrouillage</b> pour rester discret.
-            Vous pouvez les régler juste en dessous.`,
-          ok: 'Activer',
-        }).then((yes) => yes && save({ mode: 'lock' }));
-      }
-      return save({ mode: t.dataset.mode });
-    }
-    if (t.dataset.role !== undefined) { roleFilter = t.dataset.role; return draw(); }
-    if (t.dataset.scope !== undefined) { scope = t.dataset.scope; return draw(); }
-    if (t.dataset.clear) {
-      if (!scope) return saveDefaults([]);
-      const perMap = { ...(al.perMap || {}) };
-      delete perMap[scope];
-      return save({ perMap });
-    }
-    if (t.dataset.pick) {
-      const id = t.dataset.pick;
-      if (scope) {
-        const perMap = { ...(al.perMap || {}) };
-        if (perMap[scope] === id) delete perMap[scope];
-        else perMap[scope] = id;
-        return save({ perMap });
-      }
-      let list = defaultAgents(al);
-      if (list.includes(id)) list = list.filter((x) => x !== id);
-      else if (list.length < MAX_DEFAULT_AGENTS) list.push(id);
-      else return toast(`${MAX_DEFAULT_AGENTS} agents maximum dans la liste par défaut.`, 'error');
-      return saveDefaults(list);
-    }
-  };
-  draw();
-};
 
 // ---------- Partie en direct ----------
 // Colonnes K/D · HS (acte en cours) et 10 dernières parties : toujours trois cellules pour que tout
@@ -1136,21 +949,11 @@ function teamHtml(side, title, players, { pregame = false, score = null } = {}) 
 
 PAGES.live = async () => {
   const alive = guard();
-  let pick = null;
   let last = null;
   let lastSig = null; // rien de changé depuis le dernier rafraîchissement : la page n'est pas reconstruite
-  // Agents débloqués : demandés en parallèle de la première lecture, ils ne servent qu'à la sélection d'agent.
-  let owned = state.owned || new Set();
-  if (!state.owned) {
-    ownedAgents().then((o) => {
-      owned = o;
-      if (alive() && last?.state === 'pregame') draw();
-    });
-  }
   state.leave = () => call('live-leave').catch(() => {}); // plus de stats de joueurs à préparer
 
-  // Une lecture à la fois : quand Riot tarde, les tours suivants passent au lieu de s'empiler. Après une
-  // action (verrouillage, esquive), la lecture suivante attend celle en cours pour voir le nouvel état.
+  // Une lecture à la fois : quand Riot tarde, les tours suivants passent au lieu de s'empiler.
   let reading = null;
   async function refresh() {
     while (reading) await reading;
@@ -1185,9 +988,6 @@ PAGES.live = async () => {
           <h2>Pas de partie en cours</h2><div>Cette page se met à jour toute seule dès que la sélection d’agent commence.</div></div>`;
       return;
     }
-    const me = d.allies.find((p) => p.isMe);
-    const takenByOthers = new Set(d.allies.filter((p) => !p.isMe && p.state === 'locked').map((p) => p.agentId));
-    const myLocked = me?.state === 'locked';
     content.innerHTML = `
       <div class="match-head" style="${d.map?.splash ? `background-image:url('${d.map.splash}')` : ''}">
         <div>
@@ -1199,54 +999,10 @@ PAGES.live = async () => {
         </div>
       </div>
 
-      ${d.state === 'pregame' && !myLocked ? lockZone(`
-        <div class="panel mb-block">
-          <div class="row pick-head">
-            <b>Choisir mon agent</b>
-            <div class="spacer"></div>
-            <button class="btn primary" id="lock-btn" ${pick && !actionsLocked() ? '' : 'disabled'}>Verrouiller ${pick ? esc(agentOf(pick)?.name) : ''}</button>
-            <button class="btn danger" id="dodge-btn" title="Quitter la sélection (pénalité possible)" ${lockAttr()}>Esquiver</button>
-          </div>
-          <div class="agents">${state.assets.agents.map((a) => {
-            const ok = !actionsLocked() && owned.has(a.uuid.toLowerCase()) && !takenByOthers.has(a.uuid.toLowerCase());
-            return `<button class="agent ${pick === a.uuid ? 'on' : ''}" data-pick="${a.uuid}" ${ok ? '' : 'disabled'}><img src="${a.icon}" alt=""><span class="aname">${esc(a.name)}</span></button>`;
-          }).join('')}</div>
-        </div>`) : ''}
-
       <div class="live-note muted">Dans le mode de la partie : K/D et HS en moyenne sur l’acte en cours, puis les résultats des 10 dernières parties, la plus récente à gauche.</div>
       ${teamHtml('ally', 'Votre équipe', d.allies, { pregame: d.state === 'pregame', score: d.score?.[0] })}
       ${d.enemies.length ? teamHtml('enemy', 'Adversaires', d.enemies, { score: d.score?.[1] }) : ''}`;
   }
-
-  content.onclick = async (e) => {
-    const t = e.target.closest('button');
-    if (!t || t.disabled || !last) return;
-    if (t.dataset.pick) {
-      pick = t.dataset.pick;
-      call('pregame-select', last.matchId, pick).catch((err) => toast(err.message, 'error'));
-      return draw();
-    }
-    if (t.id === 'lock-btn' && pick) {
-      try {
-        await call('pregame-lock', last.matchId, pick);
-        toast(`${agentOf(pick)?.name} verrouillé.`);
-        refresh();
-      } catch (err) { toast(err.message, 'error'); }
-    }
-    if (t.id === 'dodge-btn') {
-      const yes = await ask({
-        title: 'Esquiver la partie',
-        body: 'Vous quittez la sélection d’agent et risquez une pénalité (RR, temps d’attente).',
-        ok: 'Esquiver',
-      });
-      if (!yes) return;
-      try {
-        await call('pregame-dodge', last.matchId);
-        toast('Partie esquivée.');
-        refresh();
-      } catch (err) { toast(err.message, 'error'); }
-    }
-  };
 
   await refresh();
   // En jeu, l'app est cachée : chaque lecture lance quand même le calcul des stats des nouveaux joueurs,
@@ -3194,10 +2950,6 @@ PAGES.settings = async () => {
         <select id="s-region">${REGIONS.map(([v, l]) => `<option value="${v}" ${s.regionOverride === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
       </div>
       <div class="setting-row">
-        <div class="label"><div>Notifications Windows</div><div>Affiche une notification quand l’agent auto sélectionne ou verrouille un agent.</div></div>
-        <label class="switch"><input type="checkbox" id="s-notif" ${s.notifications ? 'checked' : ''}><span></span></label>
-      </div>
-      <div class="setting-row">
         <div class="label"><div>Liste de souhaits PX-0</div><div>Transmet à PX-0 le jeton de session du Riot Client à chaque lecture ou modification de la liste, pour que Riot lui confirme votre compte. PX-0 ne le conserve pas.</div></div>
         <label class="switch"><input type="checkbox" id="s-px0" ${s.px0 ? 'checked' : ''}><span></span></label>
       </div>
@@ -3229,12 +2981,11 @@ PAGES.settings = async () => {
     state.settings = await call('settings-set', { regionOverride: e.target.value });
     toast('Région enregistrée, reconnexion…');
   };
-  $('#s-notif').onchange = async (e) => { state.settings = await call('settings-set', { notifications: e.target.checked }); };
   $('#s-login').onchange = async (e) => { state.settings = await call('settings-set', { openAtLogin: e.target.checked }); };
   $('#s-px0').onchange = async (e) => { state.settings = await call('settings-set', { px0: e.target.checked }); };
   $('#s-assets').onclick = async (e) => {
     e.target.disabled = true;
-    try { state.assets = withAssets(await call('assets-refresh')); state.owned = null; toast('Données du jeu rechargées.'); }
+    try { state.assets = withAssets(await call('assets-refresh')); toast('Données du jeu rechargées.'); }
     catch (err) { toast(err.message, 'error'); }
     e.target.disabled = false;
   };
@@ -3261,11 +3012,9 @@ PAGES.settings = async () => {
   window.api.on('status', onStatus);
   window.api.on('assets', (a) => {
     state.assets = withAssets(a);
-    state.owned = null;
   });
   window.api.on('update', onUpdate);
   onUpdate(await call('update-state'));
-  window.api.on('autolock-event', (evt) => toast(evt.message, evt.type === 'error' ? 'error' : 'info'));
   window.api.on('stretch-event', (evt) => toast(evt.message, evt.type === 'error' ? 'error' : 'info'));
   window.api.on('stretch', (s) => {
     state.stretch = s;
