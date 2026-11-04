@@ -6,15 +6,6 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Une page n'attend pas plus longtemps une donnée déjà connue (rang) : au-delà, elle prend la dernière lue.
 const PAGE_WAIT_MS = 1500;
 
-// Agents gratuits (non listés dans les entitlements).
-const FREE_AGENTS = [
-  'add6443a-41bd-e414-f6ad-e58d267f4e95', // Jett
-  'eb93336a-449b-9c1b-0a54-a891f7921d69', // Phoenix
-  '569fdd95-4d10-43ab-ca70-79becc718b46', // Sage
-  '320b2a48-4d9b-a075-30f1-1f93a9b638fa', // Sova
-  '9f0d8ba9-4140-b941-57d3-a7ad57c6b417', // Brimstone
-];
-
 const CURRENCY_IDS = Object.fromEntries(Object.entries(CURRENCIES).map(([id, k]) => [k, id]));
 
 // Rounds par mi-temps des modes avec attaque / défense, par dossier du mode de jeu
@@ -309,12 +300,6 @@ class Services {
   }
 
   // ---------- Collection ----------
-  async ownedAgents() {
-    const res = await this.client.getEntitlements('agent').catch(() => null);
-    const ids = (res?.Entitlements || []).map((e) => e.ItemID.toLowerCase());
-    return [...new Set([...FREE_AGENTS, ...ids])];
-  }
-
   async collection() {
     const res = await this.client.getEntitlements('skin');
     const seen = new Map();

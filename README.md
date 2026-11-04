@@ -67,6 +67,7 @@ npm run dist       # génère l'installeur et la version portable dans dist/
 ## Avertissement
 
 Projet non officiel, ni approuvé ni affilié à Riot Games. Il utilise les API non documentées du client.
-Les fonctions qui agissent sur le compte via le Riot Client (agent auto, sélection d'agent, esquive, gestion du groupe, envoi de messages)
-sont désactivées dans l'app : Riot peut les sanctionner. Elles restent visibles mais grisées (voir `src/restrictions.js`).
+Les fonctions qui agissent sur le compte via le Riot Client (gestion du groupe, envoi de messages) sont désactivées dans l'app :
+Riot peut les sanctionner. Elles restent visibles mais grisées (voir `src/restrictions.js`). L'agent auto, la sélection d'agent
+et l'esquive ont été retirés.
 Les images et noms viennent de [valorant-api.com](https://valorant-api.com).

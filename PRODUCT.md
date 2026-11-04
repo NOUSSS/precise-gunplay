@@ -37,7 +37,7 @@ Le succès : télécharger l'installeur, l'installer, et que l'app reste ouverte
 
 ## Capabilities and Constraints
 
-- Fonctions désactivées car Riot peut les sanctionner : agent auto, sélection d'agent, esquive, gestion du groupe, envoi de messages. Elles sont grisées dans l'app ; ne jamais les présenter comme disponibles.
+- Fonctions désactivées car Riot peut les sanctionner : gestion du groupe, envoi de messages. Elles sont grisées dans l'app ; ne jamais les présenter comme disponibles. L'agent auto, la sélection d'agent et l'esquive ont été retirés de l'app.
 - Projet non officiel, ni approuvé ni affilié à Riot Games. Images et noms : valorant-api.com. Cette mention doit figurer sur toute surface publique.
 
 ## Brand Commitments
