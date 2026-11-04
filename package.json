@@ -1,7 +1,7 @@
 {
   "name": "precise-gunplay",
   "productName": "Precise Gunplay",
-  "version": "1.19.0",
+  "version": "1.20.0",
   "description": "Compagnon VALORANT pour Windows : boutique, partie en direct, historique, groupe et amis.",
   "main": "main.js",
   "author": "NOUSSS",
