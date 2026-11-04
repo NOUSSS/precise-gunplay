@@ -200,11 +200,11 @@ function createWindow() {
     height: 840,
     minWidth: 1040,
     minHeight: 680,
-    backgroundColor: '#0a0d16',
+    backgroundColor: '#0a0f14',
     title: 'Precise Gunplay',
     icon: path.join(__dirname, 'renderer', 'icon.png'),
     titleBarStyle: 'hidden',
-    titleBarOverlay: { color: '#0a0d17', symbolColor: '#f5f5fa', height: 40 },
+    titleBarOverlay: { color: '#060a0e', symbolColor: '#ebeff4', height: 40 },
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

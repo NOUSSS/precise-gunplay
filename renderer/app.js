@@ -135,13 +135,16 @@ function partyAttrs(p) {
   return { cls: 'in-party', style: `style="--pc:${PARTY_COLORS[(p.partyIdx || 0) % PARTY_COLORS.length]}"` };
 }
 // Groupe deviné (partie en direct) : même groupe lors de la dernière partie jouée ensemble, comme sur Tracker.
+// Posé sur la ligne du nom, à la couleur du groupe.
 const partyTag = (p) => {
   if (!p.party) return '';
   const title = p.partyGuess
     ? `Sans doute en groupe avec les autres « Groupe ${p.party} » : ils étaient ensemble lors de leur dernière partie commune`
     : `Joue en groupe avec les autres « Groupe ${p.party} »`;
-  return ` · <span class="party-tag" title="${title}">Groupe ${p.party}</span>`;
+  return `<span class="party-tag" title="${title}">Groupe ${p.party}</span>`;
 };
+// Ligne de faits sous un nom de joueur : agent et niveau, sans point en trop quand l'un manque.
+const facts = (...xs) => xs.filter(Boolean).join(' · ');
 
 // Lien vers le profil Tracker d'un joueur (jamais pour un joueur en mode anonyme).
 function trackerBtn(name, tag, hidden = false) {
@@ -837,7 +840,7 @@ PAGES.store = async () => {
 
     ${s.bundles.length ? `<h2>Packs en vedette</h2>` : ''}
     ${s.bundles.map((b) => `
-      <div class="bundle">
+      <div class="bundle ${b.icon ? '' : 'no-art'}">
         <div class="bundle-art" style="${b.icon ? `background-image:url('${b.icon}')` : ''}">
           <div class="bundle-title">
             <div class="bn">${esc(b.name)}</div>
@@ -845,7 +848,7 @@ PAGES.store = async () => {
               <span class="muted">· encore <b data-ends="${b.endsAt}">${fmtDuration(b.endsAt - Date.now())}</b></span></div>
           </div>
         </div>
-        <div class="bundle-items">
+        <div class="bundle-items ${b.items.some((i) => i.icon) ? '' : 'no-thumbs'}">
           ${b.items.map((i) => `
             <div class="bitem">${i.icon ? `<img src="${i.icon}" alt="" loading="lazy">` : '<span class="bitem-art"></span>'}
               <div class="bi-name">${esc(i.name)}<div class="bi-kind">${esc(i.kind)}${i.amount > 1 ? ` ×${i.amount}` : ''}</div></div>
@@ -1109,8 +1112,8 @@ function playerRow(p, { pregame = false } = {}) {
     <div class="player ${p.isMe ? 'me' : ''} ${pa.cls}" ${pa.style}>
       ${a ? `<img class="pagent" src="${a.icon}" alt="">` : '<div class="pagent empty-agent">?</div>'}
       <div class="pname">
-        <div>${esc(p.name)}${p.tag ? `<span class="muted">#${esc(p.tag)}</span>` : ''}</div>
-        <div>${a ? esc(a.name) : 'En sélection…'}${p.level != null ? ` · Niv. ${p.level}` : ''}${p.hidden ? ' · nom masqué' : ''}${partyTag(p)}</div>
+        <div>${esc(p.name)}${p.tag ? `<span class="muted">#${esc(p.tag)}</span>` : ''}${partyTag(p)}</div>
+        <div>${facts(a ? esc(a.name) : 'En sélection…', p.level != null && `Niv. ${p.level}`, p.hidden && 'nom masqué')}</div>
       </div>
       ${pregame ? `<div class="pc">${p.state ? `<span class="pstate ${p.state}">${p.state === 'locked' ? 'Verrouillé' : 'Survol'}</span>` : ''}</div>` : ''}
       ${recentCells(p.recent)}
@@ -1189,8 +1192,7 @@ PAGES.live = async () => {
       <div class="match-head" style="${d.map?.splash ? `background-image:url('${d.map.splash}')` : ''}">
         <div>
           <div>
-            <div class="phase">${d.state === 'pregame' ? 'Sélection d’agent' : 'En jeu'} · ${esc(queueName(d.queue))}</div>
-            <div class="mapname">${esc(d.map?.name || 'Carte inconnue')}${d.side ? `<span class="pill side ${d.side}">${d.side === 'attack' ? 'Attaque' : 'Défense'}</span>` : ''}</div>
+            <div class="mapname">${esc(d.map?.name || 'Carte inconnue')}<span class="pill">${d.state === 'pregame' ? 'Sélection d’agent' : 'En partie'}</span><span class="pill">${esc(queueName(d.queue))}</span>${d.side ? `<span class="pill">${d.side === 'attack' ? 'Attaque' : 'Défense'}</span>` : ''}</div>
           </div>
           ${d.state === 'pregame' ? `<div class="countdown" data-ends="${d.endsAt}">${fmtDuration(d.endsAt - Date.now())}</div>` : ''}
           ${d.score ? `<div class="live-score" title="Round ${d.score[0] + d.score[1] + 1}"><span class="ally">${d.score[0]}</span><span class="sep">–</span><span class="enemy">${d.score[1]}</span></div>` : ''}
@@ -1343,8 +1345,8 @@ PAGES.history = async () => {
                 <div class="sb-player">
                   ${pa ? `<img class="sb-agent" src="${pa.icon}" alt="" title="${esc(pa.name)}">` : '<span class="sb-agent"></span>'}
                   <div class="sb-name">
-                    <div><b>${esc(p.name)}</b><span class="muted">${p.tag ? `#${esc(p.tag)}` : ''}</span>${p.mvp === 'match' ? '<span class="badge mvp">MVP</span>' : p.mvp === 'team' ? '<span class="badge team-mvp">MVP équipe</span>' : ''}</div>
-                    <div class="muted">${esc(pa?.name || '')}${p.level != null ? ` · Niv. ${p.level}` : ''}${partyTag(p)}</div>
+                    <div><b>${esc(p.name)}</b><span class="muted">${p.tag ? `#${esc(p.tag)}` : ''}</span>${partyTag(p)}${p.mvp === 'match' ? '<span class="badge mvp">MVP</span>' : p.mvp === 'team' ? '<span class="badge team-mvp">MVP équipe</span>' : ''}</div>
+                    <div class="muted">${facts(esc(pa?.name || ''), p.level != null && `Niv. ${p.level}`)}</div>
                   </div>
                 </div>
               </td>
@@ -1398,11 +1400,10 @@ PAGES.history = async () => {
     return `
       <div class="match ${m.result}" data-id="${esc(m.id)}">
         <div class="match-row" data-toggle>
-          <div class="bar"></div>
           ${m.map?.listIcon ? `<img class="mimg" src="${m.map.listIcon}" alt="" loading="lazy">` : '<div></div>'}
           ${a ? `<img class="magent" src="${a.icon}" alt="" title="${esc(a.name)}">` : '<div></div>'}
-          <div class="minfo"><div class="mmap">${esc(m.map?.name || '?')}</div><div class="mmeta">${esc(queueName(m.queue))} · ${m.startedAt ? timeAgo(m.startedAt) : ''} · ${Math.round((m.lengthMs || 0) / 60000)} min</div></div>
-          <div><div class="stat-label">${label}</div><div class="mscore">${scoreText(m.score)}</div></div>
+          <div class="minfo"><div class="mmap">${esc(m.map?.name || '?')}</div><div class="mmeta">${filter ? '' : `<span class="mq">${esc(queueName(m.queue))}</span>`}<span>${m.startedAt ? timeAgo(m.startedAt) : ''}</span></div></div>
+          <div><div class="stat-label">${label}<span class="mdur"> en ${Math.round((m.lengthMs || 0) / 60000)} min</span></div><div class="mscore">${scoreText(m.score)}</div></div>
           <div>${placementBadge(m)}</div>
           <div><div class="stat-label">K / D / A</div><div class="stat-val">${m.kills} / ${m.deaths} / ${m.assists}</div></div>
           <div><div class="stat-label">ACS</div><div class="stat-val">${m.acs}</div></div>
@@ -1438,7 +1439,11 @@ PAGES.history = async () => {
 };
 
 // ---------- Statistiques ----------
-const CHART = { pos: '#12d6a0', neg: '#ff3b5c', draw: '#6b7590', line: '#12d6a0', grid: '#222941', surface: '#121626' };
+// Couleurs des graphiques : les jetons de styles.css (chargé avant ce script), lus une fois.
+const CHART = (() => {
+  const token = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return { pos: token('--green'), neg: token('--red'), draw: token('--draw'), line: token('--green'), grid: token('--line'), surface: token('--raised'), cross: token('--faint'), avg: token('--text') };
+})();
 
 // Infobulle unique pour tous les graphiques (contenu inséré via textContent).
 function chartTip() {
@@ -1522,7 +1527,7 @@ function rrChart(el, pts) {
   endLabel.textContent = `${pts[last].rr} RR`;
   svg.appendChild(endLabel);
 
-  const cross = svgEl('line', { y1: m.t, y2: H - m.b, stroke: '#8a99a6', 'stroke-width': 1, visibility: 'hidden' });
+  const cross = svgEl('line', { y1: m.t, y2: H - m.b, stroke: CHART.cross, 'stroke-width': 1, visibility: 'hidden' });
   const dot = svgEl('circle', { r: 5, fill: CHART.line, stroke: CHART.surface, 'stroke-width': 2, visibility: 'hidden' });
   const hit = svgEl('rect', { x: m.l - 12, y: 0, width: W - m.l - m.r + 24, height: H, fill: 'transparent' });
   svg.append(cross, dot, hit);
@@ -1597,7 +1602,7 @@ function acsChart(el, recs) {
     svg.append(bar, hit);
   });
   const avg = Math.round(vals.reduce((s, v) => s + v, 0) / vals.length);
-  svg.appendChild(svgEl('line', { x1: m.l, x2: W - m.r, y1: y(avg), y2: y(avg), stroke: '#ece8e1', 'stroke-width': 1, opacity: 0.45 }));
+  svg.appendChild(svgEl('line', { x1: m.l, x2: W - m.r, y1: y(avg), y2: y(avg), stroke: CHART.avg, 'stroke-width': 1, opacity: 0.45 }));
   const al = svgEl('text', { x: W - m.r + 8, y: y(avg) + 4, class: 'end-label' });
   al.textContent = `Moy. ${avg}`;
   svg.appendChild(al);
@@ -1976,12 +1981,11 @@ PAGES.stats = async () => {
       const shots = r.head + r.body + r.leg;
       const dd = r.received != null ? (r.damage - r.received) / Math.max(1, r.rounds) : null;
       return `<div class="sm-row ${r.result}">
-        <div class="sm-bar"></div>
         ${ag ? `<img class="sm-agent" src="${ag.icon}" alt="" title="${esc(ag.name)}">` : '<span class="sm-agent"></span>'}
-        <div class="sm-info"><div class="sm-map">${esc(mp?.name || '?')}</div><div class="st-sub">${timeAgo(r.startedAt)}${f.queue === 'all' ? ` · ${esc(queueName(r.queue))}` : ''}</div></div>
+        <div class="sm-info"><div class="sm-map">${esc(mp?.name || '?')}</div><div class="st-sub">${f.queue === 'all' ? `${esc(queueName(r.queue))}, ` : ''}${timeAgo(r.startedAt)}</div></div>
         <div class="sm-place">${placeBadge(r)}</div>
         <div class="sm-tier">${t?.icon && r.tier ? `<img src="${t.icon}" alt="" title="${esc(t.name)}">` : ''}</div>
-        <div class="sm-score"><div class="st-label">Score</div><b>${scoreText(r.score)}</b></div>
+        <div class="sm-score"><div class="st-label">${{ win: 'Victoire', loss: 'Défaite', draw: 'Égalité' }[r.result] || 'Score'}</div><b>${scoreText(r.score)}</b></div>
         <div class="sm-badges">${matchBadges(r)}</div>
         <div class="sm-stat"><div class="st-label">K/D</div><b class="${tone(r.kills / Math.max(1, r.deaths), 1)}">${f1(r.kills / Math.max(1, r.deaths))}</b></div>
         <div class="sm-stat kda"><div class="st-label">K / D / A</div><b>${r.kills} / ${r.deaths} / ${r.assists}</b></div>
@@ -2991,7 +2995,7 @@ PAGES.stretch = async () => {
     <div class="panel st-status">
       <div class="st-state" id="st-state">${stretchStatusHtml(info)}</div>
       <button class="btn" id="st-test" ${modes.length ? '' : 'disabled'}>Tester 3 s</button>
-      <button class="btn ghost" id="st-restore">Tout restaurer</button>
+      <button class="btn" id="st-restore">Tout restaurer</button>
     </div>
 
     <p class="muted st-rescue">Écran illisible : <span id="st-restore-key">${hotkeyHtml(info.hotkeys.native)}</span> remet l’affichage comme avant, à tout moment.</p>

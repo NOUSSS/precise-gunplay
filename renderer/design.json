@@ -1,0 +1,536 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-04T12:00:00Z",
+  "title": "Design System: Precise Gunplay (application)",
+  "extensions": {
+    "colorMeta": {
+      "sunken": {
+        "role": "neutral",
+        "displayName": "Creux",
+        "canonical": "oklch(0.14 0.012 250)",
+        "tonalRamp": [
+          "oklch(0.14 0.012 250)",
+          "oklch(0.165 0.014 250)",
+          "oklch(0.2 0.016 250)",
+          "oklch(0.235 0.018 250)",
+          "oklch(0.275 0.02 250)",
+          "oklch(0.37 0.022 250)",
+          "oklch(0.71 0.018 250)",
+          "oklch(0.95 0.008 250)"
+        ]
+      },
+      "ground": {
+        "role": "neutral",
+        "displayName": "Sol",
+        "canonical": "oklch(0.165 0.014 250)",
+        "tonalRamp": [
+          "oklch(0.14 0.012 250)",
+          "oklch(0.165 0.014 250)",
+          "oklch(0.2 0.016 250)",
+          "oklch(0.235 0.018 250)",
+          "oklch(0.275 0.02 250)",
+          "oklch(0.37 0.022 250)",
+          "oklch(0.71 0.018 250)",
+          "oklch(0.95 0.008 250)"
+        ]
+      },
+      "raised": {
+        "role": "neutral",
+        "displayName": "Relief 1",
+        "canonical": "oklch(0.2 0.016 250)",
+        "tonalRamp": [
+          "oklch(0.14 0.012 250)",
+          "oklch(0.165 0.014 250)",
+          "oklch(0.2 0.016 250)",
+          "oklch(0.235 0.018 250)",
+          "oklch(0.275 0.02 250)",
+          "oklch(0.37 0.022 250)",
+          "oklch(0.71 0.018 250)",
+          "oklch(0.95 0.008 250)"
+        ]
+      },
+      "raised-2": {
+        "role": "neutral",
+        "displayName": "Relief 2",
+        "canonical": "oklch(0.235 0.018 250)",
+        "tonalRamp": [
+          "oklch(0.14 0.012 250)",
+          "oklch(0.165 0.014 250)",
+          "oklch(0.2 0.016 250)",
+          "oklch(0.235 0.018 250)",
+          "oklch(0.275 0.02 250)",
+          "oklch(0.37 0.022 250)",
+          "oklch(0.71 0.018 250)",
+          "oklch(0.95 0.008 250)"
+        ]
+      },
+      "raised-3": {
+        "role": "neutral",
+        "displayName": "Relief 3",
+        "canonical": "oklch(0.275 0.02 250)",
+        "tonalRamp": [
+          "oklch(0.14 0.012 250)",
+          "oklch(0.165 0.014 250)",
+          "oklch(0.2 0.016 250)",
+          "oklch(0.235 0.018 250)",
+          "oklch(0.275 0.02 250)",
+          "oklch(0.37 0.022 250)",
+          "oklch(0.71 0.018 250)",
+          "oklch(0.95 0.008 250)"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Filet",
+        "canonical": "oklch(0.275 0.018 250)",
+        "tonalRamp": [
+          "oklch(0.14 0.012 250)",
+          "oklch(0.165 0.014 250)",
+          "oklch(0.2 0.016 250)",
+          "oklch(0.235 0.018 250)",
+          "oklch(0.275 0.02 250)",
+          "oklch(0.37 0.022 250)",
+          "oklch(0.71 0.018 250)",
+          "oklch(0.95 0.008 250)"
+        ]
+      },
+      "line-strong": {
+        "role": "neutral",
+        "displayName": "Filet appuyé",
+        "canonical": "oklch(0.37 0.022 250)",
+        "tonalRamp": [
+          "oklch(0.14 0.012 250)",
+          "oklch(0.165 0.014 250)",
+          "oklch(0.2 0.016 250)",
+          "oklch(0.235 0.018 250)",
+          "oklch(0.275 0.02 250)",
+          "oklch(0.37 0.022 250)",
+          "oklch(0.71 0.018 250)",
+          "oklch(0.95 0.008 250)"
+        ]
+      },
+      "text": {
+        "role": "neutral",
+        "displayName": "Texte",
+        "canonical": "oklch(0.95 0.008 250)",
+        "tonalRamp": [
+          "oklch(0.14 0.012 250)",
+          "oklch(0.165 0.014 250)",
+          "oklch(0.2 0.016 250)",
+          "oklch(0.235 0.018 250)",
+          "oklch(0.275 0.02 250)",
+          "oklch(0.37 0.022 250)",
+          "oklch(0.71 0.018 250)",
+          "oklch(0.95 0.008 250)"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Texte secondaire",
+        "canonical": "oklch(0.71 0.018 250)",
+        "tonalRamp": [
+          "oklch(0.14 0.012 250)",
+          "oklch(0.165 0.014 250)",
+          "oklch(0.2 0.016 250)",
+          "oklch(0.235 0.018 250)",
+          "oklch(0.275 0.02 250)",
+          "oklch(0.37 0.022 250)",
+          "oklch(0.71 0.018 250)",
+          "oklch(0.95 0.008 250)"
+        ]
+      },
+      "faint": {
+        "role": "neutral",
+        "displayName": "Axes et inactif",
+        "canonical": "oklch(0.57 0.02 250)",
+        "tonalRamp": [
+          "oklch(0.14 0.012 250)",
+          "oklch(0.165 0.014 250)",
+          "oklch(0.2 0.016 250)",
+          "oklch(0.235 0.018 250)",
+          "oklch(0.275 0.02 250)",
+          "oklch(0.37 0.022 250)",
+          "oklch(0.71 0.018 250)",
+          "oklch(0.95 0.008 250)"
+        ]
+      },
+      "red": {
+        "role": "primary",
+        "displayName": "Rouge du logo",
+        "canonical": "oklch(0.645 0.225 18)",
+        "tonalRamp": [
+          "oklch(0.15 0.054 18)",
+          "oklch(0.25 0.091 18)",
+          "oklch(0.35 0.127 18)",
+          "oklch(0.45 0.163 18)",
+          "oklch(0.58 0.21 18)",
+          "oklch(0.7 0.196 18)",
+          "oklch(0.82 0.152 18)",
+          "oklch(0.94 0.109 18)"
+        ]
+      },
+      "red-fill": {
+        "role": "primary",
+        "displayName": "Rouge d’aplat",
+        "canonical": "oklch(0.575 0.215 20)",
+        "tonalRamp": [
+          "oklch(0.15 0.052 20)",
+          "oklch(0.25 0.087 20)",
+          "oklch(0.35 0.121 20)",
+          "oklch(0.45 0.156 20)",
+          "oklch(0.58 0.201 20)",
+          "oklch(0.7 0.187 20)",
+          "oklch(0.82 0.146 20)",
+          "oklch(0.94 0.104 20)"
+        ]
+      },
+      "red-text": {
+        "role": "primary",
+        "displayName": "Rouge lisible",
+        "canonical": "oklch(0.73 0.165 15)",
+        "tonalRamp": [
+          "oklch(0.15 0.04 15)",
+          "oklch(0.25 0.067 15)",
+          "oklch(0.35 0.093 15)",
+          "oklch(0.45 0.12 15)",
+          "oklch(0.58 0.154 15)",
+          "oklch(0.7 0.144 15)",
+          "oklch(0.82 0.112 15)",
+          "oklch(0.94 0.08 15)"
+        ]
+      },
+      "green": {
+        "role": "secondary",
+        "displayName": "Vert turquoise",
+        "canonical": "oklch(0.82 0.13 185)",
+        "tonalRamp": [
+          "oklch(0.15 0.031 185)",
+          "oklch(0.25 0.052 185)",
+          "oklch(0.35 0.073 185)",
+          "oklch(0.45 0.095 185)",
+          "oklch(0.58 0.122 185)",
+          "oklch(0.7 0.113 185)",
+          "oklch(0.82 0.088 185)",
+          "oklch(0.94 0.063 185)"
+        ]
+      },
+      "gold": {
+        "role": "tertiary",
+        "displayName": "Or de l’atout",
+        "canonical": "oklch(0.86 0.15 85)",
+        "tonalRamp": [
+          "oklch(0.15 0.036 85)",
+          "oklch(0.25 0.06 85)",
+          "oklch(0.35 0.085 85)",
+          "oklch(0.45 0.109 85)",
+          "oklch(0.58 0.14 85)",
+          "oklch(0.7 0.131 85)",
+          "oklch(0.82 0.102 85)",
+          "oklch(0.94 0.073 85)"
+        ]
+      },
+      "draw": {
+        "role": "neutral",
+        "displayName": "Égalité",
+        "canonical": "oklch(0.57 0.02 250)",
+        "tonalRamp": [
+          "oklch(0.15 0.005 250)",
+          "oklch(0.25 0.008 250)",
+          "oklch(0.35 0.012 250)",
+          "oklch(0.45 0.015 250)",
+          "oklch(0.58 0.018 250)",
+          "oklch(0.7 0.017 250)",
+          "oklch(0.82 0.013 250)",
+          "oklch(0.94 0.01 250)"
+        ]
+      },
+      "silver": {
+        "role": "tertiary",
+        "displayName": "Argent du MVP d’équipe",
+        "canonical": "oklch(0.88 0.02 250)",
+        "tonalRamp": [
+          "oklch(0.15 0.005 250)",
+          "oklch(0.25 0.008 250)",
+          "oklch(0.35 0.012 250)",
+          "oklch(0.45 0.015 250)",
+          "oklch(0.58 0.018 250)",
+          "oklch(0.7 0.017 250)",
+          "oklch(0.82 0.013 250)",
+          "oklch(0.94 0.01 250)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Nom de l’agent favori, nom de la carte, compte à rebours et score en direct. Condensée 75 % (font-stretch), chiffres tabulaires."
+      },
+      "headline": {
+        "displayName": "Titre de page",
+        "purpose": "h1, nom du joueur, rang, chiffres clés. Condensée 75 %."
+      },
+      "figure": {
+        "displayName": "Chiffre vedette",
+        "purpose": "Chiffres des blocs vedettes, score de l’historique. Condensée 75 %."
+      },
+      "title": {
+        "displayName": "Titre de section",
+        "purpose": "h2, noms de carte et d’agent, valeurs de stat, monnaies. Condensée 75 %."
+      },
+      "body": {
+        "displayName": "Texte courant",
+        "purpose": "Texte courant en Bahnschrift Light, largeur normale."
+      },
+      "label": {
+        "displayName": "Libellé",
+        "purpose": "Boutons et libellés forts ; 400 pour les choix et le menu."
+      },
+      "caption": {
+        "displayName": "Sous-ligne",
+        "purpose": "Sous-lignes en muted, libellés de stat, légendes."
+      },
+      "tag": {
+        "displayName": "Pastille",
+        "purpose": "Pastilles, badges, touches."
+      }
+    },
+    "shapes": [
+      {
+        "name": "cut",
+        "value": "12px",
+        "purpose": "Coupe à 45° du coin supérieur droit des blocs vedettes : clip-path: polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, 0 100%)."
+      },
+      {
+        "name": "cut-sm",
+        "value": "7px",
+        "purpose": "Coupe du bouton principal, dessinée par un dégradé de fond (linear-gradient(225deg, transparent 7px, fill 7.5px)) pour garder l’anneau de focus entier."
+      },
+      {
+        "name": "bar-bevel",
+        "value": "4px",
+        "purpose": "Bout biseauté des barres de progression ; facettes inclinées de 4 px (2 px en mini) pour les résultats."
+      }
+    ],
+    "shadows": [
+      {
+        "name": "float",
+        "value": "0 8px 24px oklch(0 0 0 / 0.5)",
+        "purpose": "Toasts et infobulle des graphiques, seulement."
+      },
+      {
+        "name": "hover-outline",
+        "value": "inset 0 0 0 1px var(--line-strong)",
+        "purpose": "Seul effet de survol des cartes illustrées."
+      },
+      {
+        "name": "party-mark",
+        "value": "inset 4px 0 0 var(--pc)",
+        "purpose": "Trait de donnée : groupe de joueurs (couleur de PARTY_COLORS)."
+      },
+      {
+        "name": "result-mark",
+        "value": "inset 0 -3px 0 var(--chip)",
+        "purpose": "Trait de donnée : résultat d’une journée."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease",
+        "value": "cubic-bezier(.16, 1, .3, 1)",
+        "purpose": "La seule courbe."
+      },
+      {
+        "name": "dur",
+        "value": ".15s",
+        "purpose": "La seule durée ; 0,2 s pour l’ouverture du détail d’une partie."
+      },
+      {
+        "name": "press",
+        "value": "scale(.975)",
+        "purpose": "Pression d’un bouton, d’une entrée de menu, d’une vignette."
+      },
+      {
+        "name": "fade-in",
+        "value": "opacity 0 → 1",
+        "purpose": "Apparition des pages, toasts, fenêtres : opacité seule."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "window-min",
+        "value": "1040px"
+      },
+      {
+        "name": "friends-stack",
+        "value": "1180px"
+      },
+      {
+        "name": "dash-stack",
+        "value": "1220px"
+      },
+      {
+        "name": "history-compact",
+        "value": "1250px"
+      },
+      {
+        "name": "stats-stack",
+        "value": "1280px"
+      },
+      {
+        "name": "live-compact",
+        "value": "1300px"
+      },
+      {
+        "name": "recent-compact",
+        "value": "1500px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Bouton principal",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "L’action principale de l’écran : aplat rouge, coin coupé à 45°.",
+      "html": "<button class=\"ds-btn-primary\">Lancer la synchronisation</button>",
+      "css": ".ds-btn-primary { --fill: var(--red-fill); border: 0; color: #fff; background: linear-gradient(225deg, transparent var(--cut-sm), var(--fill) calc(var(--cut-sm) + .5px)); padding: 8px 16px; border-radius: 4px; font-family: var(--font); font-size: 13px; font-weight: 600; line-height: 1.35; cursor: pointer; transition: transform var(--dur) var(--ease); } .ds-btn-primary:hover { --fill: var(--red-fill-hover); } .ds-btn-primary:active { transform: scale(.975); } .ds-btn-primary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }"
+    },
+    {
+      "name": "Bouton secondaire",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Plaque d’un palier plus claire que son fond.",
+      "html": "<button class=\"ds-btn\">Actualiser</button>",
+      "css": ".ds-btn { border: 0; background: var(--raised-2); color: var(--text); padding: 8px 16px; border-radius: 4px; font-family: var(--font); font-size: 13px; font-weight: 600; line-height: 1.35; cursor: pointer; transition: background-color var(--dur) var(--ease), transform var(--dur) var(--ease); } .ds-btn:hover { background: var(--raised-3); } .ds-btn:active { transform: scale(.975); } .ds-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }"
+    },
+    {
+      "name": "Groupe de choix",
+      "kind": "chip",
+      "refersTo": "chip-group",
+      "description": "Filtres et modes : creux, choix actif en plaque.",
+      "html": "<div class=\"ds-chips\"><button class=\"on\">Compétition</button><button>Non classé</button><button>Tous</button></div>",
+      "css": ".ds-chips { display: inline-flex; gap: 2px; background: var(--sunken); border-radius: 4px; padding: 3px; } .ds-chips button { border: 0; background: none; padding: 6px 12px; border-radius: 2px; color: var(--muted); font-family: var(--font); font-size: 13px; font-weight: 400; cursor: pointer; transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease); } .ds-chips button:hover { background: var(--raised); color: var(--text); } .ds-chips button.on { background: var(--raised-3); color: var(--text); font-weight: 600; } .ds-chips button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }"
+    },
+    {
+      "name": "Champ",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Creux à filet fin ; le filet passe au rouge au focus.",
+      "html": "<input class=\"ds-input\" type=\"search\" placeholder=\"Rechercher un skin\">",
+      "css": ".ds-input { background: var(--sunken); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 7px 12px; font-family: var(--font); font-size: 14px; font-weight: 300; outline: none; transition: border-color var(--dur) var(--ease); } .ds-input::placeholder { color: var(--muted); } .ds-input:hover { border-color: var(--line-strong); } .ds-input:focus { border-color: var(--red); }"
+    },
+    {
+      "name": "Menu latéral",
+      "kind": "nav",
+      "refersTo": "nav-item",
+      "description": "Une icône par entrée (identité de l’app) ; page active en plaque, icône rouge.",
+      "html": "<nav class=\"ds-nav\"><a class=\"on\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M3 11l9-7 9 7v9H3z\"/></svg>Accueil</a><a><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M4 7h16l-2 13H6zM9 7a3 3 0 0 1 6 0\"/></svg>Boutique</a></nav>",
+      "css": ".ds-nav { display: flex; flex-direction: column; gap: 2px; padding: 12px; background: var(--sunken); width: 232px; } .ds-nav a { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 4px; color: var(--muted); font-family: var(--font); font-size: 14px; font-weight: 400; cursor: pointer; transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease); } .ds-nav a svg { width: 19px; height: 19px; } .ds-nav a:hover { background: var(--raised); color: var(--text); } .ds-nav a.on { background: var(--raised-2); color: var(--text); font-weight: 600; } .ds-nav a.on svg { color: var(--red); }"
+    },
+    {
+      "name": "Bande de liste",
+      "kind": "custom",
+      "refersTo": "strip-row",
+      "description": "Rangée d’historique ou de joueurs : bandes serrées, 2 px entre deux.",
+      "html": "<div class=\"ds-strips\"><div class=\"ds-strip win\"><b class=\"m\">Ascent</b><span>Compétition</span><b class=\"s\">13-9</b></div><div class=\"ds-strip loss\"><b class=\"m\">Lotus</b><span>Compétition</span><b class=\"s\">8-13</b></div></div>",
+      "css": ".ds-strips { display: grid; gap: var(--strip); } .ds-strip { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 12px; padding: 10px 14px; background: var(--raised); border-radius: 4px; font-family: var(--font); transition: background-color var(--dur) var(--ease); } .ds-strip:hover { background: var(--raised-2); } .ds-strip .m { font-stretch: 75%; font-weight: 700; font-size: 20px; } .ds-strip span { color: var(--muted); font-size: 12px; font-weight: 300; } .ds-strip .s { font-stretch: 75%; font-variant-numeric: tabular-nums; font-weight: 700; font-size: 26px; } .ds-strip.win .s { color: var(--green); } .ds-strip.loss .s { color: var(--red-text); }"
+    },
+    {
+      "name": "Bloc vedette",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "Carte de rang, vue d’ensemble : palier de clarté, coin coupé à 45°, chiffres condensés.",
+      "html": "<div class=\"ds-hero\"><div class=\"v\"><b>67</b><span>RR</span></div><div class=\"n\">Platine 2</div><div class=\"bar\"><div style=\"width:67%\"></div></div></div>",
+      "css": ".ds-hero { --tier: oklch(0.7 0.09 200); padding: 16px 20px 16px 16px; border-radius: 6px; background: color-mix(in oklab, var(--tier) 12%, var(--raised)); clip-path: polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, 0 100%); font-family: var(--font); max-width: 300px; } .ds-hero .v { display: flex; align-items: baseline; gap: 6px; font-stretch: 75%; font-variant-numeric: tabular-nums; } .ds-hero .v b { font-size: 34px; font-weight: 700; line-height: 1; } .ds-hero .v span { color: var(--muted); font-weight: 600; } .ds-hero .n { margin-top: 4px; font-size: 13px; font-weight: 600; color: var(--tier); } .ds-hero .bar { height: 4px; margin-top: 10px; background: var(--raised-3); } .ds-hero .bar div { height: 100%; background: var(--tier); clip-path: polygon(0 0, 100% 0, calc(100% - 4px) 100%, 0 100%); }"
+    },
+    {
+      "name": "Pastilles",
+      "kind": "chip",
+      "refersTo": "pill",
+      "description": "États : neutre sans enjeu, or pour l’attente et le MVP, vert pour la file.",
+      "html": "<span class=\"ds-pill\">Partie personnalisée</span> <span class=\"ds-pill gold\">Sélection d’agent</span> <span class=\"ds-pill green\">En file</span>",
+      "css": ".ds-pill { display: inline-block; font-family: var(--font); font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 2px; background: var(--raised-3); color: var(--text); white-space: nowrap; } .ds-pill.gold { background: var(--gold); color: var(--gold-ink); } .ds-pill.green { background: var(--green); color: var(--green-ink); }"
+    },
+    {
+      "name": "Toast",
+      "kind": "custom",
+      "refersTo": "toast",
+      "description": "Fond neutre pour tous ; une erreur se reconnaît à son icône.",
+      "html": "<div class=\"ds-toast\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7.5v5.5M12 16.5v.5\"/></svg>Le Riot Client ne répond pas.</div>",
+      "css": ".ds-toast { display: flex; align-items: flex-start; gap: 10px; background: var(--raised-3); color: var(--text); box-shadow: 0 8px 24px oklch(0 0 0 / 0.5); padding: 12px 16px; border-radius: 4px; min-width: 260px; max-width: 380px; font-family: var(--font); font-size: 13px; font-weight: 300; line-height: 1.45; } .ds-toast svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; color: var(--red); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Le tableau de score d’avant-match",
+    "overview": "L’app se lit comme l’écran que le jeu affiche avant une partie : un fond graphite acier, des noms et des chiffres en DIN condensée, des bandes serrées qu’on compare d’un coup d’œil, et une seule couleur forte qui dit où agir. Elle refuse le tableau de bord SaaS sombre : pas de cartes à contour, pas de police géométrique arrondie, pas de rouge en décor.\n\nLe graphite est un acier : un gris bleuté froid (teinte 250, chroma 0,012 à 0,022) contre lequel le rouge du logo ressort. La profondeur vient de cinq paliers de clarté, jamais d’un contour. La densité est celle d’un outil : texte courant en 14 px léger, listes en bandes séparées de 2 px, valeurs alignées en chiffres tabulaires. La seule forme qui signe l’app est la coupe à 45° tirée des facettes du logo, posée sur les blocs vedettes et sur le bouton principal.\n\nLe mouvement est sobre : une courbe, une durée, des fondus en opacité, une pression à 97,5 %. Les illustrations du jeu (agents, cartes, bannières) portent la couleur ; l’interface reste neutre autour d’elles.",
+    "keyCharacteristics": [
+      "Surfaces graphite en paliers de clarté, sans contour.",
+      "Une seule famille, Bahnschrift, condensée à 75 % pour toute valeur et tout nom du jeu.",
+      "Rangées de liste en bandes serrées, séparées de 2 px.",
+      "Coupe à 45° sur les blocs vedettes et le bouton principal ; bouts biseautés sur les barres et les facettes de résultat.",
+      "Couleurs qui portent un sens : rouge pour agir et perdre, vert pour gagner, or pour vous."
+    ],
+    "rules": [
+      {
+        "name": "La règle du rouge compté",
+        "body": "Le rouge dit « agissez ici », « c’est en cours » ou « perdu ». Un seul bouton rouge par écran ; jamais de rouge pour décorer un titre, un fond de carte ou une icône de rubrique.",
+        "section": "colors"
+      },
+      {
+        "name": "La règle du sens unique",
+        "body": "Chaque couleur de sens garde le même sens partout : vert pour gagner et pour les alliés, rouge pour perdre et pour les adversaires, or pour vous et l’attente. Un état sans enjeu prend une pastille neutre (`raised-3`).",
+        "section": "colors"
+      },
+      {
+        "name": "La règle du toast neutre",
+        "body": "Les toasts ont tous le même fond neutre ; une erreur se reconnaît à son icône rouge, pas à un fond teinté.",
+        "section": "colors"
+      },
+      {
+        "name": "La règle de la largeur du jeu",
+        "body": "Toute valeur (score, stat, prix, compteur, niveau) et tout nom du jeu passe en condensée 75 % avec chiffres tabulaires. Le texte qui explique reste en largeur normale.",
+        "section": "typography"
+      },
+      {
+        "name": "La règle du texte léger",
+        "body": "Le texte courant est en 300, les libellés en 400, l’emphase en 600, les chiffres et noms du jeu en 700. Aucune autre graisse.",
+        "section": "typography"
+      },
+      {
+        "name": "La règle des deux pixels",
+        "body": "Les rangées d’une même liste se touchent presque : 2 px entre deux bandes, jamais une carte espacée par rangée.",
+        "section": "layout"
+      },
+      {
+        "name": "La règle du palier",
+        "body": "Un niveau de plus, c’est un palier de clarté de plus, jamais un contour ni une ombre. L’ombre est réservée à ce qui flotte au-dessus de la page.",
+        "section": "elevation"
+      },
+      {
+        "name": "La règle de la coupe",
+        "body": "La coupe à 45° marque ce qui compte le plus sur un écran : un bloc vedette ou l’action principale. Une carte ordinaire, une bande ou un bouton secondaire gardent leurs quatre coins.",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "Do monter d’un palier de clarté (`raised`, `raised-2`, `raised-3`) pour poser une surface sur une autre.",
+      "Do passer toute valeur et tout nom du jeu en condensée 75 % avec chiffres tabulaires.",
+      "Do séparer les rangées d’une liste de 2 px (`strip`) et garder la même grille de colonnes pour toutes.",
+      "Do réserver la coupe à 45° aux blocs vedettes (12 px) et au bouton principal (7 px).",
+      "Do garder un seul bouton rouge par écran.",
+      "Do dire l’état d’une ligne par la couleur de son score ou de son texte, pas par un cadre.",
+      "Do lire les couleurs des graphiques dans les jetons CSS."
+    ],
+    "donts": [
+      "Don't poser un contour sur une carte ou un panneau : la profondeur vient du palier de clarté.",
+      "Don't employer le rouge en décor (titre, icône de rubrique, fond de carte sans sélection).",
+      "Don't teinter le fond d’un toast selon son état.",
+      "Don't ajouter une police : Bahnschrift seule, de 300 à 700.",
+      "Don't forcer les capitales ni espacer les lettres d’un libellé ou d’un bouton.",
+      "Don't marquer un choix par un fond et un contour à la fois : la plaque glisse pour un groupe de choix, le contour rouge sert aux vignettes d’agent et de portée.",
+      "Don't empiler les effets au survol : un palier de fond, ou le contour de 1 px sur une carte illustrée.",
+      "Don't poser un trait coloré sur le bord d’un bloc pour l’orner : le seul trait de bord admis encode un groupe de joueurs ou un résultat.",
+      "Don't reprendre les jetons ou les composants de la landing page (`site/`)."
+    ]
+  }
+}

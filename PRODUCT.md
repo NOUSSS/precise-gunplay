@@ -43,7 +43,7 @@ Le succès : télécharger l'installeur, l'installer, et que l'app reste ouverte
 ## Brand Commitments
 
 - Nom : Precise Gunplay. Logos : `renderer/logo-full.png`, `renderer/logo-mark.png`, `build/icon.png`.
-- L'app et la landing page sont deux entités distinctes : chacune a sa propre direction artistique. Elles partagent le nom et le logo, pas les jetons ni les composants. Identité de l'app : `renderer/styles.css`. Identité du site : DESIGN.md, écrit à partir de `site/`.
+- L'app et la landing page sont deux entités distinctes : chacune a sa propre direction artistique. Elles partagent le nom et le logo, pas les jetons ni les composants. Identité de l'app : `renderer/DESIGN.md`, jetons en tête de `renderer/styles.css`. Identité du site : DESIGN.md, écrit à partir de `site/`.
 - La première version de la landing page (2026-10-29), calquée sur l'interface de l'app, a été rejetée (2/10) : pas d'animation, police jugée laide, cartes à contour et fond de même teinte, aucune profondeur. Le site doit être une vraie page vitrine, animée, avec de la profondeur.
 - Texte en français, vouvoiement.
 

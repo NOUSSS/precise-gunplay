@@ -22,7 +22,10 @@
       "main.js",
       "preload.js",
       "src/**/*",
-      "renderer/**/*"
+      "renderer/**/*",
+      "!renderer/DESIGN.md",
+      "!renderer/design.json",
+      "!renderer/.impeccable/**"
     ],
     "directories": {
       "output": "dist"
