@@ -1,4 +1,4 @@
-// Fonctions qui agissent sur le compte via le Riot Client (sélection d'agent, groupe, messagerie).
+// Fonctions qui agissent sur le compte via le Riot Client (groupe, messagerie).
 // Désactivées : Riot peut sanctionner ces actions faites par un logiciel tiers. L'interface les affiche grisées.
 const CLIENT_ACTIONS_DISABLED = true;
 const CLIENT_ACTIONS_MESSAGE =

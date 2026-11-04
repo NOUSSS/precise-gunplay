@@ -295,15 +295,6 @@ class RiotClient {
   getPregameMatch(matchId) {
     return this.glz('GET', `/pregame/v1/matches/${matchId}`);
   }
-  selectAgent(matchId, agentId) {
-    return this.glz('POST', `/pregame/v1/matches/${matchId}/select/${agentId}`);
-  }
-  lockAgent(matchId, agentId) {
-    return this.glz('POST', `/pregame/v1/matches/${matchId}/lock/${agentId}`);
-  }
-  quitPregame(matchId) {
-    return this.glz('POST', `/pregame/v1/matches/${matchId}/quit`);
-  }
 
   // ---- Partie en cours ----
   getCoregamePlayer() {

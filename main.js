@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -7,7 +7,6 @@ const { LOCKFILE } = require('./src/riot/local');
 const { Assets } = require('./src/assets');
 const { Settings } = require('./src/settings');
 const { Services } = require('./src/services');
-const { AutoLock } = require('./src/autolock');
 const { CLIENT_ACTIONS_DISABLED, CLIENT_ACTIONS_MESSAGE, assertClientActionsAllowed } = require('./src/restrictions');
 const { Updater } = require('./src/updater');
 const { Stats } = require('./src/stats');
@@ -22,7 +21,7 @@ app.disableHardwareAcceleration();
 
 let win = null;
 const client = new RiotClient();
-let assets, settings, services, autolock, updater, stats, stretch, wishlist;
+let assets, settings, services, updater, stats, stretch, wishlist;
 let status = { connected: false, message: 'Recherche du Riot Client…' };
 let connecting = false;
 
@@ -148,7 +147,6 @@ function registerIpc() {
   handle('profile', () => services.profile());
   handle('store', () => services.store());
   handle('collection', () => services.collection());
-  handle('owned-agents', () => services.ownedAgents());
   handle('live', () => services.live());
   handle('live-leave', () => services.liveLeft(), { needsAuth: false });
   handle('history', (queue) => services.history(queue));
@@ -185,10 +183,6 @@ function registerIpc() {
   handle('stretch-restore', () => stretch.restoreAll(), { needsAuth: false });
   handle('stretch-hotkeys-pause', (paused) => stretch.pauseHotkeys(!!paused), { needsAuth: false });
 
-  handle('pregame-select', (matchId, agentId) => { assertClientActionsAllowed(); return client.selectAgent(matchId, agentId); });
-  handle('pregame-lock', (matchId, agentId) => { assertClientActionsAllowed(); return client.lockAgent(matchId, agentId); });
-  handle('pregame-dodge', (matchId) => { assertClientActionsAllowed(); return client.quitPregame(matchId); });
-
   handle('party-queue', (partyId, queueId) => { assertClientActionsAllowed(); return client.setPartyQueue(partyId, queueId); });
   handle('party-matchmaking', (partyId, start) => { assertClientActionsAllowed(); return start ? client.joinMatchmaking(partyId) : client.leaveMatchmaking(partyId); });
   handle('party-access', (partyId, open) => { assertClientActionsAllowed(); return client.setPartyAccessibility(partyId, open); });
@@ -200,11 +194,11 @@ function createWindow() {
     height: 840,
     minWidth: 1040,
     minHeight: 680,
-    backgroundColor: '#0a0d16',
+    backgroundColor: '#0a0f14',
     title: 'Precise Gunplay',
     icon: path.join(__dirname, 'renderer', 'icon.png'),
     titleBarStyle: 'hidden',
-    titleBarOverlay: { color: '#0a0d17', symbolColor: '#f5f5fa', height: 40 },
+    titleBarOverlay: { color: '#060a0e', symbolColor: '#ebeff4', height: 40 },
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -238,18 +232,10 @@ app.whenReady().then(() => {
   services.stats = stats;
   stats.on('state', (s) => send('stats-sync', s));
   setInterval(() => stats.sync(), 5 * 60 * 1000);
-  autolock = new AutoLock(client, settings, assets);
   updater = new Updater();
   updater.on('state', (s) => send('update', s));
   // Programme la vérification des mises à jour avant tout le reste du démarrage.
   updater.start();
-
-  autolock.on('event', (evt) => {
-    send('autolock-event', evt);
-    if (settings.get().notifications && Notification.isSupported() && evt.type !== 'error') {
-      new Notification({ title: 'Precise Gunplay', body: evt.message, silent: true }).show();
-    }
-  });
 
   stretch = new Stretch(client, settings, dataDir);
   stretch.on('status', (s) => send('stretch', s));
@@ -259,7 +245,6 @@ app.whenReady().then(() => {
   createWindow();
   tryConnect();
   watchConnection();
-  autolock.start();
   stretch.start().catch(() => {});
 });
 
