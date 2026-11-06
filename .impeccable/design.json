@@ -199,24 +199,9 @@
         "purpose": "Cadre de l’écran et son ombre dans la pièce."
       },
       {
-        "name": "pill-lit",
-        "value": "inset 0 1px 0 rgb(255 255 255 / 0.5), 0 16px 44px rgb(var(--glow) / 0.32), 0 10px 22px rgb(0 0 0 / 0.45)",
-        "purpose": "Pilule principale éclairée par l’écran (halo voulu, The Lit Object Rule)."
-      },
-      {
-        "name": "pill-lit-hover",
-        "value": "inset 0 1px 0 rgb(255 255 255 / 0.5), 0 20px 52px rgb(var(--glow) / 0.42), 0 12px 26px rgb(0 0 0 / 0.5)",
-        "purpose": "Survol de la pilule éclairée."
-      },
-      {
-        "name": "pill-unlit",
-        "value": "inset 0 1px 0 rgb(255 255 255 / 0.5), 0 14px 32px rgb(0 0 0 / 0.55)",
-        "purpose": "Pilule à l’installation, écran hors de vue."
-      },
-      {
-        "name": "pill-unlit-hover",
-        "value": "inset 0 1px 0 rgb(255 255 255 / 0.5), 0 18px 40px rgb(0 0 0 / 0.6)",
-        "purpose": "Survol de la pilule hors lumière."
+        "name": "pill",
+        "value": "0 2px 8px rgb(0 0 0 / 0.3)",
+        "purpose": "Toutes les pilules claires, éclairées ou non ; aucune ombre de plus au survol (The No Glow Rule)."
       }
     ],
     "motion": [
@@ -279,17 +264,17 @@
       "name": "Pilule principale",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "Télécharger pour Windows : pilule claire éclairée par l’écran, halo de la couleur de --glow.",
+      "description": "Télécharger pour Windows : pilule claire dont la surface prend la teinte de --glow ; ombre courte et neutre, le survol éclaircit la surface.",
       "html": "<a class=\"ds-dl\" href=\"#\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 4v11M7 11l5 5 5-5M5 20h14\"/></svg>Télécharger pour Windows</a>",
-      "css": ".ds-dl { display: inline-flex; align-items: center; gap: 12px; padding: 18px 28px 18px 22px; border-radius: var(--r-pill, 999px); color: var(--on-ink, #0b0b0c); font-family: var(--font, \"Familjen Grotesk\", system-ui, sans-serif); font-size: 1.125rem; font-weight: 700; text-decoration: none; white-space: nowrap; background: linear-gradient(100deg, var(--ink, #eceae6) 30%, color-mix(in oklab, var(--ink, #eceae6) 72%, rgb(var(--glow, 118 136 168)))); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.5), 0 16px 44px rgb(var(--glow, 118 136 168) / 0.32), 0 10px 22px rgb(0 0 0 / 0.45); transition: transform 0.2s cubic-bezier(0.2, 0.7, 0.2, 1), box-shadow 0.2s cubic-bezier(0.2, 0.7, 0.2, 1); } .ds-dl:hover { transform: translateY(-1px); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.5), 0 20px 52px rgb(var(--glow, 118 136 168) / 0.42), 0 12px 26px rgb(0 0 0 / 0.5); } .ds-dl:focus-visible { outline: 2px solid var(--ink, #eceae6); outline-offset: 4px; } .ds-dl svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }"
+      "css": ".ds-dl { display: inline-flex; align-items: center; gap: 12px; padding: 18px 28px 18px 22px; border-radius: var(--r-pill, 999px); color: var(--on-ink, #0b0b0c); font-family: var(--font, \"Familjen Grotesk\", system-ui, sans-serif); font-size: 1.125rem; font-weight: 700; text-decoration: none; white-space: nowrap; background: linear-gradient(100deg, var(--ink, #eceae6) 30%, color-mix(in oklab, var(--ink, #eceae6) 72%, rgb(var(--glow, 118 136 168)))); box-shadow: 0 2px 8px rgb(0 0 0 / 0.3); transition: filter 0.2s cubic-bezier(0.2, 0.7, 0.2, 1); } .ds-dl:hover { filter: brightness(1.07); } .ds-dl:focus-visible { outline: 2px solid var(--ink, #eceae6); outline-offset: 4px; } .ds-dl svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }"
     },
     {
       "name": "Pilule hors lumière",
       "kind": "button",
       "refersTo": "button-primary-install",
-      "description": "La même pilule à l’installation, où l’écran est hors de vue : encre pleine, ombre noire.",
+      "description": "La même pilule à l’installation, où l’écran est hors de vue : encre pleine, même ombre courte et neutre.",
       "html": "<a class=\"ds-dl-plain\" href=\"#\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 4v11M7 11l5 5 5-5M5 20h14\"/></svg>Télécharger pour Windows</a>",
-      "css": ".ds-dl-plain { display: inline-flex; align-items: center; gap: 12px; padding: 18px 28px 18px 22px; border-radius: 999px; color: var(--on-ink, #0b0b0c); background: var(--ink, #eceae6); font-family: var(--font, \"Familjen Grotesk\", system-ui, sans-serif); font-size: 1.125rem; font-weight: 700; text-decoration: none; white-space: nowrap; box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.5), 0 14px 32px rgb(0 0 0 / 0.55); transition: transform 0.2s cubic-bezier(0.2, 0.7, 0.2, 1), box-shadow 0.2s cubic-bezier(0.2, 0.7, 0.2, 1); } .ds-dl-plain:hover { transform: translateY(-1px); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.5), 0 18px 40px rgb(0 0 0 / 0.6); } .ds-dl-plain:focus-visible { outline: 2px solid var(--ink, #eceae6); outline-offset: 4px; } .ds-dl-plain svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }"
+      "css": ".ds-dl-plain { display: inline-flex; align-items: center; gap: 12px; padding: 18px 28px 18px 22px; border-radius: 999px; color: var(--on-ink, #0b0b0c); background: var(--ink, #eceae6); font-family: var(--font, \"Familjen Grotesk\", system-ui, sans-serif); font-size: 1.125rem; font-weight: 700; text-decoration: none; white-space: nowrap; box-shadow: 0 2px 8px rgb(0 0 0 / 0.3); transition: filter 0.2s cubic-bezier(0.2, 0.7, 0.2, 1); } .ds-dl-plain:hover { filter: brightness(1.07); } .ds-dl-plain:focus-visible { outline: 2px solid var(--ink, #eceae6); outline-offset: 4px; } .ds-dl-plain svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }"
     },
     {
       "name": "Bouton fantôme",
@@ -334,7 +319,7 @@
   ],
   "narrative": {
     "northStar": "L’écran dans le noir",
-    "overview": "**Creative North Star : « L’écran dans le noir »**\n\nLa page est une pièce plongée dans le noir dont la seule lumière vient de l’écran, et cet écran passe la vraie vidéo de l’app. La couleur de cette lumière est prise sur la vidéo pendant la lecture : elle teinte la pièce, la fin du titre, le halo du bouton principal et le remplissage des chapitres. Il n’y a pas de couleur d’accent fixe ; quand l’app montre la boutique, la pièce prend la teinte de la boutique.\n\nLe texte est posé à même la pénombre, sans cartes. À gauche, le titre et les fonctions ; à droite, un écran avec son cadre, son socle et une flaque de lumière sur le bureau, qui reste à l’écran pendant la visite. La fonction lue s’éclaire à l’encre claire, les autres restent en gris. Le mouvement suit la vidéo et rien d’autre : l’écran s’allume, puis la pièce s’éclaire, puis le titre monte en fondu court.\n\nRejets confirmés : le « HUD néon rouge » des sites de jeux de tir, et la page de logiciel à capture posée sous un halo violet fixe.",
+    "overview": "**Creative North Star : « L’écran dans le noir »**\n\nLa page est une pièce plongée dans le noir dont la seule lumière vient de l’écran, et cet écran passe la vraie vidéo de l’app. La couleur de cette lumière est prise sur la vidéo pendant la lecture : elle teinte la pièce, la fin du titre, la surface du bouton principal et le remplissage des chapitres. Il n’y a pas de couleur d’accent fixe ; quand l’app montre la boutique, la pièce prend la teinte de la boutique.\n\nLe texte est posé à même la pénombre, sans cartes. À gauche, le titre et les fonctions ; à droite, un écran avec son cadre, son socle et une flaque de lumière sur le bureau, qui reste à l’écran pendant la visite. La fonction lue s’éclaire à l’encre claire, les autres restent en gris. Le mouvement suit la vidéo et rien d’autre : l’écran s’allume, puis la pièce s’éclaire, puis le titre monte en fondu court.\n\nRejets confirmés : le « HUD néon rouge » des sites de jeux de tir, et la page de logiciel à capture posée sous un halo violet fixe.",
     "keyCharacteristics": [
       "Une seule teinte vive, la lumière de l’écran, variable et prise sur la vidéo.",
       "Pénombre presque noire, encre chaude, deux gris.",
@@ -370,8 +355,8 @@
         "section": "typography"
       },
       {
-        "name": "The Lit Object Rule",
-        "body": "Le halo coloré de la pilule principale est voulu : c’est la lumière de l’écran posée sur un objet clair. Un détecteur peut le signaler en `dark-glow` ; il reste, tant qu’il prend sa couleur sur `--glow` et que l’écran est en vue.",
+        "name": "The No Glow Rule",
+        "body": "Pas de lueur autour des boutons, ni au repos ni au survol : ni halo coloré, ni grande ombre floue, ni ombre qui grandit au survol. La lumière de l’écran teinte la surface de la pilule, jamais son ombre ; le survol change la surface (luminosité 1,07), pas l’ombre. Un premier essai avec un halo de la couleur de l’écran a été jugé trop lumineux et retiré.",
         "section": "elevation"
       },
       {
@@ -396,6 +381,7 @@
       "**Don't** prendre un ton marketing, ni écrire de tiret cadratin ou de point d’exclamation.",
       "**Don't** ajouter « → » au texte d’un bouton.",
       "**Don't** poser une icône sur un carré teinté de sa couleur.",
+      "**Don't** mettre une lueur autour d’un bouton (halo coloré, grande ombre floue), ni au repos ni au survol.",
       "**Don't** reprendre les jetons de l’app de bureau (`renderer/`) : seuls le nom et le logo sont communs."
     ]
   }
