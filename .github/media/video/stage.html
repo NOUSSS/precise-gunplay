@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Tournage</title>
+<style>
+  html, body { margin: 0; width: 1920px; height: 1081px; overflow: hidden; background: #060a0e; }
+  /* Cadre fixe : un défilement déclenché dans l'app (focus, scrollIntoView) ne peut pas décaler la scène.
+     Pas de rognage ici : il empêcherait les images différées (loading="lazy") de l'app de se charger. */
+  #stage { position: fixed; left: 0; top: 0; width: 1920px; height: 1081px; }
+  #cam { position: absolute; z-index: 0; left: 0; top: 0; width: 1440px; height: 810px; transform-origin: 0 0; }
+  #app { display: block; width: 1440px; height: 810px; border: 0; }
+  #cursor { position: absolute; z-index: 2; left: 0; top: 0; transform-origin: 0 0; pointer-events: none; will-change: transform; }
+  #cursor svg { display: block; filter: drop-shadow(0 2px 3px rgba(0,0,0,.45)); }
+  #ripple { position: absolute; z-index: 1; will-change: transform; left: 0; top: 0; border-radius: 50%; border: 3px solid rgba(255,255,255,.9); pointer-events: none; opacity: 0; }
+  /* Repère d'image : une ligne hors cadre (y = 1080) qui porte le numéro de l'image, retirée au montage */
+  /* sur sa propre couche, au-dessus de tout : sinon une couche composée de l'app peut passer devant */
+  #stamp { position: absolute; z-index: 3; will-change: transform; left: 0; top: 1080px; width: 1920px; height: 1px; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="cam">
+    <iframe id="app"></iframe>
+  </div>
+  <div id="ripple"></div>
+  <div id="cursor"></div>
+  <div id="stamp"></div>
+</div>
+<script src="scenario.js"></script>
+<script src="stage.js"></script>
+</body>
+</html>
