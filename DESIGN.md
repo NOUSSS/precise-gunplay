@@ -185,7 +185,7 @@ Le premier bloc remplit la hauteur de la fenêtre sous l’en-tête ; chaque fon
 
 Rythme vertical sur une échelle de 0.5rem à 8rem (`s1` à `s8`) : `s2` entre paragraphes, `s3` sous un titre de section et entre étapes, `s5` entre colonnes et avant l’action, `s7` au-dessus des grandes sections.
 
-Sous 1024px : une seule colonne, l’en-tête passe à 64px et perd sa navigation ; le titre vient d’abord, puis l’écran se colle en haut, sur un fond de pénombre à 84 % flouté (10px), au-dessus des fonctions. Le socle, la flaque et les libellés de chapitre disparaissent ; les grilles à trois colonnes passent à une. Sous 600px, les boutons fantômes ne gardent que leur icône (36px de côté) et la pilule réduit son rembourrage.
+Sous 1024px : une seule colonne, l’en-tête passe à 64px et perd sa navigation ; le titre vient d’abord, puis l’écran se colle en haut, sur un fond de pénombre à 84 % flouté (10px), au-dessus des fonctions. Quand l’écran collé prendrait plus de 55 % de la hauteur (paysage, fenêtre basse), il défile avec la page au lieu de rester en haut. Le socle et la flaque disparaissent, les libellés de chapitre sont masqués à l’œil mais gardés pour les lecteurs d’écran ; les grilles à trois colonnes passent à une. Sous 600px, les boutons fantômes ne gardent que leur icône (36px de côté) et la pilule réduit son rembourrage.
 
 ## Elevation & Depth
 
@@ -216,7 +216,7 @@ Trois rayons. La pilule (999px) pour toute action : bouton principal, boutons fa
 - **Ghost :** pilule de 36px de haut, blanc à 6 % (11 % au survol), libellé 500 en encre, icône 18px. Sous 600px, icône seule.
 
 ### Chapitres de la vidéo
-Une grille de cinq barres sous l’écran, une par chapitre. Chaque barre (3px, blanc à 12 %) se remplit en encre éclairée au fil de la lecture ; un clic saute au chapitre. Libellé en gris, encre au survol et pour le chapitre en cours ; masqué sur tablette et téléphone.
+Une grille de cinq barres sous l’écran, une par chapitre. Chaque barre (3px, blanc à 12 %) se remplit en encre éclairée au fil de la lecture ; un clic saute au chapitre. Libellé en gris, encre au survol et pour le chapitre en cours ; sur tablette et téléphone, masqué à l’œil seulement, il reste le nom du bouton.
 
 ### Écran (signature)
 Cadre noir (rembourrage 10px 10px 12px), vitre 16:9 qui lit la boucle muette, socle SVG et flaque de lumière radiale sur le bureau. À l’allumage, la vitre clignote (luminosité 0, 1,5, 0,35, puis normale en 1,4s) avant que la lumière ne se répande dans la pièce (fondu 1,4s).

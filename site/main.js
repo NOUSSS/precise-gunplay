@@ -162,7 +162,10 @@ function layout() {
   const header = $('.top').offsetHeight;
   const h = monitor.offsetHeight;
   root.style.setProperty('--stick', `${Math.round(header + Math.max(16, (innerHeight - header - h) / 2))}px`);
-  root.style.setProperty('--mon-h', `${screenCol.offsetHeight + 16}px`);
+  // téléphone : l'écran ne reste en haut que s'il laisse au texte près de la moitié de la hauteur ; sinon (paysage, fenêtre basse) il défile avec la page
+  const loose = narrow.matches && screenCol.offsetHeight > innerHeight * 0.55;
+  screenCol.classList.toggle('loose', loose);
+  root.style.setProperty('--mon-h', `${loose ? 32 : screenCol.offsetHeight + 16}px`);
   schedule();
   pick();
 }
@@ -170,7 +173,7 @@ function layout() {
 function pick() {
   // sur téléphone, la visite commence quand l'écran arrive en haut (à la ligne « Gratuit… » près) ; avant, il passe toute la vidéo
   if (narrow.matches && screenCol.getBoundingClientRect().top > (parseFloat(getComputedStyle(screenCol).top) || 0) + 48) return setRange(null);
-  const top = narrow.matches ? screenCol.getBoundingClientRect().bottom : 0;
+  const top = narrow.matches ? Math.max(0, screenCol.getBoundingClientRect().bottom) : 0;
   const y = top + (innerHeight - top) / 2;
   const on = features.find((f) => { const r = f.getBoundingClientRect(); return r.top <= y && r.bottom > y; });
   setRange(on ? on.dataset.chapter : null);
