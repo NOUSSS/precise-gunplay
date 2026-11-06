@@ -1,50 +1,223 @@
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const root = document.documentElement;
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => [...document.querySelectorAll(s)];
 
-// Même format que fmtDuration dans renderer/app.js
-function fmtDuration(ms) {
-  ms = Math.max(0, ms);
-  const s = Math.floor(ms / 1000);
-  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
-  if (h) return `${h}h ${String(m).padStart(2, '0')}m ${String(sec).padStart(2, '0')}s`;
-  return `${m}m ${String(sec).padStart(2, '0')}s`;
+/* ---------- La vidéo et ses chapitres ---------- */
+
+// Mêmes instants que .github/media/video/scenario.js ; le dernier passage (retour à l'accueil) boucle sur le premier
+const CHAPTERS = [
+  { id: 'accueil', start: 0, end: 3.2 },
+  { id: 'boutique', start: 3.2, end: 11.0 },
+  { id: 'etiree', start: 11.0, end: 20.0 },
+  { id: 'partie', start: 20.0, end: 27.6 },
+  { id: 'stats', start: 27.6, end: 35.2 },
+];
+const video = $('#demo');
+const buttons = new Map($$('.chapters button').map((b) => [b.dataset.chapter, b]));
+const features = $$('.feature');
+let range = null; // chapitre que l'écran rejoue en boucle quand une fonction est lue, sinon toute la vidéo
+let userPaused = reduce;
+
+const chapterAt = (t) => CHAPTERS.find((c) => t >= c.start && t < c.end) || CHAPTERS[0];
+
+function play() {
+  if (userPaused) return;
+  video.play().catch(() => {});
+}
+function setPaused(paused) {
+  userPaused = paused;
+  const b = $('#pause');
+  b.setAttribute('aria-pressed', String(paused));
+  b.querySelector('span').textContent = paused ? 'Lire' : 'Pause';
+  if (paused) video.pause();
+  else play();
+}
+$('#pause').addEventListener('click', () => setPaused(!userPaused));
+if (reduce) setPaused(true);
+
+// Une fonction lue fait rejouer son chapitre ; revenir au titre rend toute la vidéo
+function setRange(id) {
+  const next = id ? CHAPTERS.find((c) => c.id === id) : null;
+  if (next === range) return;
+  range = next;
+  features.forEach((f) => f.classList.toggle('on', f.dataset.chapter === id));
+  if (range && (video.currentTime < range.start || video.currentTime >= range.end)) video.currentTime = range.start;
 }
 
-// La boutique du jour se renouvelle à 00:00 UTC ; les chiffres du grand minuteur passent par crans
-const nextReset = () => {
-  const n = new Date();
-  return Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate() + 1);
-};
-const plain = document.querySelectorAll('[data-reset]');
-const stepped = document.querySelectorAll('[data-reset-steps]');
-function tick() {
-  const t = fmtDuration(nextReset() - Date.now());
-  plain.forEach((el) => (el.textContent = t));
-  stepped.forEach((el) => {
-    const prev = el.dataset.v || '';
-    if (prev.length !== t.length) {
-      el.innerHTML = [...t].map((c) => `<span>${c === ' ' ? ' ' : c}</span>`).join('');
-    } else {
-      [...t].forEach((c, i) => {
-        if (c === prev[i]) return;
-        const sp = el.children[i];
-        sp.textContent = c === ' ' ? ' ' : c;
-        if (reduce) return;
-        sp.classList.remove('t');
-        void sp.offsetWidth;
-        sp.classList.add('t');
-      });
+// À chaque image : la boucle du chapitre, la barre du chapitre en cours
+function frame() {
+  const t = video.currentTime;
+  if (range && t >= range.end - 0.02) video.currentTime = range.start;
+  const now = chapterAt(t);
+  for (const c of CHAPTERS) {
+    const b = buttons.get(c.id);
+    // les chapitres déjà passés restent pleins quand toute la vidéo tourne ; pendant une boucle, seul le sien avance
+    const p = c === now ? (t - c.start) / (c.end - c.start) : !range && t >= c.end ? 1 : 0;
+    b.style.setProperty('--p', p.toFixed(4));
+    b.setAttribute('aria-current', String(c === now));
+  }
+}
+if ('requestVideoFrameCallback' in HTMLVideoElement.prototype) {
+  const loop = () => { frame(); video.requestVideoFrameCallback(loop); };
+  video.requestVideoFrameCallback(loop);
+} else {
+  const loop = () => { frame(); requestAnimationFrame(loop); };
+  requestAnimationFrame(loop);
+}
+video.addEventListener('seeked', frame);
+
+// Un chapitre choisi : pendant la visite, on va à sa fonction ; en haut de page, l'écran y saute
+buttons.forEach((b, id) => b.addEventListener('click', () => {
+  const target = features.find((f) => f.dataset.chapter === id);
+  if (range && target) target.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth' });
+  else if (range && id === 'accueil') scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
+  else {
+    video.currentTime = CHAPTERS.find((c) => c.id === id).start + 0.01;
+    frame();
+  }
+}));
+
+/* ---------- La lumière de l'écran ---------- */
+
+// La couleur de la lumière est prise sur l'image affichée : les pixels vifs et colorés comptent plus que le fond sombre de l'app
+const probe = document.createElement('canvas');
+probe.width = 32; probe.height = 18;
+const ctx = probe.getContext('2d', { willReadFrequently: true });
+const target = [118, 136, 168];
+const glow = [118, 136, 168];
+
+function sample(source) {
+  try {
+    ctx.drawImage(source, 0, 0, probe.width, probe.height);
+    const d = ctx.getImageData(0, 0, probe.width, probe.height).data;
+    let r = 0, g = 0, b = 0, w = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      const mx = Math.max(d[i], d[i + 1], d[i + 2]), mn = Math.min(d[i], d[i + 1], d[i + 2]);
+      const sat = (mx - mn) / 255, lum = (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255;
+      const k = 0.02 + sat * sat * 2 + lum * lum;
+      r += d[i] * k; g += d[i + 1] * k; b += d[i + 2] * k; w += k;
     }
-    el.dataset.v = t;
-  });
+    if (w) Object.assign(target, normalize(r / w, g / w, b / w));
+  } catch { /* image pas encore décodée */ }
 }
-tick();
-setInterval(tick, 1000);
+// Teinte gardée, saturation et clarté ramenées dans une plage lisible sur la pénombre
+function normalize(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, dl = mx - mn;
+  let h = 0, s = 0;
+  if (dl) {
+    s = dl / (1 - Math.abs(2 * l - 1));
+    h = mx === r ? ((g - b) / dl) % 6 : mx === g ? (b - r) / dl + 2 : (r - g) / dl + 4;
+    h *= 60;
+  }
+  s = Math.min(0.78, Math.max(0.22, s * 1.5));
+  const L = 0.6, c = (1 - Math.abs(2 * L - 1)) * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = L - c / 2;
+  const [r1, g1, b1] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  return [(r1 + m) * 255, (g1 + m) * 255, (b1 + m) * 255];
+}
 
-// Heure locale du renouvellement
-const resetAt = new Date(nextReset());
-const hm = resetAt.getMinutes() ? `${resetAt.getHours()} h ${String(resetAt.getMinutes()).padStart(2, '0')}` : `${resetAt.getHours()} h`;
-document.querySelectorAll('[data-reset-hour]').forEach((el) => (el.textContent = hm));
+const poster = new Image();
+poster.src = video.getAttribute('poster');
+poster.decode().then(() => { sample(poster); glow.splice(0, 3, ...target); paintGlow(); }).catch(() => {});
+
+function paintGlow() {
+  root.style.setProperty('--glow', glow.map(Math.round).join(' '));
+}
+let lastSample = 0;
+function light(now) {
+  if (!video.paused && video.readyState >= 2 && now - lastSample > 100) { sample(video); lastSample = now; }
+  let moved = false;
+  for (let i = 0; i < 3; i++) {
+    const dv = target[i] - glow[i];
+    if (Math.abs(dv) > 0.4) { glow[i] += dv * (reduce ? 1 : 0.08); moved = true; }
+  }
+  if (moved) paintGlow();
+  requestAnimationFrame(light);
+}
+requestAnimationFrame(light);
+video.addEventListener('seeked', () => { if (video.paused) sample(video); });
+
+// La lumière part de l'écran, où qu'il soit dans la page
+const spill = $('.spill');
+const screen = $('.screen');
+let placing = false;
+function place() {
+  placing = false;
+  const r = screen.getBoundingClientRect();
+  spill.style.setProperty('--gx', `${r.left + r.width / 2}px`);
+  spill.style.setProperty('--gy', `${r.top + r.height / 2}px`);
+  spill.style.setProperty('--gw', `${r.width * 1.7}px`);
+  spill.style.setProperty('--gh', `${r.height * 2.1}px`);
+}
+const schedule = () => { if (!placing) { placing = true; requestAnimationFrame(place); } };
+
+/* ---------- La visite : l'écran reste à l'écran, la fonction lue choisit le chapitre ---------- */
+
+const monitor = $('.monitor');
+const screenCol = $('.screen-col');
+const narrow = matchMedia('(max-width: 1023px)');
+function layout() {
+  // grand écran : l'écran est centré dans la hauteur sous l'en-tête ; téléphone : il reste en haut
+  const header = $('.top').offsetHeight;
+  const h = monitor.offsetHeight;
+  root.style.setProperty('--stick', `${Math.round(header + Math.max(16, (innerHeight - header - h) / 2))}px`);
+  // téléphone : l'écran ne reste en haut que s'il laisse au texte près de la moitié de la hauteur ; sinon (paysage, fenêtre basse) il défile avec la page
+  const loose = narrow.matches && screenCol.offsetHeight > innerHeight * 0.55;
+  screenCol.classList.toggle('loose', loose);
+  root.style.setProperty('--mon-h', `${loose ? 32 : screenCol.offsetHeight + 16}px`);
+  schedule();
+  pick();
+}
+// La fonction lue est celle qui passe au milieu de ce que l'écran laisse voir
+function pick() {
+  // sur téléphone, la visite commence quand l'écran arrive en haut (à la ligne « Gratuit… » près) ; avant, il passe toute la vidéo
+  if (narrow.matches && screenCol.getBoundingClientRect().top > (parseFloat(getComputedStyle(screenCol).top) || 0) + 48) return setRange(null);
+  const top = narrow.matches ? Math.max(0, screenCol.getBoundingClientRect().bottom) : 0;
+  const y = top + (innerHeight - top) / 2;
+  const on = features.find((f) => { const r = f.getBoundingClientRect(); return r.top <= y && r.bottom > y; });
+  setRange(on ? on.dataset.chapter : null);
+}
+addEventListener('scroll', () => { schedule(); pick(); }, { passive: true });
+addEventListener('resize', layout);
+new ResizeObserver(layout).observe(monitor);
+document.fonts?.ready.then(layout);
+layout();
+
+// L'écran ne tourne que s'il est visible
+new IntersectionObserver(([e]) => { if (e.isIntersecting) play(); else video.pause(); }).observe(screen);
+
+// Allumage : l'écran d'abord, la pièce ensuite
+const lightUp = () => root.classList.add('room-lit');
+if (reduce) lightUp();
+else { video.addEventListener('playing', () => setTimeout(lightUp, 500), { once: true }); setTimeout(lightUp, 1600); }
+
+/* ---------- La vidéo avec le son ---------- */
+
+const film = $('#film');
+const filmVideo = film.querySelector('video');
+$('#watch').addEventListener('click', (e) => {
+  if (!film.showModal) return; // sans <dialog>, le lien ouvre le fichier
+  e.preventDefault();
+  video.pause();
+  film.showModal();
+  filmVideo.currentTime = 0;
+  filmVideo.play().catch(() => {});
+});
+film.querySelector('.close').addEventListener('click', () => film.close());
+film.addEventListener('click', (e) => { if (e.target === film) film.close(); });
+film.addEventListener('close', () => { filmVideo.pause(); play(); });
+
+/* ---------- Téléchargement ---------- */
+
+// Le bouton flottant apparaît une fois le titre passé, et se retire devant l'installation
+const float = $('.dl-float');
+const seen = new Map();
+const io = new IntersectionObserver((entries) => {
+  entries.forEach((e) => seen.set(e.target, e.isIntersecting));
+  float.classList.toggle('show', ![...seen.values()].some(Boolean));
+});
+[$('.lead .cta'), $('#installation')].forEach((el) => { seen.set(el, true); io.observe(el); });
 
 // Liens directs vers les fichiers de la dernière version ; sans réponse de GitHub, les liens restent sur la page Releases
 const fmtSize = (b) => `${Math.round(b / 1048576)} Mo`;
@@ -55,162 +228,31 @@ fetch('https://api.github.com/repos/NOUSSS/precise-gunplay/releases/latest', { h
     const files = { setup: find(/Setup.*\.exe$/i), portable: find(/Portable.*\.exe$/i) };
     for (const [kind, asset] of Object.entries(files)) {
       if (!asset) continue;
-      document.querySelectorAll(`[data-dl="${kind}"]`).forEach((a) => (a.href = asset.browser_download_url));
-      document.querySelectorAll(`[data-size="${kind}"]`).forEach((s) => (s.textContent = fmtSize(asset.size)));
+      $$(`[data-dl="${kind}"]`).forEach((a) => (a.href = asset.browser_download_url));
+      $$(`[data-size="${kind}"]`).forEach((s) => (s.textContent = fmtSize(asset.size)));
     }
-    if (rel.tag_name) document.querySelectorAll('[data-version]').forEach((v) => (v.textContent = rel.tag_name));
+    if (rel.tag_name) $$('[data-version]').forEach((v) => (v.textContent = rel.tag_name));
   })
   .catch(() => {});
 
-// Feutre : chaque tracé connaît sa longueur, puis se dessine
-function measure(root = document) {
-  root.querySelectorAll('.draw').forEach((p) => {
-    if (p.getTotalLength) p.style.setProperty('--len', Math.ceil(p.getTotalLength()) + 1);
-  });
+/* ---------- La boutique se renouvelle à 00:00 UTC ---------- */
+
+// « 5 h 56 min 17 s », avec les mêmes espaces insécables que « 79 Mo » et « 1 h »
+function fmtDuration(ms) {
+  ms = Math.max(0, ms);
+  const s = Math.floor(ms / 1000);
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  const tail = `${h ? String(m).padStart(2, '0') : m} min ${String(sec).padStart(2, '0')} s`;
+  return h ? `${h} h ${tail}` : tail;
 }
-function draw(el, dur = 1200) {
-  el.style.setProperty('--dur', dur + 'ms');
-  el.classList.remove('on');
-  // lire le style force le point de départ, sans dépendre des images d'animation (onglet en arrière-plan)
-  void getComputedStyle(el).strokeDashoffset;
-  el.classList.add('on');
-  return wait(dur);
-}
-const show = (el) => el.classList.add('on');
-
-// La carte d'ouverture : mise à l'échelle de la feuille, puis la manche se joue en boucle
-const map = document.querySelector('.map');
-const stage = document.querySelector('[data-stage]');
-new ResizeObserver(([e]) => stage.style.setProperty('--s', e.contentRect.width / 600)).observe(map);
-
-const hero = document.querySelector('.hero');
-const q = (sel) => [...hero.querySelectorAll(sel)];
-const tokens = q('.token.move');
-function moveTokens() {
-  tokens.forEach((t) => t.classList.add('in'));
-  return Promise.all(tokens.map((t) => t.animate([{ offsetDistance: '0%' }, { offsetDistance: '100%' }], {
-    duration: +t.dataset.d, easing: 'cubic-bezier(.45,0,.25,1)', fill: 'forwards',
-  }).finished));
-}
-async function round(first) {
-  // la première manche attend que la carte soit posée et que le titre soit souligné
-  if (first) { await wait(1000); draw(q('[data-step="1"]')[0], 700); await wait(500); }
-  q('[data-step="2"]').forEach((p, i) => draw(p, 1300 + i * 150));
-  await wait(1600);
-  await moveTokens();
-  q('[data-step="4"]').forEach((el) => (el.matches('.draw') ? draw(el, 800) : show(el)));
-  await wait(600);
-  await draw(q('[data-step="5"]')[0], 700);
-  await wait(5200);
-  // on efface le tableau et on rejoue la manche, le soulignement reste
-  q('[data-step="2"],[data-step="4"],[data-step="5"]').forEach((el) => el.classList.remove('on'));
-  tokens.forEach((t) => { t.classList.remove('in'); t.getAnimations().forEach((a) => a.cancel()); });
-  await wait(700);
-  round(false);
-}
-
-// Les zones plus bas : leurs tracés et notes apparaissent quand la zone arrive à l'écran
-function reveal(zone) {
-  const items = [...zone.querySelectorAll('.draw, .marker')];
-  items.forEach((el, i) => setTimeout(() => (el.matches('.draw') ? draw(el, el.classList.contains('line') ? 1800 : 900) : show(el)), 200 + i * 220));
-}
-
-// Partie en direct : lasso au feutre autour des joueurs groupés, note sur la ligne du titre de l'équipe
-const roster = document.querySelector('.roster');
-const lasso = roster.querySelector('.brackets');
-function drawGroups() {
-  const parts = [];
-  roster.querySelectorAll('.grp-note').forEach((note) => {
-    const rows = [...roster.querySelectorAll(`tr[data-grp="${note.dataset.for}"]`)];
-    if (!rows.length) return;
-    const table = rows[0].closest('table');
-    const x0 = table.offsetLeft - 8, x1 = table.offsetLeft + table.offsetWidth + 6;
-    const y0 = table.offsetTop + rows[0].offsetTop + 2, y1 = table.offsetTop + rows.at(-1).offsetTop + rows.at(-1).offsetHeight - 2;
-    const r = 14, color = note.classList.contains('red') ? 'var(--red)' : 'var(--blue)';
-    const d = `M${x0 + r + 6} ${y0 - 3} L${x1 - r} ${y0} Q${x1} ${y0} ${x1} ${y0 + r} L${x1 + 2} ${y1 - r} Q${x1} ${y1} ${x1 - r} ${y1 + 1} L${x0 + r} ${y1} Q${x0} ${y1} ${x0 - 1} ${y1 - r} L${x0} ${y0 + r} Q${x0 + 2} ${y0 - 2} ${x0 + r + 14} ${y0 - 4}`;
-    parts.push(`<path class="draw" d="${d}" stroke="${color}" stroke-width="3"/>`);
-    const cap = table.querySelector('caption');
-    note.style.left = 'auto';
-    note.style.right = `${roster.clientWidth - x1 + 2}px`;
-    note.style.top = `${table.offsetTop + cap.offsetTop - 4}px`;
-  });
-  const done = roster.classList.contains('revealed');
-  lasso.innerHTML = parts.join('');
-  measure(lasso);
-  if (done) lasso.querySelectorAll('.draw').forEach((p) => p.classList.add('on'));
-}
-drawGroups();
-addEventListener('resize', drawGroups);
-document.fonts?.ready.then(drawGroups);
-
-// Évolution du RR : vingt matchs, du premier au dernier
-const deltas = [21, -16, 24, 18, -15, 19, 22, -14, 20, -17, 23, 16, -18, 9, -13, 19, -16, 22, 18, -20];
-(function chart() {
-  const svg = document.querySelector('.chart');
-  const W = 560, H = 240, L = 40, R = 16, T = 16, B = 28;
-  const pts = deltas.reduce((acc, d) => (acc.push(acc.at(-1) + d), acc), [0]);
-  const lo = -20, hi = 120;
-  const x = (i) => L + (i * (W - L - R)) / (pts.length - 1);
-  const y = (v) => T + ((hi - v) * (H - T - B)) / (hi - lo);
-  const grid = [0, 50, 100].map((v) => `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L - 8}" y="${y(v) + 4}" text-anchor="end">${v > 0 ? '+' + v : v}</text>`).join('');
-  svg.querySelector('.grid').innerHTML = grid + `<text x="${L}" y="${H - 6}">il y a 20 matchs</text><text x="${W - R}" y="${H - 6}" text-anchor="end">aujourd’hui</text>`;
-  svg.querySelector('.line').setAttribute('d', pts.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(' '));
-})();
-
-measure();
-
-if (reduce) {
-  document.querySelectorAll('.draw, .marker').forEach(show);
-  tokens.forEach((t) => { t.style.offsetDistance = '100%'; t.classList.add('in'); });
-} else {
-  round(true);
-  const io = new IntersectionObserver((entries) => entries.forEach((e) => {
-    if (!e.isIntersecting) return;
-    io.unobserve(e.target);
-    e.target.classList.add('revealed');
-    reveal(e.target);
-  }), { threshold: 0.25 });
-  document.querySelectorAll('.zone').forEach((z) => io.observe(z));
-}
-if (reduce) document.querySelectorAll('.zone').forEach((z) => z.classList.add('revealed'));
-
-// Résolution étirée : l'interrupteur étire l'écran ; il s'active seul la première fois que l'écran devient visible
-const toggle = document.getElementById('stretch-toggle');
-const screen = document.getElementById('screen');
-const res = document.getElementById('res');
-let touched = false;
-function apply() {
-  screen.classList.toggle('stretched', toggle.checked);
-  res.textContent = toggle.checked ? '1440 × 1080' : '1920 × 1080';
-}
-toggle.addEventListener('change', () => { touched = true; apply(); });
-new IntersectionObserver((entries, obs) => {
-  if (!entries[0].isIntersecting) return;
-  obs.disconnect();
-  setTimeout(() => { if (!touched) { toggle.checked = true; apply(); } }, 900);
-}, { threshold: 0.6 }).observe(screen);
-
-// Profondeur : les feuilles flottent au-dessus de l'émail et le reflet glisse avec le pointeur
-const sheen = document.querySelector('.sheen');
-const layers = [...document.querySelectorAll('[data-depth]')];
-const fine = matchMedia('(pointer: fine) and (min-width: 1181px)');
-if (!reduce) {
-  addEventListener('pointermove', (e) => {
-    const x = e.clientX / innerWidth - 0.5, y = e.clientY / innerHeight - 0.5;
-    sheen.style.transform = `translateX(${x * 18}%)`;
-    if (!fine.matches) return;
-    layers.forEach((l) => { const d = +l.dataset.depth; l.style.translate = `${-x * d}px ${-y * d}px`; });
-  }, { passive: true });
-}
-
-// Aimant flottant : visible entre le tableau d'ouverture et l'installation
-const float = document.querySelector('.float');
-const seen = new Map();
-const fio = new IntersectionObserver((entries) => {
-  entries.forEach((e) => seen.set(e.target, e.isIntersecting));
-  const on = ![...seen.values()].some(Boolean);
-  float.classList.toggle('show', on);
-  float.tabIndex = on ? 0 : -1;
-  float.toggleAttribute('aria-hidden', !on);
-});
-[hero, document.getElementById('installation'), document.querySelector('.foot-zone')].forEach((el) => fio.observe(el));
+const nextReset = () => {
+  const n = new Date();
+  return Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate() + 1);
+};
+const resets = $$('[data-reset]');
+const tick = () => resets.forEach((el) => (el.textContent = fmtDuration(nextReset() - Date.now())));
+tick();
+setInterval(tick, 1000);
+const at = new Date(nextReset());
+const hour = at.getMinutes() ? `${at.getHours()} h ${String(at.getMinutes()).padStart(2, '0')}` : `${at.getHours()} h`;
+$$('[data-reset-hour]').forEach((el) => (el.textContent = hour));

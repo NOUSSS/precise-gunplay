@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <!-- Banc de démonstration : la vraie interface (renderer/) alimentée par mock-api.js, sans Electron ni Riot Client.
+       <base> pointe sur renderer/ : styles.css, app.js et les images s'y chargent comme dans l'app. -->
+  <base href="../../../../renderer/" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src 'self' data: https://media.valorant-api.com https://cdn.discordapp.com; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+  <title>Precise Gunplay</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    /* Boutons de fenêtre que Windows dessine dans l'app (titleBarOverlay de main.js), imités pour la vidéo.
+       Masqués avec ?nocaption dans l'adresse. */
+    .demo-caption { position: absolute; top: 0; right: 0; height: 40px; display: flex; background: #060a0e; color: #ebeff4;
+      font: 10px 'Segoe Fluent Icons', 'Segoe MDL2 Assets'; pointer-events: none; }
+    .demo-caption span { width: 46px; display: grid; place-items: center; }
+  </style>
+</head>
+<body>
+  <header class="titlebar">
+    <img class="brand-mark" src="logo-mark.png" alt="" />
+    <span class="brand-name">Precise <b>Gunplay</b></span>
+    <div class="demo-caption" aria-hidden="true"><span>&#xE921;</span><span>&#xE922;</span><span>&#xE8BB;</span></div>
+  </header>
+
+  <div class="shell">
+    <aside class="sidebar">
+      <nav id="nav"></nav>
+      <div id="update"></div>
+      <div class="account" id="account"></div>
+    </aside>
+    <main id="content" class="content"></main>
+  </div>
+
+  <div id="toasts" class="toasts"></div>
+  <script src="../.github/media/video/timeshim.js"></script>
+  <script src="../.github/media/video/demo/data.js"></script>
+  <script src="../.github/media/video/demo/mock-api.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
