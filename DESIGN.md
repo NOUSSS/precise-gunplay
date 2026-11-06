@@ -116,7 +116,7 @@ Ce fichier décrit le site public (`site/`) seulement. L’app de bureau est une
 
 **Creative North Star : « L’écran dans le noir »**
 
-La page est une pièce plongée dans le noir dont la seule lumière vient de l’écran, et cet écran passe la vraie vidéo de l’app. La couleur de cette lumière est prise sur la vidéo pendant la lecture : elle teinte la pièce, la fin du titre, le halo du bouton principal et le remplissage des chapitres. Il n’y a pas de couleur d’accent fixe ; quand l’app montre la boutique, la pièce prend la teinte de la boutique.
+La page est une pièce plongée dans le noir dont la seule lumière vient de l’écran, et cet écran passe la vraie vidéo de l’app. La couleur de cette lumière est prise sur la vidéo pendant la lecture : elle teinte la pièce, la fin du titre, la surface du bouton principal et le remplissage des chapitres. Il n’y a pas de couleur d’accent fixe ; quand l’app montre la boutique, la pièce prend la teinte de la boutique.
 
 Le texte est posé à même la pénombre, sans cartes. À gauche, le titre et les fonctions ; à droite, un écran avec son cadre, son socle et une flaque de lumière sur le bureau, qui reste à l’écran pendant la visite. La fonction lue s’éclaire à l’encre claire, les autres restent en gris. Le mouvement suit la vidéo et rien d’autre : l’écran s’allume, puis la pièce s’éclaire, puis le titre monte en fondu court.
 
@@ -135,7 +135,7 @@ Rejets confirmés : le « HUD néon rouge » des sites de jeux de tir, et la pag
 Une pénombre neutre et une encre chaude, que seule la lumière de l’écran colore.
 
 ### Primary
-- **Lumière de l’écran** (`glow`, défaut `rgb(118 136 168)`) : n’est pas une couleur fixe. `main.js` l’échantillonne sur la vidéo (les pixels vifs et saturés pèsent plus), garde la teinte, ramène la saturation entre 0,22 et 0,78 et la clarté à 0,6, puis l’écrit en continu dans `--glow` au format `r g b`. Elle sert à la lumière répandue dans la pièce (30 % puis 16 %), à la flaque sous le socle (28 %), au halo de la pilule principale (32 %, 42 % au survol), à la sélection de texte (35 %).
+- **Lumière de l’écran** (`glow`, défaut `rgb(118 136 168)`) : n’est pas une couleur fixe. `main.js` l’échantillonne sur la vidéo (les pixels vifs et saturés pèsent plus), garde la teinte, ramène la saturation entre 0,22 et 0,78 et la clarté à 0,6, puis l’écrit en continu dans `--glow` au format `r g b`. Elle sert à la lumière répandue dans la pièce (30 % puis 16 %), à la flaque sous le socle (28 %), au dégradé de la pilule principale (28 %), à la sélection de texte (35 %). Jamais à une ombre.
 - **Encre éclairée** (`glow-ink`, `color-mix(in oklab, rgb(var(--glow)) 60%, #fff)`) : la lumière mêlée de blanc, pour ce qui doit se lire en couleur : la fin du titre (« à côté du jeu ») et le remplissage des barres de chapitre.
 
 ### Neutral
@@ -193,11 +193,10 @@ La profondeur vient de la lumière, pas de surfaces empilées. Les blocs n’ont
 
 ### Shadow Vocabulary
 - **Écran** (`box-shadow: inset 0 0 0 1px #1c1d21, 0 40px 80px rgb(0 0 0 / 0.6)`) : le cadre et son ombre portée dans la pièce.
-- **Pilule éclairée** (`box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.5), 0 16px 44px rgb(var(--glow) / 0.32), 0 10px 22px rgb(0 0 0 / 0.45)`) : un reflet en haut, un halo flou décalé de la couleur de l’écran, une ombre noire. Au survol : `0 20px 52px` à 42 % et `0 12px 26px` à 50 %, avec une montée de 1px.
-- **Pilule hors lumière** (`box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.5), 0 14px 32px rgb(0 0 0 / 0.55)`) : la même pilule à l’installation, sans halo.
+- **Pilule** (`box-shadow: 0 2px 8px rgb(0 0 0 / 0.3)`) : une ombre courte et neutre, la même pour toutes les pilules claires, éclairées ou non. Au survol, aucune ombre de plus.
 
 ### Named Rules
-**The Lit Object Rule.** Le halo coloré de la pilule principale est voulu : c’est la lumière de l’écran posée sur un objet clair. Un détecteur peut le signaler en `dark-glow` ; il reste, tant qu’il prend sa couleur sur `--glow` et que l’écran est en vue.
+**The No Glow Rule.** Pas de lueur autour des boutons, ni au repos ni au survol : ni halo coloré, ni grande ombre floue, ni ombre qui grandit au survol. La lumière de l’écran teinte la surface de la pilule, jamais son ombre ; le survol change la surface (luminosité 1,07), pas l’ombre. Un premier essai avec un halo de la couleur de l’écran a été jugé trop lumineux et retiré.
 
 **The No Card Rule.** Pas de cartes à contour et fond teinté : les blocs sont du texte posé dans la pénombre.
 
@@ -209,10 +208,10 @@ Trois rayons. La pilule (999px) pour toute action : bouton principal, boutons fa
 
 ### Buttons
 - **Shape :** pilule (999px).
-- **Primary (« Télécharger pour Windows ») :** pilule claire éclairée. Dégradé à 100° de l’encre vers l’encre mêlée à 28 % de la lumière, texte encre sur clair, 700, rembourrage 18px 28px 18px 22px, icône de téléchargement 20px à gauche. Ombre « pilule éclairée ».
-- **Primary à l’installation :** même pilule, fond encre plein, ombre « pilule hors lumière » (The Out-of-Sight Rule).
+- **Primary (« Télécharger pour Windows ») :** pilule claire éclairée. Dégradé à 100° de l’encre vers l’encre mêlée à 28 % de la lumière, texte encre sur clair, 700, rembourrage 18px 28px 18px 22px, icône de téléchargement 20px à gauche. Ombre « pilule ».
+- **Primary à l’installation :** même pilule, fond encre plein, sans teinte de lumière (The Out-of-Sight Rule).
 - **Flottante :** la même pilule, plus petite (0.9375rem, 12px 20px 12px 16px), fixée en bas à droite ; elle apparaît en fondu montant (0,3s) quand aucune autre pilule n’est visible.
-- **Hover / Focus :** montée de 1px et halo élargi, 0,2s sur la courbe de la page. Focus : contour encre 2px, décalé de 4px.
+- **Hover / Focus :** la surface s’éclaircit (`filter: brightness(1.07)`), 0,2s sur la courbe de la page ; ni montée ni ombre de plus (The No Glow Rule). Focus : contour encre 2px, décalé de 4px.
 - **Ghost :** pilule de 36px de haut, blanc à 6 % (11 % au survol), libellé 500 en encre, icône 18px. Sous 600px, icône seule.
 
 ### Chapitres de la vidéo
@@ -251,4 +250,5 @@ Une boîte de dialogue native, 16:9, rayon de l’écran, sur un fond noir à 86
 - **Don't** prendre un ton marketing, ni écrire de tiret cadratin ou de point d’exclamation.
 - **Don't** ajouter « → » au texte d’un bouton.
 - **Don't** poser une icône sur un carré teinté de sa couleur.
+- **Don't** mettre une lueur autour d’un bouton (halo coloré, grande ombre floue), ni au repos ni au survol.
 - **Don't** reprendre les jetons de l’app de bureau (`renderer/`) : seuls le nom et le logo sont communs.
