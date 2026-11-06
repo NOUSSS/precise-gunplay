@@ -1,313 +1,254 @@
 ---
 name: "Precise Gunplay, le site"
-description: "La landing page du compagnon VALORANT pour Windows, posée comme le tableau blanc d’une équipe avant le match."
+description: "La landing page du compagnon VALORANT pour Windows : une pièce dans le noir, éclairée par l’écran qui passe la vidéo de l’app."
 colors:
-  marker-blue: "#2456d6"
-  marker-red: "#e0393e"
-  red-ink: "#c22a2f"
-  tape: "rgba(242, 194, 48, 0.55)"
-  note: "#fbe7a1"
-  note-ink: "#4a3f1c"
-  board: "#f1f3f2"
-  board-deep: "#e1e4e2"
-  paper: "#fffefa"
-  ink: "#1c1f24"
-  ink-2: "#4b5058"
-  ink-3: "#6d727a"
-  rule: "#e2e0d8"
-  alu-hi: "#e3e6ea"
-  alu: "#c3c7cd"
-  alu-lo: "#9ea3aa"
-  magnet-core: "#2a2e35"
-  magnet-label: "#ffffff"
+  glow: "#7688a8"
+  glow-ink: "#abb6cb"
+  room: "#07080a"
+  edge: "#18191d"
+  bezel: "#020203"
+  ink: "#eceae6"
+  ink-2: "#9a9893"
+  ink-3: "#6b6965"
+  on-ink: "#0b0b0c"
 typography:
   display:
-    fontFamily: "Archivo, system-ui, sans-serif"
-    fontSize: "clamp(38px, 4.6vw, 64px)"
-    fontWeight: 850
-    lineHeight: 1.02
-    letterSpacing: "-0.025em"
-    fontVariation: "\"wdth\" 118"
-  headline:
-    fontFamily: "Archivo, system-ui, sans-serif"
-    fontSize: "clamp(30px, 3.4vw, 46px)"
-    fontWeight: 850
-    lineHeight: 1.05
-    letterSpacing: "-0.02em"
-    fontVariation: "\"wdth\" 115"
-  title:
-    fontFamily: "Archivo, system-ui, sans-serif"
-    fontSize: "19px"
-    fontWeight: 800
-    lineHeight: 1.2
-    fontVariation: "\"wdth\" 112"
-  figure:
-    fontFamily: "Archivo, system-ui, sans-serif"
-    fontSize: "26px"
-    fontWeight: 800
-    fontFeature: "\"tnum\" 1"
-    fontVariation: "\"wdth\" 110"
-  body:
-    fontFamily: "Archivo, system-ui, sans-serif"
-    fontSize: "17px"
-    fontWeight: 400
-    lineHeight: 1.55
-  meta:
-    fontFamily: "Archivo, system-ui, sans-serif"
-    fontSize: "14px"
-    fontWeight: 400
-    lineHeight: 1.45
-  small:
-    fontFamily: "Archivo, system-ui, sans-serif"
-    fontSize: "13px"
-    fontWeight: 400
-  button:
-    fontFamily: "Archivo, system-ui, sans-serif"
-    fontSize: "19px"
-    fontWeight: 700
-    lineHeight: 1.1
-  hand:
-    fontFamily: "Caveat, Segoe Print, cursive"
-    fontSize: "26px"
+    fontFamily: "Familjen Grotesk, system-ui, sans-serif"
+    fontSize: "clamp(2.5rem, 1.55rem + 3.3vw, 4.25rem)"
     fontWeight: 700
     lineHeight: 1
+    letterSpacing: "-0.03em"
+  headline:
+    fontFamily: "Familjen Grotesk, system-ui, sans-serif"
+    fontSize: "clamp(1.75rem, 1.35rem + 1.3vw, 2.5rem)"
+    fontWeight: 700
+    lineHeight: 1.08
+    letterSpacing: "-0.02em"
+  title:
+    fontFamily: "Familjen Grotesk, system-ui, sans-serif"
+    fontSize: "1.125rem"
+    fontWeight: 700
+    lineHeight: 1.3
+  figure:
+    fontFamily: "Familjen Grotesk, system-ui, sans-serif"
+    fontSize: "1.5rem"
+    fontWeight: 700
+    lineHeight: 1.1
+    fontFeature: "\"tnum\" 1"
+  body:
+    fontFamily: "Familjen Grotesk, system-ui, sans-serif"
+    fontSize: "1.0625rem"
+    fontWeight: 400
+    lineHeight: 1.55
+  body-small:
+    fontFamily: "Familjen Grotesk, system-ui, sans-serif"
+    fontSize: "0.9375rem"
+    fontWeight: 400
+    lineHeight: 1.55
+  label:
+    fontFamily: "Familjen Grotesk, system-ui, sans-serif"
+    fontSize: "0.875rem"
+    fontWeight: 500
+    lineHeight: 1.55
+  button:
+    fontFamily: "Familjen Grotesk, system-ui, sans-serif"
+    fontSize: "1.125rem"
+    fontWeight: 700
 rounded:
-  paper: "2px"
-  thumb: "3px"
-  screen: "6px"
-  magnet: "12px"
+  glass: "3px"
+  screen: "12px"
   pill: "999px"
-  round: "50%"
 spacing:
-  s1: "4px"
-  s2: "8px"
-  s3: "12px"
-  s4: "16px"
-  s5: "24px"
-  s6: "32px"
-  s7: "48px"
-  s8: "64px"
-  s9: "96px"
-  s10: "128px"
-  frame: "12px"
-  gutter: "clamp(20px, 4vw, 56px)"
+  s1: "0.5rem"
+  s2: "1rem"
+  s3: "1.5rem"
+  s4: "2rem"
+  s5: "3rem"
+  s6: "4rem"
+  s7: "6rem"
+  s8: "8rem"
+  gutter: "clamp(16px, 4vw, 56px)"
+  page: "1440px"
 components:
-  button-magnet:
-    backgroundColor: "{colors.marker-blue}"
-    textColor: "{colors.magnet-label}"
+  button-primary:
+    backgroundColor: "{colors.ink}"
+    textColor: "{colors.on-ink}"
     typography: "{typography.button}"
-    rounded: "{rounded.magnet}"
-    padding: "18px 26px 18px 20px"
-  button-magnet-compact:
-    backgroundColor: "{colors.marker-blue}"
-    textColor: "{colors.magnet-label}"
-    rounded: "{rounded.magnet}"
-    padding: "15px 22px 15px 18px"
-  link-text:
-    textColor: "{colors.marker-blue}"
+    rounded: "{rounded.pill}"
+    padding: "18px 28px 18px 22px"
+  button-primary-install:
+    backgroundColor: "{colors.ink}"
+    textColor: "{colors.on-ink}"
+    typography: "{typography.button}"
+    rounded: "{rounded.pill}"
+    padding: "18px 28px 18px 22px"
+  button-ghost:
+    backgroundColor: "rgb(255 255 255 / 0.06)"
+    textColor: "{colors.ink}"
+    typography: "{typography.label}"
+    rounded: "{rounded.pill}"
+    padding: "0 14px 0 12px"
+    height: "36px"
+  button-ghost-hover:
+    backgroundColor: "rgb(255 255 255 / 0.11)"
   nav-link:
     textColor: "{colors.ink-2}"
+    typography: "{typography.body-small}"
   nav-link-hover:
     textColor: "{colors.ink}"
-  sheet:
-    backgroundColor: "{colors.paper}"
+  chapter:
+    textColor: "{colors.ink-2}"
+    typography: "{typography.label}"
+    padding: "8px 0"
+  chapter-current:
     textColor: "{colors.ink}"
-    rounded: "{rounded.paper}"
-    padding: "32px"
-  sheet-card:
-    backgroundColor: "{colors.paper}"
-    rounded: "{rounded.paper}"
-    padding: "20px 22px 18px"
-  sheet-note:
-    backgroundColor: "{colors.note}"
-    textColor: "{colors.note-ink}"
-    rounded: "{rounded.paper}"
-    padding: "32px 24px 24px"
-  agent-magnet:
-    backgroundColor: "{colors.magnet-core}"
-    rounded: "{rounded.round}"
-    size: "56px"
-  agent-magnet-small:
-    backgroundColor: "{colors.magnet-core}"
-    rounded: "{rounded.round}"
-    size: "34px"
-  switch-track:
-    backgroundColor: "{colors.rule}"
-    rounded: "{rounded.pill}"
-    width: "58px"
-    height: "32px"
-  switch-track-on:
-    backgroundColor: "{colors.marker-blue}"
-  screen:
-    backgroundColor: "{colors.ink}"
+  monitor-bezel:
+    backgroundColor: "{colors.bezel}"
     rounded: "{rounded.screen}"
+    padding: "10px 10px 12px"
 ---
 
 # Design System: Precise Gunplay, le site
 
+Ce fichier décrit le site public (`site/`) seulement. L’app de bureau est une autre entité, avec sa propre direction dans `renderer/DESIGN.md` et ses jetons dans `renderer/styles.css`. Le site et l’app partagent le nom et le logo, pas les jetons.
+
 ## Overview
 
-**Creative North Star: "Le tableau blanc d’avant-match"**
+**Creative North Star : « L’écran dans le noir »**
 
-Le site est le tableau blanc d’une équipe avant le match, vu de face. Un émail froid et légèrement bombé occupe tout l’écran, tenu par un cadre en aluminium fixé aux bords de la fenêtre. Dessus, on pose des choses : des feuilles de papier chaud scotchées ou punaisées de travers, des aimants ronds, une carte imprimée. Et on écrit au feutre : un bleu pour notre équipe et l’action, un rouge pour les adversaires et les annotations. Chaque élément de l’interface est un objet de ce tableau ; rien n’y flotte sans raison matérielle.
+La page est une pièce plongée dans le noir dont la seule lumière vient de l’écran, et cet écran passe la vraie vidéo de l’app. La couleur de cette lumière est prise sur la vidéo pendant la lecture : elle teinte la pièce, la fin du titre, le halo du bouton principal et le remplissage des chapitres. Il n’y a pas de couleur d’accent fixe ; quand l’app montre la boutique, la pièce prend la teinte de la boutique.
 
-La densité est celle d’une planche de travail : une planche par fonction, une feuille principale et une ou deux pièces rapportées (fiche, note jaune, aimants), jamais une grille de cartes égales. La profondeur vient des matières : ombres à deux couches, feuilles qui suivent le pointeur selon leur hauteur au-dessus de l’émail, reflet qui glisse sur l’émail. Le mouvement est celui d’une main qui écrit : les tracés au feutre se dessinent quand une planche entre à l’écran, les aimants avancent le long des flèches.
+Le texte est posé à même la pénombre, sans cartes. À gauche, le titre et les fonctions ; à droite, un écran avec son cadre, son socle et une flaque de lumière sur le bureau, qui reste à l’écran pendant la visite. La fonction lue s’éclaire à l’encre claire, les autres restent en gris. Le mouvement suit la vidéo et rien d’autre : l’écran s’allume, puis la pièce s’éclaire, puis le titre monte en fondu court.
 
-Rejets confirmés : le site « HUD néon rouge » des jeux de tir, la page SaaS blanche à cartes égales, et la première version calquée sur l’app (cartes à contour et fond de même teinte, aucune profondeur, aucune animation).
-
-Ce système décrit le site (`site/`) seulement. L’application Electron (`renderer/`) est une autre entité, avec sa propre identité dans `renderer/styles.css` : elle ne partage ni ces jetons ni ces composants, seulement le nom et le logo.
+Rejets confirmés : le « HUD néon rouge » des sites de jeux de tir, et la page de logiciel à capture posée sous un halo violet fixe.
 
 **Key Characteristics:**
-- Émail froid, papier chaud, encre presque noire, deux feutres et un scotch jaune.
-- Archivo élargi et très gras pour les titres et les chiffres, Archivo normal pour le texte, Caveat pour ce qui est écrit à la main.
-- Feuilles posées de travers (entre -3° et 3,5°), ombres de contact et de portée.
-- Tracés au feutre qui se dessinent, aimants qui se déplacent, parallaxe par hauteur.
-- Un seul bouton, l’aimant bleu, pour une seule action : télécharger.
+- Une seule teinte vive, la lumière de l’écran, variable et prise sur la vidéo.
+- Pénombre presque noire, encre chaude, deux gris.
+- Une seule famille, Familjen Grotesk, servie par le site.
+- Texte posé dans la pénombre, jamais dans une carte à contour et fond teinté.
+- Formes : pilules pour les actions, écran aux coins légèrement arrondis.
+- Mouvement lié à la vidéo ; aucune animation décorative à côté.
 
 ## Colors
 
-Une palette de matières (émail, papier, aluminium) et d’encres, où chaque couleur vive est un feutre avec un rôle.
+Une pénombre neutre et une encre chaude, que seule la lumière de l’écran colore.
 
 ### Primary
-- **Feutre bleu** (marker-blue) : notre équipe et l’action. Fond de l’aimant de téléchargement, liens, anneau de focus, interrupteur actif, bordure des aimants d’agents alliés, flèches et annotations sur nos joueurs, victoires dans l’historique, le quadrillage du graphique (à 8 % d’opacité).
-
-### Secondary
-- **Feutre rouge** (marker-red) : les adversaires et les annotations. Le trait qui souligne le titre, la bordure des aimants adverses, les punaises, le point « en direct », le capuchon du feutre dans le plumier. Réservé aux traits, aux pastilles et aux surfaces.
-- **Encre rouge** (red-ink) : la version du rouge pour le texte. Annotations manuscrites rouges, score adverse, défaites, prix barré du marché nocturne, libellé « en direct ». Elle tient le contraste sur le papier là où le feutre rouge serait trop clair.
-
-### Tertiary
-- **Scotch jaune** (tape) : semi-transparent, posé en mode multiplication sur les coins des feuilles ; sert aussi de couleur de sélection du texte.
-- **Note jaune** (note) : le papier du marché nocturne, seule feuille colorée de la page.
-- **Encre de note** (note-ink) : le texte posé sur la note jaune, un brun qui reste dans la teinte du papier.
+- **Lumière de l’écran** (`glow`, défaut `rgb(118 136 168)`) : n’est pas une couleur fixe. `main.js` l’échantillonne sur la vidéo (les pixels vifs et saturés pèsent plus), garde la teinte, ramène la saturation entre 0,22 et 0,78 et la clarté à 0,6, puis l’écrit en continu dans `--glow` au format `r g b`. Elle sert à la lumière répandue dans la pièce (30 % puis 16 %), à la flaque sous le socle (28 %), au halo de la pilule principale (32 %, 42 % au survol), à la sélection de texte (35 %).
+- **Encre éclairée** (`glow-ink`, `color-mix(in oklab, rgb(var(--glow)) 60%, #fff)`) : la lumière mêlée de blanc, pour ce qui doit se lire en couleur : la fin du titre (« à côté du jeu ») et le remplissage des barres de chapitre.
 
 ### Neutral
-- **Émail** (board) : le fond de la page, en dégradé radial vers l’émail profond.
-- **Émail profond** (board-deep) : bas du dégradé de l’émail, rail de la barre de défilement, tracés fantômes derrière les titres de planche.
-- **Papier** (paper) : toutes les feuilles. Chaud, pour se détacher de l’émail froid.
-- **Encre** (ink) : titres et texte principal, fond de l’écran de la planche « résolution étirée », capuchon noir du plumier.
-- **Encre atténuée** (ink-2) : texte secondaire, métadonnées, liens de navigation au repos.
-- **Encre pâle** (ink-3) : la mention « Données fictives » et l’état hors ligne des amis.
-- **Filet** (rule) : séparateurs de tableaux et de listes, rail de l’interrupteur au repos.
-- **Aluminium clair, aluminium, aluminium sombre** (alu-hi, alu, alu-lo) : le cadre fixe, le plumier du pied de page, le curseur de la barre de défilement.
-- **Cœur d’aimant** (magnet-core) : le fond sombre sous le portrait d’un agent.
+- **Pénombre** (`room`) : le fond de toute la page, la couleur du thème du navigateur, le fond de la piste de défilement.
+- **Arête** (`edge`) : le seul filet de la page, au-dessus du pied de page.
+- **Cadre** (`bezel`) : le cadre noir de l’écran.
+- **Encre** (`ink`) : titres, texte de la fonction lue, liens soulignés, surface de la pilule principale, anneau de focus.
+- **Gris** (`ink-2`) : texte secondaire, fonctions non lues, liens de navigation, libellés de chapitre. Éclairci depuis le premier contrat pour garder au moins 4,5:1 là où la lumière éclaircit la pièce (4,96:1 au pire).
+- **Gris profond** (`ink-3`) : chiffres des étapes, décoratifs (3,66:1 sur la pénombre). Ne porte jamais un texte à lire.
+- **Encre sur clair** (`on-ink`) : le texte de la pilule principale.
 
 ### Named Rules
-**La règle d’une couleur par camp.** Le bleu est notre équipe et l’action, le rouge l’adversaire et l’annotation. Aucun feutre n’est décoratif : si un trait bleu ou rouge ne désigne rien, il disparaît.
+**The One Light Rule.** La seule teinte vive de la page est la lumière de l’écran. Aucune couleur d’accent fixe hors du logo ; une nouvelle couleur vive se prend sur `--glow`, jamais sur un hexadécimal.
 
-**La règle du rouge lisible.** Le texte rouge s’écrit en encre rouge (red-ink), jamais en feutre rouge (marker-red) ; le feutre rouge reste aux traits, bordures et pastilles.
+**The Out-of-Sight Rule.** Là où l’écran est hors de vue (l’installation), rien n’est éclairé : la pilule y est neutre, encre pleine et ombre noire.
 
-**La règle du papier chaud sur émail froid.** Les feuilles sont toujours en papier (paper), le fond toujours en émail (board). Une seule exception colorée, la note jaune, et elle porte une information à part (le marché nocturne).
+**The Palette-Everywhere Rule.** Même le chrome du navigateur suit la palette : `::selection` en lumière à 35 % sur encre, `scrollbar-color` en gris profond mêlé à la pénombre sur la pénombre, `theme-color` et `color-scheme: dark`.
 
 ## Typography
 
-**Display Font:** Archivo variable, axes largeur (62–125 %) et graisse (100–900) (avec system-ui, sans-serif)
-**Body Font:** Archivo, largeur normale (avec system-ui, sans-serif)
-**Label/Mono Font:** Caveat, 400 à 700 (avec Segoe Print, cursive), pour l’écriture au feutre
+**Display Font:** Familjen Grotesk (avec system-ui, sans-serif)
+**Body Font:** Familjen Grotesk (avec system-ui, sans-serif)
 
-**Character:** Une grotesque élargie et lourde qui se lit comme des lettres de pochoir sur un tableau de stratégie, et une écriture manuscrite rapide qui annote par-dessus. Les deux ne se mélangent jamais dans un même rôle.
+**Character :** une grotesque serrée et un peu ronde, compacte en 700 dans les titres, calme en 400 dans le texte. Une seule famille, servie en woff2 (graisses 400 à 700) et préchargée.
 
 ### Hierarchy
-- **Display** (850, largeur 118 %, clamp(38px, 4,6vw, 64px), 1,02) : le titre de la page, seul, souligné par un trait de feutre rouge qui se trace.
-- **Headline** (850, largeur 115 %, clamp(30px, 3,4vw, 46px), 1,05) : le titre de chaque planche, limité à 20 caractères de large.
-- **Title** (800, largeur 112 %, 19px, 1,2) : titres des feuilles et des étapes, noms dans les listes ; descend à 17px dans les grilles serrées (offres, équipes).
-- **Figure** (800, largeur 110 %, 24–26px, chiffres tabulaires) : les valeurs d’une fiche (K/D, RR, prix). Les scores montent à 40px (850, largeur 118 %).
-- **Body** (400, 17px, 1,55 ; 16px sur téléphone) : texte courant, 15px dans les feuilles.
-- **Meta** (400, 14px, 1,45, encre atténuée) : la ligne de contexte sous un titre de feuille, le pied de page.
-- **Small** (13px) : la mention « Données fictives », les en-têtes de colonnes, les intitulés des chiffres.
-- **Hand** (Caveat 700, 26px, 1) : les annotations au feutre posées sur le tableau, avec une seconde ligne en 500 à 22px. La note sous le bouton est en 400 à 27px, inclinée de -3°. Les chiffres des étapes d’installation montent à 64px.
+- **Display** (700, `clamp(2.5rem, 1.55rem + 3.3vw, 4.25rem)`, 1, -0.03em) : le titre de la page seulement, équilibré (`text-wrap: balance`).
+- **Headline** (700, `clamp(1.75rem, 1.35rem + 1.3vw, 2.5rem)`, 1.08, -0.02em) : titre de chaque fonction et de l’installation, équilibré.
+- **Title** (700, 1.125rem, 1.3) : titres des blocs « Et aussi » et des étapes d’installation.
+- **Figure** (700, 1.5rem, 1.1, chiffres tabulaires) : chiffre des étapes numérotées, en gris profond.
+- **Body** (400, 1.0625rem, 1.55) : texte courant ; les fonctions tiennent dans 34rem, les blocs « Et aussi » dans 30rem.
+- **Body small** (400, 0.9375rem) : liens de navigation, ligne sous la pilule.
+- **Label** (500, 0.875rem) : libellés de chapitre, boutons fantômes, note sous l’écran, texte du pied de page (400).
+- **Button** (700, 1.125rem) : la pilule principale ; 0.9375rem dans sa version flottante.
+- Les valeurs chiffrées dans le texte (compte à rebours) passent en 600 à chiffres tabulaires, sans retour à la ligne.
 
 ### Named Rules
-**La règle de la main.** Caveat n’écrit que ce qu’une main écrirait sur le tableau : annotations, note sous le bouton, chiffres des étapes. Jamais un titre, un paragraphe, un libellé de bouton ou un lien de navigation.
+**The Plain Label Rule.** Libellés, boutons et liens restent en casse de phrase, sans capitales ni espacement de lettres.
 
-**La règle de la largeur.** L’axe de largeur (110 à 118 %) est réservé aux titres, aux noms de lieu et aux chiffres ; le texte courant reste en largeur normale. Plus le rôle est haut, plus il est large.
-
-**La règle de la casse normale.** Aucun libellé en capitales ni espacé : la hiérarchie passe par la largeur et la graisse.
+**The No Kicker Rule.** Un titre n’a ni surtitre au-dessus, ni sous-titre ou phrase d’accroche dessous : il est suivi directement du texte ou de l’action.
 
 ## Layout
 
-Le cadre aluminium (12px, 6px sur téléphone) est fixe aux bords de la fenêtre et passe au-dessus de tout ; la page défile dessous. Le contenu tient dans une largeur de 1360px centrée, avec une gouttière fluide (de 20 à 56px).
+Une scène à deux colonnes dans une page de 1440px au plus, avec une marge latérale de `clamp(16px, 4vw, 56px)`. Sur grand écran, le texte occupe 0.78 part et l’écran 1.22 part (environ 55 % de la largeur), avec un écart de `clamp(40px, 5vw, 80px)`. L’écran est collant, centré dans la hauteur sous l’en-tête (76px) ; la position est calculée par le script (`--stick`).
 
-L’ouverture est une grille à deux colonnes : le titre et l’aimant de téléchargement à gauche, la carte de la partie (600px de côté, mise à l’échelle) à droite, avec les fiches rapportées qui débordent autour. Écarts de 64px entre colonnes et de 48px entre rangées.
+Le premier bloc remplit la hauteur de la fenêtre sous l’en-tête ; chaque fonction prend 80 % de la hauteur (64 % sur téléphone), centrée verticalement, pour que l’écran joue son chapitre pendant qu’on la lit. Sous la scène, les blocs « Et aussi » et l’installation reprennent la largeur entière en trois colonnes.
 
-Chaque fonction est une planche : 128px au-dessus (96px sur téléphone), le titre de planche, 48px (32px sur téléphone), puis la planche elle-même, presque toujours une feuille principale et une pièce rapportée en deux colonnes inégales séparées de 64px. Les feuilles s’espacent sur l’échelle de 4 à 128px (4, 8, 12, 16, 24, 32, 48, 64, 96, 128) ; l’intérieur d’une feuille principale est de 32px.
+Rythme vertical sur une échelle de 0.5rem à 8rem (`s1` à `s8`) : `s2` entre paragraphes, `s3` sous un titre de section et entre étapes, `s5` entre colonnes et avant l’action, `s7` au-dessus des grandes sections.
 
-Adaptation : sous 1180px, tout passe sur une colonne, la navigation et les fiches rapportées de l’ouverture disparaissent, la boutique passe à deux offres par ligne. Sous 640px, le cadre s’affine, le texte passe à 16px, les feuilles prennent 24px sur 16px de marge intérieure, les colonnes secondaires des tableaux sont retirées.
-
-**La règle de la planche.** Une fonction égale une planche : une feuille qui montre l’app au travail, une pièce rapportée au plus, des annotations au feutre qui pointent les valeurs. Jamais une rangée de cartes identiques.
+Sous 1024px : une seule colonne, l’en-tête passe à 64px et perd sa navigation ; le titre vient d’abord, puis l’écran se colle en haut, sur un fond de pénombre à 84 % flouté (10px), au-dessus des fonctions. Le socle, la flaque et les libellés de chapitre disparaissent ; les grilles à trois colonnes passent à une. Sous 600px, les boutons fantômes ne gardent que leur icône (36px de côté) et la pilule réduit son rembourrage.
 
 ## Elevation & Depth
 
-Le système est en relief. Tout ce qui est posé sur l’émail porte une ombre à deux couches, une de contact courte et une de portée large, teintée de l’encre et jamais noire pure. La hauteur dit la nature de l’objet : un aimant colle à l’émail, une feuille en est un peu détachée. La profondeur bouge aussi : chaque feuille suit le pointeur d’un déplacement proportionnel à sa hauteur (de 4 à 16px), et un reflet glisse sur l’émail. Le cadre et l’émail sont rendus par dégradés (radial pour l’émail, vertical pour l’aluminium), comme les punaises et les capuchons de feutre : le dégradé n’existe ici que pour rendre une matière.
+La profondeur vient de la lumière, pas de surfaces empilées. Les blocs n’ont pas d’ombre ; seuls l’écran et les pilules en portent, parce que ce sont les objets physiques de la pièce. La lumière elle-même est un dégradé radial fixe, placé par le script au centre de l’écran et dimensionné sur lui (1,7 fois sa largeur, 2,1 fois sa hauteur).
 
 ### Shadow Vocabulary
-- **Proche** (`box-shadow: 0 1px 2px rgba(28,31,36,.20), 0 8px 16px rgba(28,31,36,.12)`) : aimants, punaises, bouton au repos, curseur de l’interrupteur, plumier.
-- **Loin** (`box-shadow: 0 2px 4px rgba(28,31,36,.10), 0 22px 40px rgba(28,31,36,.15)`) : toutes les feuilles de papier.
-- **Soulevé** (`box-shadow: 0 3px 6px rgba(28,31,36,.12), 0 30px 54px rgba(28,31,36,.18)`) : l’aimant de téléchargement au survol, quand il se décolle de 3px.
-- **Détourage** (`filter: drop-shadow(0 8px 8px rgba(28,31,36,.18))`) : les armes et objets sans fond posés sur une feuille.
+- **Écran** (`box-shadow: inset 0 0 0 1px #1c1d21, 0 40px 80px rgb(0 0 0 / 0.6)`) : le cadre et son ombre portée dans la pièce.
+- **Pilule éclairée** (`box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.5), 0 16px 44px rgb(var(--glow) / 0.32), 0 10px 22px rgb(0 0 0 / 0.45)`) : un reflet en haut, un halo flou décalé de la couleur de l’écran, une ombre noire. Au survol : `0 20px 52px` à 42 % et `0 12px 26px` à 50 %, avec une montée de 1px.
+- **Pilule hors lumière** (`box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.5), 0 14px 32px rgb(0 0 0 / 0.55)`) : la même pilule à l’installation, sans halo.
 
 ### Named Rules
-**La règle des deux couches.** Toute ombre a un contact et une portée. Une ombre à une seule couche, ou décalée sans flou, n’appartient pas à ce tableau.
+**The Lit Object Rule.** Le halo coloré de la pilule principale est voulu : c’est la lumière de l’écran posée sur un objet clair. Un détecteur peut le signaler en `dark-glow` ; il reste, tant qu’il prend sa couleur sur `--glow` et que l’écran est en vue.
 
-**La règle de la hauteur.** Les aimants sont proches, les feuilles loin, et seul ce qu’on peut prendre se soulève au survol.
+**The No Card Rule.** Pas de cartes à contour et fond teinté : les blocs sont du texte posé dans la pénombre.
 
 ## Shapes
 
-Le papier est à peine arrondi (2px), comme une feuille coupée. Les miniatures de carte gardent 3px, l’écran de la planche « résolution étirée » 6px, l’aimant de téléchargement 12px : un aimant de tableau, rectangulaire aux coins doux. Tout ce qui est rond l’est franchement (aimants d’agents, punaises, pastilles d’état, curseur), et le rail de l’interrupteur est une gélule. Les feuilles sont inclinées d’un angle propre à chacune, entre -3° et 3,5° ; les bandes de scotch (86 × 26px) aussi. Les séparations internes sont des filets de 1px, jamais des contours de feuille.
-
-**La règle de la feuille posée.** Une feuille n’a pas de contour : son bord vient de son ombre et de son inclinaison.
+Trois rayons. La pilule (999px) pour toute action : bouton principal, boutons fantômes. L’écran (12px, 10px sur téléphone) pour le cadre et la fenêtre de la vidéo en grand ; la vitre (3px) pour l’image dans le cadre. Le socle est un trapèze dessiné en SVG. Les barres de chapitre sont des traits de 3px. Le seul filet est celui du pied de page (1px, arête). Les icônes sont des traits SVG arrondis (1.8 à 2.2), en couleur du texte.
 
 ## Components
 
 ### Buttons
-L’aimant bleu : épais, qu’on a envie de détacher du tableau.
-- **Shape:** coins doux d’aimant (12px).
-- **Primary:** feutre bleu, libellé blanc en Archivo 700 19px, icône de téléchargement tracée de 22px à gauche, marge intérieure asymétrique (18px 26px 18px 20px) qui équilibre l’icône. Un liseré clair en haut (`inset 0 1px 0 rgba(255,255,255,.25)`) et l’ombre proche.
-- **Hover / Focus:** au survol, l’aimant se décolle de 3px et prend l’ombre soulevée, en 200ms sur la courbe de sortie ; à l’appui, il revient au contact. Le focus est un anneau bleu de 3px décalé de 3px.
-- **Compact:** même aimant à 17px (15px 22px 15px 18px) dans les étapes d’installation et sur téléphone ; à 16px avec le seul libellé « Télécharger » pour l’aimant flottant, qui apparaît en bas à droite une fois l’ouverture passée.
-- **Secondary:** aucun bouton secondaire. L’alternative (version portable) est un lien.
+- **Shape :** pilule (999px).
+- **Primary (« Télécharger pour Windows ») :** pilule claire éclairée. Dégradé à 100° de l’encre vers l’encre mêlée à 28 % de la lumière, texte encre sur clair, 700, rembourrage 18px 28px 18px 22px, icône de téléchargement 20px à gauche. Ombre « pilule éclairée ».
+- **Primary à l’installation :** même pilule, fond encre plein, ombre « pilule hors lumière » (The Out-of-Sight Rule).
+- **Flottante :** la même pilule, plus petite (0.9375rem, 12px 20px 12px 16px), fixée en bas à droite ; elle apparaît en fondu montant (0,3s) quand aucune autre pilule n’est visible.
+- **Hover / Focus :** montée de 1px et halo élargi, 0,2s sur la courbe de la page. Focus : contour encre 2px, décalé de 4px.
+- **Ghost :** pilule de 36px de haut, blanc à 6 % (11 % au survol), libellé 500 en encre, icône 18px. Sous 600px, icône seule.
 
-### Liens
-- **Lien de texte:** feutre bleu, souligné de 2px décalé de 3px, soulignement à 35 % d’opacité qui devient plein au survol. Dans la note manuscrite, même traitement, décalé de 4px.
-- **Navigation:** liens en encre atténuée à 15px, sans soulignement, qui passent à l’encre au survol ; masquée sous 1180px. Le pied de page reprend le même traitement à 14px.
+### Chapitres de la vidéo
+Une grille de cinq barres sous l’écran, une par chapitre. Chaque barre (3px, blanc à 12 %) se remplit en encre éclairée au fil de la lecture ; un clic saute au chapitre. Libellé en gris, encre au survol et pour le chapitre en cours ; masqué sur tablette et téléphone.
 
-### Cards / Containers
-La feuille de papier.
-- **Corner Style:** 2px.
-- **Background:** papier ; la note jaune pour la seule pièce à part.
-- **Shadow Strategy:** ombre loin (voir Elevation & Depth).
-- **Border:** aucune. Inclinaison propre, scotch ou punaise pour la tenir.
-- **Internal Padding:** 32px pour une feuille principale, 20px 22px 18px pour une fiche rapportée, 24px sur 16px sur téléphone.
-- **En-tête:** titre à gauche, mention « Données fictives » (13px, encre pâle) à droite sur toute feuille qui recompose des données de l’app.
+### Écran (signature)
+Cadre noir (rembourrage 10px 10px 12px), vitre 16:9 qui lit la boucle muette, socle SVG et flaque de lumière radiale sur le bureau. À l’allumage, la vitre clignote (luminosité 0, 1,5, 0,35, puis normale en 1,4s) avant que la lumière ne se répande dans la pièce (fondu 1,4s).
 
-### Inputs / Fields
-- **Interrupteur:** seul contrôle de la page. Rail en gélule de 58 × 32px, filet au repos avec une ombre intérieure, feutre bleu une fois activé ; curseur en papier de 26px avec l’ombre proche, qui glisse en 300ms. Focus : anneau bleu sur le rail.
+### Fonctions
+Une section par fonction, texte gris ; la fonction lue passe à l’encre en 0,5s et fait jouer l’écran sur son chapitre.
 
-### Signature : les aimants d’agents
-Ronds de 56px (34px dans les listes), portrait de l’agent sur le cœur d’aimant, bordure de 4px (3px en petit) à la couleur du camp : feutre bleu pour nous, feutre rouge pour l’adversaire. Sur la carte d’ouverture, ils avancent le long des flèches au feutre.
+### Étapes numérotées
+Un seul composant sert pour toutes les étapes (résolution étirée, installation) : le chiffre en gris profond à gauche (colonne de 2rem), le titre en encre et 600 ou 700, puis le texte en gris. En colonne dans une fonction, en trois colonnes à l’installation.
 
-### Signature : les tracés et annotations au feutre
-Traits à bouts ronds, de 3 à 7px, qui se dessinent à l’entrée de leur planche (de 700 à 1800ms, courbe du tracé), suivis des annotations manuscrites qui apparaissent en fondu. Chaque annotation est détourée d’un halo de papier pour rester lisible sur la carte. Une flèche ou un cercle pointe toujours la valeur qu’il désigne (le +102 RR entouré, les groupes repérés reliés d’un crochet). Avec la réduction des animations, tout est affiché d’emblée à l’état final.
+### Navigation
+Liens en gris, small, espacés de `s4`, à droite de la marque ; encre au survol (0,2s). Masquée sous 1024px. Le pied de page reprend les mêmes liens, espacés de `s3`.
 
-### Signature : le cadre et le plumier
-Le cadre aluminium fixe borde la fenêtre ; en pied de page, le rebord du tableau porte trois feutres (bleu, rouge, encre) et une brosse, purement décoratifs et masqués aux lecteurs d’écran.
+### Vidéo avec le son
+Une boîte de dialogue native, 16:9, rayon de l’écran, sur un fond noir à 86 % ; bouton de fermeture rond de 40px, noir à 60 %.
 
 ## Do's and Don'ts
 
 ### Do:
-- **Do** poser chaque contenu sur une feuille en papier (paper, 2px, ombre loin) inclinée de son propre angle, entre -3° et 3,5°.
-- **Do** réserver le feutre bleu (marker-blue) à notre équipe et à l’action, le rouge à l’adversaire et à l’annotation, et écrire le texte rouge en encre rouge (red-ink).
-- **Do** pointer les valeurs importantes d’un trait de feutre qui se dessine, et les annoter en Caveat 700.
-- **Do** donner à toute ombre ses deux couches, contact et portée, teintées de l’encre (rgba(28,31,36,…)).
-- **Do** écrire titres et chiffres en Archivo élargi (largeur 110 à 118 %, graisse 800 à 850), chiffres tabulaires.
-- **Do** marquer « Données fictives » sur toute feuille qui recompose des données de l’app.
-- **Do** afficher l’état final de chaque tracé et de chaque annotation quand l’utilisateur réduit les animations.
+- **Do** prendre toute couleur vive sur `--glow` (`rgb(var(--glow) / a)` ou `--glow-ink`), jamais sur une valeur fixe.
+- **Do** garder le texte secondaire en `ink-2` et réserver `ink-3` aux chiffres décoratifs.
+- **Do** écrire les durées et unités avec une espace insécable (« 5 h 43 min 24 s », « 79 Mo », « 1440 × 1080 »).
+- **Do** vouvoyer, mettre une espace insécable avant « : ; ? ! » et à l’intérieur des guillemets, écrire « … » plutôt que « ... » et l’apostrophe typographique.
+- **Do** utiliser la courbe `cubic-bezier(0.2, 0.7, 0.2, 1)` pour tout mouvement, 0,2s pour les changements d’état, et couper les animations sous `prefers-reduced-motion`.
+- **Do** passer par le composant d’étapes numérotées pour toute suite d’étapes.
 
 ### Don't:
-- **Don't** reprendre les jetons, les composants ou l’aspect de l’app Electron (`renderer/styles.css`) : le site est une autre entité.
-- **Don't** faire de carte à contour et fond de même teinte, ni de grille de cartes identiques.
-- **Don't** glisser vers le « HUD néon rouge » des jeux de tir ou vers la page SaaS blanche.
-- **Don't** écrire en Caveat un titre, un paragraphe, un bouton ou un lien de navigation.
-- **Don't** mettre de libellé en capitales ou espacé.
-- **Don't** utiliser un dégradé, une lueur ou un reflet qui ne rende pas une matière du tableau (émail, aluminium, punaise, feutre).
-- **Don't** ajouter un second bouton plein : l’aimant bleu est la seule action, l’alternative est un lien.
-- **Don't** utiliser une ombre à une seule couche ou décalée sans flou.
+- **Don't** ajouter une couleur d’accent fixe, un néon rouge façon HUD ou un halo violet fixe.
+- **Don't** poser un bloc dans une carte à contour et fond teinté.
+- **Don't** mettre un surtitre au-dessus d’un titre, ni un sous-titre ou une phrase d’accroche dessous.
+- **Don't** écrire libellés et boutons en capitales ou en lettres espacées.
+- **Don't** prendre un ton marketing, ni écrire de tiret cadratin ou de point d’exclamation.
+- **Don't** ajouter « → » au texte d’un bouton.
+- **Don't** poser une icône sur un carré teinté de sa couleur.
+- **Don't** reprendre les jetons de l’app de bureau (`renderer/`) : seuls le nom et le logo sont communs.
