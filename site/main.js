@@ -10,6 +10,21 @@
   const topbar = document.querySelector('[data-topbar]');
   const onScrollTopbar = () => topbar.classList.toggle('is-scrolled', window.scrollY > 8);
 
+  /* ---------- Un seul bouton Télécharger à l’écran ---------- */
+  // Le bouton de la barre se montre quand aucun grand bouton (héros, appel final) n’est visible sous la barre.
+  // La marge du bas retarde la prise de relais jusqu’à ce que le bouton final ait commencé à apparaître (voir revealIO).
+  const topbarCta = topbar.querySelector('[data-topbar-cta]');
+  const ctaInView = new Set();
+  const CTA_RATIO = 0.6;
+  const ctaIO = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (e.intersectionRatio >= CTA_RATIO) ctaInView.add(e.target);
+      else ctaInView.delete(e.target);
+    }
+    topbarCta.classList.toggle('is-shown', ctaInView.size === 0);
+  }, { rootMargin: `-${topbar.offsetHeight}px 0px -15% 0px`, threshold: CTA_RATIO });
+  document.querySelectorAll('[data-cta]').forEach((el) => ctaIO.observe(el));
+
   /* ---------- Apparitions ---------- */
   const revealIO = new IntersectionObserver((entries) => {
     for (const e of entries) {
