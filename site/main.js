@@ -1,258 +1,291 @@
-const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-const root = document.documentElement;
-const $ = (s) => document.querySelector(s);
-const $$ = (s) => [...document.querySelectorAll(s)];
+(() => {
+  'use strict';
+  window.pgReady = true;
 
-/* ---------- La vidéo et ses chapitres ---------- */
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// Mêmes instants que .github/media/video/scenario.js ; le dernier passage (retour à l'accueil) boucle sur le premier
-const CHAPTERS = [
-  { id: 'accueil', start: 0, end: 3.2 },
-  { id: 'boutique', start: 3.2, end: 11.0 },
-  { id: 'etiree', start: 11.0, end: 20.0 },
-  { id: 'partie', start: 20.0, end: 27.6 },
-  { id: 'stats', start: 27.6, end: 35.2 },
-];
-const video = $('#demo');
-const buttons = new Map($$('.chapters button').map((b) => [b.dataset.chapter, b]));
-const features = $$('.feature');
-let range = null; // chapitre que l'écran rejoue en boucle quand une fonction est lue, sinon toute la vidéo
-let userPaused = reduce;
+  /* ---------- Barre du haut ---------- */
+  const topbar = document.querySelector('[data-topbar]');
+  const onScrollTopbar = () => topbar.classList.toggle('is-scrolled', window.scrollY > 8);
 
-const chapterAt = (t) => CHAPTERS.find((c) => t >= c.start && t < c.end) || CHAPTERS[0];
-
-function play() {
-  if (userPaused) return;
-  video.play().catch(() => {});
-}
-function setPaused(paused) {
-  userPaused = paused;
-  const b = $('#pause');
-  b.setAttribute('aria-pressed', String(paused));
-  b.querySelector('span').textContent = paused ? 'Lire' : 'Pause';
-  if (paused) video.pause();
-  else play();
-}
-$('#pause').addEventListener('click', () => setPaused(!userPaused));
-if (reduce) setPaused(true);
-
-// Une fonction lue fait rejouer son chapitre ; revenir au titre rend toute la vidéo
-function setRange(id) {
-  const next = id ? CHAPTERS.find((c) => c.id === id) : null;
-  if (next === range) return;
-  range = next;
-  features.forEach((f) => f.classList.toggle('on', f.dataset.chapter === id));
-  if (range && (video.currentTime < range.start || video.currentTime >= range.end)) video.currentTime = range.start;
-}
-
-// À chaque image : la boucle du chapitre, la barre du chapitre en cours
-function frame() {
-  const t = video.currentTime;
-  if (range && t >= range.end - 0.02) video.currentTime = range.start;
-  const now = chapterAt(t);
-  for (const c of CHAPTERS) {
-    const b = buttons.get(c.id);
-    // les chapitres déjà passés restent pleins quand toute la vidéo tourne ; pendant une boucle, seul le sien avance
-    const p = c === now ? (t - c.start) / (c.end - c.start) : !range && t >= c.end ? 1 : 0;
-    b.style.setProperty('--p', p.toFixed(4));
-    b.setAttribute('aria-current', String(c === now));
-  }
-}
-if ('requestVideoFrameCallback' in HTMLVideoElement.prototype) {
-  const loop = () => { frame(); video.requestVideoFrameCallback(loop); };
-  video.requestVideoFrameCallback(loop);
-} else {
-  const loop = () => { frame(); requestAnimationFrame(loop); };
-  requestAnimationFrame(loop);
-}
-video.addEventListener('seeked', frame);
-
-// Un chapitre choisi : pendant la visite, on va à sa fonction ; en haut de page, l'écran y saute
-buttons.forEach((b, id) => b.addEventListener('click', () => {
-  const target = features.find((f) => f.dataset.chapter === id);
-  if (range && target) target.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth' });
-  else if (range && id === 'accueil') scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
-  else {
-    video.currentTime = CHAPTERS.find((c) => c.id === id).start + 0.01;
-    frame();
-  }
-}));
-
-/* ---------- La lumière de l'écran ---------- */
-
-// La couleur de la lumière est prise sur l'image affichée : les pixels vifs et colorés comptent plus que le fond sombre de l'app
-const probe = document.createElement('canvas');
-probe.width = 32; probe.height = 18;
-const ctx = probe.getContext('2d', { willReadFrequently: true });
-const target = [118, 136, 168];
-const glow = [118, 136, 168];
-
-function sample(source) {
-  try {
-    ctx.drawImage(source, 0, 0, probe.width, probe.height);
-    const d = ctx.getImageData(0, 0, probe.width, probe.height).data;
-    let r = 0, g = 0, b = 0, w = 0;
-    for (let i = 0; i < d.length; i += 4) {
-      const mx = Math.max(d[i], d[i + 1], d[i + 2]), mn = Math.min(d[i], d[i + 1], d[i + 2]);
-      const sat = (mx - mn) / 255, lum = (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255;
-      const k = 0.02 + sat * sat * 2 + lum * lum;
-      r += d[i] * k; g += d[i + 1] * k; b += d[i + 2] * k; w += k;
+  /* ---------- Apparitions ---------- */
+  const revealIO = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (e.isIntersecting) {
+        e.target.classList.add('is-in');
+        revealIO.unobserve(e.target);
+      }
     }
-    if (w) Object.assign(target, normalize(r / w, g / w, b / w));
-  } catch { /* image pas encore décodée */ }
-}
-// Teinte gardée, saturation et clarté ramenées dans une plage lisible sur la pénombre
-function normalize(r, g, b) {
-  r /= 255; g /= 255; b /= 255;
-  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, dl = mx - mn;
-  let h = 0, s = 0;
-  if (dl) {
-    s = dl / (1 - Math.abs(2 * l - 1));
-    h = mx === r ? ((g - b) / dl) % 6 : mx === g ? (b - r) / dl + 2 : (r - g) / dl + 4;
-    h *= 60;
-  }
-  s = Math.min(0.78, Math.max(0.22, s * 1.5));
-  const L = 0.6, c = (1 - Math.abs(2 * L - 1)) * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = L - c / 2;
-  const [r1, g1, b1] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
-  return [(r1 + m) * 255, (g1 + m) * 255, (b1 + m) * 255];
-}
+  }, { rootMargin: '0px 0px -8% 0px', threshold: 0.12 });
 
-const poster = new Image();
-poster.src = video.getAttribute('poster');
-poster.decode().then(() => { sample(poster); glow.splice(0, 3, ...target); paintGlow(); }).catch(() => {});
+  const hero = document.querySelector('[data-hero]');
+  document.querySelectorAll('[data-reveal]').forEach((el) => {
+    if (hero.contains(el)) return;
+    revealIO.observe(el);
+  });
+  // Le héros entre dès le premier rendu, en cascade.
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    hero.querySelectorAll('[data-reveal]').forEach((el) => el.classList.add('is-in'));
+  }));
 
-function paintGlow() {
-  root.style.setProperty('--glow', glow.map(Math.round).join(' '));
-}
-let lastSample = 0;
-function light(now) {
-  if (!video.paused && video.readyState >= 2 && now - lastSample > 100) { sample(video); lastSample = now; }
-  let moved = false;
-  for (let i = 0; i < 3; i++) {
-    const dv = target[i] - glow[i];
-    if (Math.abs(dv) > 0.4) { glow[i] += dv * (reduce ? 1 : 0.08); moved = true; }
-  }
-  if (moved) paintGlow();
-  requestAnimationFrame(light);
-}
-requestAnimationFrame(light);
-video.addEventListener('seeked', () => { if (video.paused) sample(video); });
+  /* ---------- Inclinaison de la vidéo et parallaxe ---------- */
+  const stage = document.querySelector('[data-stage]');
+  const frame = document.querySelector('[data-frame]');
+  const depthEls = [...document.querySelectorAll('[data-depth]')].map((el) => ({
+    el, depth: parseFloat(el.dataset.depth), box: el.parentElement,
+  }));
 
-// La lumière part de l'écran, où qu'il soit dans la page
-const spill = $('.spill');
-const screen = $('.screen');
-let placing = false;
-function place() {
-  placing = false;
-  const r = screen.getBoundingClientRect();
-  spill.style.setProperty('--gx', `${r.left + r.width / 2}px`);
-  spill.style.setProperty('--gy', `${r.top + r.height / 2}px`);
-  spill.style.setProperty('--gw', `${r.width * 1.7}px`);
-  spill.style.setProperty('--gh', `${r.height * 2.1}px`);
-}
-const schedule = () => { if (!placing) { placing = true; requestAnimationFrame(place); } };
+  let ticking = false;
+  const update = () => {
+    ticking = false;
+    onScrollTopbar();
+    if (reduceMotion) return;
+    const vh = window.innerHeight;
 
-/* ---------- La visite : l'écran reste à l'écran, la fonction lue choisit le chapitre ---------- */
-
-const monitor = $('.monitor');
-const screenCol = $('.screen-col');
-const narrow = matchMedia('(max-width: 1023px)');
-function layout() {
-  // grand écran : l'écran est centré dans la hauteur sous l'en-tête ; téléphone : il reste en haut
-  const header = $('.top').offsetHeight;
-  const h = monitor.offsetHeight;
-  root.style.setProperty('--stick', `${Math.round(header + Math.max(16, (innerHeight - header - h) / 2))}px`);
-  // téléphone : l'écran ne reste en haut que s'il laisse au texte près de la moitié de la hauteur ; sinon (paysage, fenêtre basse) il défile avec la page
-  const loose = narrow.matches && screenCol.offsetHeight > innerHeight * 0.55;
-  screenCol.classList.toggle('loose', loose);
-  root.style.setProperty('--mon-h', `${loose ? 32 : screenCol.offsetHeight + 16}px`);
-  schedule();
-  pick();
-}
-// La fonction lue est celle qui passe au milieu de ce que l'écran laisse voir
-function pick() {
-  // sur téléphone, la visite commence quand l'écran arrive en haut (à la ligne « Gratuit… » près) ; avant, il passe toute la vidéo
-  if (narrow.matches && screenCol.getBoundingClientRect().top > (parseFloat(getComputedStyle(screenCol).top) || 0) + 48) return setRange(null);
-  const top = narrow.matches ? Math.max(0, screenCol.getBoundingClientRect().bottom) : 0;
-  const y = top + (innerHeight - top) / 2;
-  const on = features.find((f) => { const r = f.getBoundingClientRect(); return r.top <= y && r.bottom > y; });
-  setRange(on ? on.dataset.chapter : null);
-}
-addEventListener('scroll', () => { schedule(); pick(); }, { passive: true });
-addEventListener('resize', layout);
-new ResizeObserver(layout).observe(monitor);
-document.fonts?.ready.then(layout);
-layout();
-
-// L'écran ne tourne que s'il est visible
-new IntersectionObserver(([e]) => { if (e.isIntersecting) play(); else video.pause(); }).observe(screen);
-
-// Allumage : l'écran d'abord, la pièce ensuite
-const lightUp = () => root.classList.add('room-lit');
-if (reduce) lightUp();
-else { video.addEventListener('playing', () => setTimeout(lightUp, 500), { once: true }); setTimeout(lightUp, 1600); }
-
-/* ---------- La vidéo avec le son ---------- */
-
-const film = $('#film');
-const filmVideo = film.querySelector('video');
-$('#watch').addEventListener('click', (e) => {
-  if (!film.showModal) return; // sans <dialog>, le lien ouvre le fichier
-  e.preventDefault();
-  video.pause();
-  film.showModal();
-  filmVideo.currentTime = 0;
-  filmVideo.play().catch(() => {});
-});
-film.querySelector('.close').addEventListener('click', () => film.close());
-film.addEventListener('click', (e) => { if (e.target === film) film.close(); });
-film.addEventListener('close', () => { filmVideo.pause(); play(); });
-
-/* ---------- Téléchargement ---------- */
-
-// Le bouton flottant apparaît une fois le titre passé, et se retire devant l'installation
-const float = $('.dl-float');
-const seen = new Map();
-const io = new IntersectionObserver((entries) => {
-  entries.forEach((e) => seen.set(e.target, e.isIntersecting));
-  float.classList.toggle('show', ![...seen.values()].some(Boolean));
-});
-[$('.lead .cta'), $('#installation')].forEach((el) => { seen.set(el, true); io.observe(el); });
-
-// Liens directs vers les fichiers de la dernière version ; sans réponse de GitHub, les liens restent sur la page Releases
-const fmtSize = (b) => `${Math.round(b / 1048576)} Mo`;
-fetch('https://api.github.com/repos/NOUSSS/precise-gunplay/releases/latest', { headers: { Accept: 'application/vnd.github+json' } })
-  .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-  .then((rel) => {
-    const find = (re) => rel.assets.find((a) => re.test(a.name));
-    const files = { setup: find(/Setup.*\.exe$/i), portable: find(/Portable.*\.exe$/i) };
-    for (const [kind, asset] of Object.entries(files)) {
-      if (!asset) continue;
-      $$(`[data-dl="${kind}"]`).forEach((a) => (a.href = asset.browser_download_url));
-      $$(`[data-size="${kind}"]`).forEach((s) => (s.textContent = fmtSize(asset.size)));
+    const top = stage.getBoundingClientRect().top;
+    if (top < vh && top > -vh) {
+      // 1 tant que la vidéo est basse dans l'écran, 0 quand elle atteint le haut.
+      const p = clamp((top - vh * 0.12) / (vh * 0.62), 0, 1);
+      frame.style.transform = `rotateX(${(p * 20).toFixed(2)}deg) scale(${(1 - p * 0.06).toFixed(4)})`;
     }
-    if (rel.tag_name) $$('[data-version]').forEach((v) => (v.textContent = rel.tag_name));
-  })
-  .catch(() => {});
 
-/* ---------- La boutique se renouvelle à 00:00 UTC ---------- */
+    for (const d of depthEls) {
+      const r = d.box.getBoundingClientRect();
+      if (r.bottom < 0 || r.top > vh) continue;
+      const offset = (r.top + r.height / 2 - vh / 2) * -d.depth;
+      d.el.style.transform = `translate3d(0, ${offset.toFixed(1)}px, 0)`;
+    }
+  };
+  const requestUpdate = () => {
+    if (!ticking) { ticking = true; requestAnimationFrame(update); }
+  };
+  window.addEventListener('scroll', requestUpdate, { passive: true });
+  window.addEventListener('resize', requestUpdate);
+  update();
 
-// « 5 h 56 min 17 s », avec les mêmes espaces insécables que « 79 Mo » et « 1 h »
-function fmtDuration(ms) {
-  ms = Math.max(0, ms);
-  const s = Math.floor(ms / 1000);
-  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
-  const tail = `${h ? String(m).padStart(2, '0') : m} min ${String(sec).padStart(2, '0')} s`;
-  return h ? `${h} h ${tail}` : tail;
-}
-const nextReset = () => {
-  const n = new Date();
-  return Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate() + 1);
-};
-const resets = $$('[data-reset]');
-const tick = () => resets.forEach((el) => (el.textContent = fmtDuration(nextReset() - Date.now())));
-tick();
-setInterval(tick, 1000);
-const at = new Date(nextReset());
-const hour = at.getMinutes() ? `${at.getHours()} h ${String(at.getMinutes()).padStart(2, '0')}` : `${at.getHours()} h`;
-$$('[data-reset-hour]').forEach((el) => (el.textContent = hour));
+  /* ---------- Vidéo à chapitres ---------- */
+  const video = document.querySelector('[data-video]');
+  const playBtn = document.querySelector('[data-play]');
+  const soundBtn = document.querySelector('[data-sound]');
+  const currentLabel = document.querySelector('[data-chapter-current]');
+  const chapters = [...document.querySelectorAll('[data-chapter]')].map((btn) => ({
+    btn,
+    start: parseFloat(btn.dataset.start),
+    end: parseFloat(btn.dataset.end),
+    fill: btn.querySelector('.chapter-fill'),
+    label: btn.querySelector('.chapter-label').textContent,
+  }));
+
+  let userPaused = reduceMotion;
+  let videoVisible = false;
+  let activeChapter = -1;
+  let rafId = 0;
+
+  // Après le dernier chapitre, la vidéo revient à l’accueil avant de boucler : on repart comme au début.
+  const loopBack = chapters[chapters.length - 1].end;
+  const paintChapters = () => {
+    const t = video.currentTime >= loopBack ? 0 : video.currentTime;
+    let active = 0;
+    chapters.forEach((c, i) => {
+      const p = clamp((t - c.start) / (c.end - c.start), 0, 1);
+      c.fill.style.transform = `scaleX(${p.toFixed(4)})`;
+      if (t >= c.start) active = i;
+    });
+    if (active !== activeChapter) {
+      activeChapter = active;
+      chapters.forEach((c, i) => c.btn.setAttribute('aria-current', String(i === active)));
+      currentLabel.textContent = chapters[active].label;
+    }
+  };
+  const loop = () => {
+    paintChapters();
+    rafId = video.paused ? 0 : requestAnimationFrame(loop);
+  };
+  const syncPlayState = () => {
+    const playing = !video.paused;
+    playBtn.classList.toggle('is-playing', playing);
+    playBtn.setAttribute('aria-label', playing ? 'Mettre la vidéo en pause' : 'Lire la vidéo');
+    if (playing && !rafId) rafId = requestAnimationFrame(loop);
+    paintChapters();
+  };
+  const tryPlay = () => { video.play().catch(() => syncPlayState()); };
+
+  video.addEventListener('play', syncPlayState);
+  video.addEventListener('pause', syncPlayState);
+  video.addEventListener('seeked', paintChapters);
+  video.addEventListener('loadedmetadata', paintChapters);
+
+  playBtn.addEventListener('click', () => {
+    if (video.paused) { userPaused = false; tryPlay(); }
+    else { userPaused = true; video.pause(); }
+  });
+
+  chapters.forEach((c) => {
+    c.btn.addEventListener('click', () => {
+      video.currentTime = c.start + 0.01;
+      userPaused = false;
+      tryPlay();
+      paintChapters();
+    });
+  });
+
+  let soundSourceLoaded = false;
+  soundBtn.addEventListener('click', () => {
+    const on = video.muted;
+    if (on && !soundSourceLoaded) {
+      // La piste avec le son est un autre fichier : on le charge à la demande, au même instant.
+      soundSourceLoaded = true;
+      const t = video.currentTime;
+      video.src = 'media/demo-son.mp4';
+      video.addEventListener('loadedmetadata', () => { video.currentTime = t; }, { once: true });
+    }
+    video.muted = !on;
+    soundBtn.classList.toggle('is-on', on);
+    soundBtn.setAttribute('aria-pressed', String(on));
+    soundBtn.setAttribute('aria-label', on ? 'Couper le son' : 'Activer le son');
+    if (on) { userPaused = false; tryPlay(); }
+  });
+
+  new IntersectionObserver(([e]) => {
+    videoVisible = e.isIntersecting;
+    if (videoVisible && !userPaused) tryPlay();
+    else if (!videoVisible && !video.paused) video.pause();
+  }, { threshold: 0.25 }).observe(video);
+
+  paintChapters();
+
+  /* ---------- Résolution étirée ---------- */
+  const steps = document.querySelector('[data-steps]');
+  const monitor = document.querySelector('[data-monitor]');
+  const stepBtns = [...steps.querySelectorAll('[data-step]')];
+  const resLabel = monitor.querySelector('[data-res]');
+  const STATES = [
+    { dur: 2600, res: 'Pilote d’écran générique' },
+    { dur: 4400, res: '1440 × 1080 étirée' },
+    { dur: 3000, res: 'Résolution native, 1920 × 1080' },
+  ];
+  let stepIndex = 0;
+
+  const setStep = (i) => {
+    stepIndex = i;
+    stepBtns.forEach((b, j) => {
+      b.classList.toggle('is-active', j === i);
+      b.setAttribute('aria-pressed', String(j === i));
+    });
+    steps.style.setProperty('--step-dur', `${STATES[i].dur}ms`);
+    monitor.style.setProperty('--step-dur', `${STATES[i].dur}ms`);
+    monitor.dataset.state = String(i);
+    if (resLabel.textContent !== STATES[i].res) {
+      resLabel.textContent = STATES[i].res;
+      if (!reduceMotion) {
+        resLabel.animate(
+          [{ opacity: 0, filter: 'blur(4px)' }, { opacity: 1, filter: 'blur(0)' }],
+          { duration: 320, easing: 'ease-out' }
+        );
+      }
+    }
+  };
+
+  stepBtns.forEach((b, i) => {
+    b.querySelector('.step-progress span').addEventListener('animationend', () => {
+      if (i === stepIndex && !steps.classList.contains('is-manual')) setStep((i + 1) % STATES.length);
+    });
+    b.addEventListener('click', () => {
+      steps.classList.add('is-manual');
+      monitor.classList.add('is-manual');
+      setStep(i);
+    });
+  });
+
+  steps.classList.add('is-paused');
+  monitor.classList.add('is-paused');
+  if (reduceMotion) { steps.classList.add('is-manual'); monitor.classList.add('is-manual'); }
+  setStep(0);
+
+  new IntersectionObserver(([e]) => {
+    steps.classList.toggle('is-paused', !e.isIntersecting);
+    monitor.classList.toggle('is-paused', !e.isIntersecting);
+  }, { threshold: 0.35 }).observe(monitor);
+
+  /* ---------- Fichiers de la dernière version ---------- */
+  // Les liens mènent à la page de la release tant que l’API GitHub n’a pas répondu ; ensuite, directement au fichier.
+  const fmtSize = (bytes) => `${Math.round(bytes / 1048576)} Mo`;
+  fetch('https://api.github.com/repos/NOUSSS/precise-gunplay/releases/latest', { headers: { Accept: 'application/vnd.github+json' } })
+    .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+    .then((rel) => {
+      const find = (re) => rel.assets.find((a) => re.test(a.name));
+      const files = { setup: find(/Setup.*\.exe$/i), portable: find(/Portable.*\.exe$/i) };
+      for (const [kind, asset] of Object.entries(files)) {
+        if (!asset) continue;
+        document.querySelectorAll(`[data-dl="${kind}"]`).forEach((a) => { a.href = asset.browser_download_url; });
+        document.querySelectorAll(`[data-name="${kind}"]`).forEach((el) => { el.textContent = asset.name; });
+        document.querySelectorAll(`[data-size="${kind}"]`).forEach((el) => { el.textContent = fmtSize(asset.size); });
+      }
+    })
+    .catch(() => {});
+
+  /* ---------- Fenêtre SmartScreen ---------- */
+  const smart = document.querySelector('[data-smart]');
+  const cursor = smart.querySelector('[data-cursor]');
+  const link = smart.querySelector('[data-target="link"]');
+  const run = smart.querySelector('[data-target="run"]');
+
+  if (reduceMotion) {
+    smart.dataset.state = '1';
+  } else {
+    let smartVisible = false;
+    let wake = null;
+    const whenVisible = () => smartVisible ? Promise.resolve() : new Promise((r) => { wake = r; });
+
+    new IntersectionObserver(([e]) => {
+      smartVisible = e.isIntersecting;
+      if (smartVisible && wake) { wake(); wake = null; }
+    }, { threshold: 0.5 }).observe(smart);
+
+    const moveTo = (x, y, instant) => {
+      cursor.style.transition = instant ? 'none' : '';
+      cursor.style.transform = `translate(${x}px, ${y}px)`;
+      if (instant) cursor.getBoundingClientRect();
+    };
+    const pointAt = (el) => {
+      const s = smart.getBoundingClientRect();
+      const r = el.getBoundingClientRect();
+      moveTo(r.left - s.left + r.width * 0.45, r.top - s.top + r.height * 0.55);
+    };
+    const rest = () => {
+      const s = smart.getBoundingClientRect();
+      moveTo(s.width * 0.62, s.height * 0.42, true);
+    };
+    const press = async (el) => {
+      el.classList.add('is-pressed');
+      await sleep(180);
+      el.classList.remove('is-pressed');
+    };
+
+    const sequence = async () => {
+      smart.classList.add('is-live');
+      for (;;) {
+        smart.dataset.state = '0';
+        rest();
+        await whenVisible();
+        await sleep(1000);
+        pointAt(link);
+        await sleep(1000);
+        await press(link);
+        smart.dataset.state = '1';
+        await sleep(1100);
+        await whenVisible();
+        pointAt(run);
+        await sleep(1000);
+        await press(run);
+        smart.dataset.state = '2';
+        await sleep(700);
+        smart.dataset.state = '3';
+        await sleep(900);
+      }
+    };
+    sequence();
+  }
+})();
