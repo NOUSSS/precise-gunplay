@@ -85,7 +85,7 @@ async function record() {
       if (size.width !== SW || size.height !== SH + 1) throw new Error(`Capture de ${size.width}×${size.height} au lieu de ${SW}×${SH + 1}`);
       const bmp = img.toBitmap();
       const got = decode(bmp, 960, SH);
-      if (got === f % 4096) return bmp;
+      if (got === (f + 1) % 4096) return bmp; // repère décalé de 1 (stage.js) : le fond se lit comme 0
       seen.push(got);
     }
     // diagnostic : l'image fautive et ce qui recouvre la ligne du repère
