@@ -175,7 +175,9 @@ window.__stage = {
         transform: `translate(${cam.tx + cur.x * cam.k - r}px, ${cam.ty + cur.y * cam.k - r}px)`,
       });
     } else rippleEl.style.opacity = '0';
-    stampEl.style.background = `rgb(${(f % 16) * 16 + 8},${(Math.floor(f / 16) % 16) * 16 + 8},${(Math.floor(f / 256) % 16) * 16 + 8})`;
+    // repère = f + 1 : le fond de la scène se lit comme 0, une image d'avant le premier placement passerait pour l'image 0
+    const n = f + 1;
+    stampEl.style.background = `rgb(${(n % 16) * 16 + 8},${(Math.floor(n / 16) % 16) * 16 + 8},${(Math.floor(n / 256) % 16) * 16 + 8})`;
     return true;
   },
 };
