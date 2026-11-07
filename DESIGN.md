@@ -1,254 +1,96 @@
----
-name: "Precise Gunplay, le site"
-description: "La landing page du compagnon VALORANT pour Windows : une pièce dans le noir, éclairée par l’écran qui passe la vidéo de l’app."
-colors:
-  glow: "#7688a8"
-  glow-ink: "#abb6cb"
-  room: "#07080a"
-  edge: "#18191d"
-  bezel: "#020203"
-  ink: "#eceae6"
-  ink-2: "#9a9893"
-  ink-3: "#6b6965"
-  on-ink: "#0b0b0c"
-typography:
-  display:
-    fontFamily: "Familjen Grotesk, system-ui, sans-serif"
-    fontSize: "clamp(2.5rem, 1.55rem + 3.3vw, 4.25rem)"
-    fontWeight: 700
-    lineHeight: 1
-    letterSpacing: "-0.03em"
-  headline:
-    fontFamily: "Familjen Grotesk, system-ui, sans-serif"
-    fontSize: "clamp(1.75rem, 1.35rem + 1.3vw, 2.5rem)"
-    fontWeight: 700
-    lineHeight: 1.08
-    letterSpacing: "-0.02em"
-  title:
-    fontFamily: "Familjen Grotesk, system-ui, sans-serif"
-    fontSize: "1.125rem"
-    fontWeight: 700
-    lineHeight: 1.3
-  figure:
-    fontFamily: "Familjen Grotesk, system-ui, sans-serif"
-    fontSize: "1.5rem"
-    fontWeight: 700
-    lineHeight: 1.1
-    fontFeature: "\"tnum\" 1"
-  body:
-    fontFamily: "Familjen Grotesk, system-ui, sans-serif"
-    fontSize: "1.0625rem"
-    fontWeight: 400
-    lineHeight: 1.55
-  body-small:
-    fontFamily: "Familjen Grotesk, system-ui, sans-serif"
-    fontSize: "0.9375rem"
-    fontWeight: 400
-    lineHeight: 1.55
-  label:
-    fontFamily: "Familjen Grotesk, system-ui, sans-serif"
-    fontSize: "0.875rem"
-    fontWeight: 500
-    lineHeight: 1.55
-  button:
-    fontFamily: "Familjen Grotesk, system-ui, sans-serif"
-    fontSize: "1.125rem"
-    fontWeight: 700
-rounded:
-  glass: "3px"
-  screen: "12px"
-  pill: "999px"
-spacing:
-  s1: "0.5rem"
-  s2: "1rem"
-  s3: "1.5rem"
-  s4: "2rem"
-  s5: "3rem"
-  s6: "4rem"
-  s7: "6rem"
-  s8: "8rem"
-  gutter: "clamp(16px, 4vw, 56px)"
-  page: "1440px"
-components:
-  button-primary:
-    backgroundColor: "{colors.ink}"
-    textColor: "{colors.on-ink}"
-    typography: "{typography.button}"
-    rounded: "{rounded.pill}"
-    padding: "18px 28px 18px 22px"
-  button-primary-install:
-    backgroundColor: "{colors.ink}"
-    textColor: "{colors.on-ink}"
-    typography: "{typography.button}"
-    rounded: "{rounded.pill}"
-    padding: "18px 28px 18px 22px"
-  button-ghost:
-    backgroundColor: "rgb(255 255 255 / 0.06)"
-    textColor: "{colors.ink}"
-    typography: "{typography.label}"
-    rounded: "{rounded.pill}"
-    padding: "0 14px 0 12px"
-    height: "36px"
-  button-ghost-hover:
-    backgroundColor: "rgb(255 255 255 / 0.11)"
-  nav-link:
-    textColor: "{colors.ink-2}"
-    typography: "{typography.body-small}"
-  nav-link-hover:
-    textColor: "{colors.ink}"
-  chapter:
-    textColor: "{colors.ink-2}"
-    typography: "{typography.label}"
-    padding: "8px 0"
-  chapter-current:
-    textColor: "{colors.ink}"
-  monitor-bezel:
-    backgroundColor: "{colors.bezel}"
-    rounded: "{rounded.screen}"
-    padding: "10px 10px 12px"
----
+# Design du site : Precise Gunplay
 
-# Design System: Precise Gunplay, le site
+Ce fichier décrit le site public (`site/`) seulement. L’app de bureau est une autre entité : sa direction est dans `renderer/DESIGN.md` et ses jetons dans `renderer/styles.css`. Le site et l’app partagent le nom, le logo et l’environnement colorimétrique (sombre, rouge vif, touches de turquoise), pas les jetons.
 
-Ce fichier décrit le site public (`site/`) seulement. L’app de bureau est une autre entité, avec sa propre direction dans `renderer/DESIGN.md` et ses jetons dans `renderer/styles.css`. Le site et l’app partagent le nom et le logo, pas les jetons.
+Les jetons font foi en tête de `site/styles.css` ; ce document les reprend et dit où ils servent. Le reste de la feuille n’utilise que ces jetons.
 
-## Overview
+## Direction
 
-**Creative North Star : « L’écran dans le noir »**
+**Une encre presque noire, de la profondeur par couches, et la vraie vidéo de l’app au centre.**
 
-La page est une pièce plongée dans le noir dont la seule lumière vient de l’écran, et cet écran passe la vraie vidéo de l’app. La couleur de cette lumière est prise sur la vidéo pendant la lecture : elle teinte la pièce, la fin du titre, la surface du bouton principal et le remplissage des chapitres. Il n’y a pas de couleur d’accent fixe ; quand l’app montre la boutique, la pièce prend la teinte de la boutique.
+- Le premier écran est centré : un gros titre sur deux lignes, « Votre VALORANT, vu de près. », dont la fin est en dégradé rouge, puis le bouton de téléchargement et une ligne de faits. Derrière : la carte Ascent en parallaxe, un voile, un halo rouge au centre et des diagonales reprises du logo.
+- Sous le titre, la vidéo de l’app tourne dans un cadre incliné en 3D, qui se redresse au défilement. Cinq chapitres, calés sur `.github/media/video/scenario.js`, se remplissent pendant la lecture et permettent d’y sauter ; le son se charge à la demande.
+- La profondeur vient de trois niveaux de surface : le fond de page, les tuiles en relief et les zones d’illustration en creux à l’intérieur des tuiles. Une tuile n’a jamais un contour et un fond de la même teinte.
+- Les fonctions sont montrées par de petites maquettes en HTML (boutique, partie en direct, statistiques, message de PX-0, historique), toutes marquées « Données fictives » ou « Exemple ».
+- La résolution étirée et la fenêtre SmartScreen sont expliquées par des animations qui rejouent ce qui se passe à l’écran.
 
-Le texte est posé à même la pénombre, sans cartes. À gauche, le titre et les fonctions ; à droite, un écran avec son cadre, son socle et une flaque de lumière sur le bureau, qui reste à l’écran pendant la visite. La fonction lue s’éclaire à l’encre claire, les autres restent en gris. Le mouvement suit la vidéo et rien d’autre : l’écran s’allume, puis la pièce s’éclaire, puis le titre monte en fondu court.
+## Couleurs
 
-Rejets confirmés : le « HUD néon rouge » des sites de jeux de tir, et la page de logiciel à capture posée sous un halo violet fixe.
+| Jeton | Valeur | Rôle |
+| --- | --- | --- |
+| `--ink-0` | `#07080b` | Fond de page, couleur du thème du navigateur |
+| `--ink-1` | `#0b0d12` | Zones en creux, bande de la section résolution |
+| `--ink-2` à `--ink-4` | `#11141b`, `#181c25`, `#222733` | Surfaces en relief (dégradé `--surface-raised`), cadre de la vidéo, survol des fichiers |
+| `--text-1` | `#f3f4f7` | Titres et texte fort |
+| `--text-2` | `#a9afbc` | Texte courant secondaire, navigation |
+| `--text-3` | `#717887` | Légendes, libellés de colonnes, chapitres non lus |
+| `--red` | `#ff2e4d` | L’action (boutons de téléchargement), numéros d’étapes, progression des étapes, fin du titre |
+| `--red-deep` | `#e3163c` | Bas du dégradé des boutons de téléchargement |
+| `--red-text` | `#ff8094` | Rouge lisible sur fond sombre : étiquette « Recommandé », adversaires, défaites, dégradé du titre |
+| `--teal` | `#2fe0c5` | Les données : progression des chapitres, courbes, groupes repérés, victoires, focus |
+| `--hair`, `--wash`, `--wash-2`, `--wash-3` | blanc à 7 %, 3,5 %, 7 %, 11 % | Filets, lignes de tableaux, boutons d’icône |
 
-**Key Characteristics:**
-- Une seule teinte vive, la lumière de l’écran, variable et prise sur la vidéo.
-- Pénombre presque noire, encre chaude, deux gris.
-- Une seule famille, Familjen Grotesk, servie par le site.
-- Texte posé dans la pénombre, jamais dans une carte à contour et fond teinté.
-- Formes : pilules pour les actions, écran aux coins légèrement arrondis.
-- Mouvement lié à la vidéo ; aucune animation décorative à côté.
+Le rouge sert à l’action, le turquoise aux données. Pas d’autre couleur vive, hors des images du jeu et de la reproduction de la fenêtre SmartScreen (ses bleus restent ceux de Windows).
 
-## Colors
+## Typographie
 
-Une pénombre neutre et une encre chaude, que seule la lumière de l’écran colore.
+- **Barlow Condensed** (600, 700) pour les titres : l’allure condensée et nette d’un écran de jeu.
+- **Barlow** (400, 500, 600) pour le texte.
+- Une police à chasse fixe du système (`ui-monospace`) pour les noms de fichiers seulement.
+- Les polices sont servies par le site (`site/fonts/`, licence OFL dans `OFL-barlow.txt`).
 
-### Primary
-- **Lumière de l’écran** (`glow`, défaut `rgb(118 136 168)`) : n’est pas une couleur fixe. `main.js` l’échantillonne sur la vidéo (les pixels vifs et saturés pèsent plus), garde la teinte, ramène la saturation entre 0,22 et 0,78 et la clarté à 0,6, puis l’écrit en continu dans `--glow` au format `r g b`. Elle sert à la lumière répandue dans la pièce (30 % puis 16 %), à la flaque sous le socle (28 %), au dégradé de la pilule principale (28 %), à la sélection de texte (35 %). Jamais à une ombre.
-- **Encre éclairée** (`glow-ink`, `color-mix(in oklab, rgb(var(--glow)) 60%, #fff)`) : la lumière mêlée de blanc, pour ce qui doit se lire en couleur : la fin du titre (« à côté du jeu ») et le remplissage des barres de chapitre.
+| Rôle | Taille | Graisse, interligne |
+| --- | --- | --- |
+| Titre du premier écran (`.display`) | `--fs-hero`, `clamp(44px, 6.8vw, 96px)` | 700, 0.9 ; « Votre VALORANT, » tient sur une ligne dès 320 px |
+| Titre de section (`.h2`) | `clamp(36px, 4.8vw, 64px)` | 700, 0.98 |
+| Titre de tuile ou d’étape (`.h3`) | 24px | 600, 1.1 |
+| Texte | 17px (16px sous 760 px) | 400, 1.55 |
+| Petit texte | 15px | navigation, textes de tuiles, faits |
+| Micro | 13px | légendes, étiquettes |
 
-### Neutral
-- **Pénombre** (`room`) : le fond de toute la page, la couleur du thème du navigateur, le fond de la piste de défilement.
-- **Arête** (`edge`) : le seul filet de la page, au-dessus du pied de page.
-- **Cadre** (`bezel`) : le cadre noir de l’écran.
-- **Encre** (`ink`) : titres, texte de la fonction lue, liens soulignés, surface de la pilule principale, anneau de focus.
-- **Gris** (`ink-2`) : texte secondaire, fonctions non lues, liens de navigation, libellés de chapitre. Éclairci depuis le premier contrat pour garder au moins 4,5:1 là où la lumière éclaircit la pièce (4,96:1 au pire).
-- **Gris profond** (`ink-3`) : chiffres des étapes, décoratifs (3,66:1 sur la pénombre). Ne porte jamais un texte à lire.
-- **Encre sur clair** (`on-ink`) : le texte de la pilule principale.
+Libellés, boutons et liens restent en casse de phrase, sans capitales ni lettres espacées. Pas de sous-titre ni de phrase d’accroche sous un titre.
 
-### Named Rules
-**The One Light Rule.** La seule teinte vive de la page est la lumière de l’écran. Aucune couleur d’accent fixe hors du logo ; une nouvelle couleur vive se prend sur `--glow`, jamais sur un hexadécimal.
+## Forme et profondeur
 
-**The Out-of-Sight Rule.** Là où l’écran est hors de vue (l’installation), rien n’est éclairé : la pilule y est neutre, encre pleine et ombre noire.
+- Rayons : 6px (étiquettes, lignes), 8px (boutons, cartes de skins), 14px (zones en creux, étapes), 22px (tuiles, cadre de la vidéo).
+- Boutons de téléchargement (`.btn-primary`) :
+  - angles vifs, avec les coins supérieur gauche et inférieur droit coupés à 45° ;
+  - `--cut` donne la longueur du côté coupé : 10px pour `.btn-sm`, 14px pour `.btn-lg` ;
+  - dégradé vertical de `--red-hover` à `--red-deep`, et liseré clair de 1px en haut ; au survol, le bas du dégradé remonte à `--red` ;
+  - la forme est portée par `::before`, qui est découpé : le bouton lui-même ne l’est pas, donc son contour de focus reste entier ;
+  - pas d’ombre portée.
+- Les autres boutons restent des plaques arrondies.
+- Ombres :
+  - `--shadow-btn` est courte et neutre, pour les boutons d’icône ;
+  - `--shadow-raised` met une tuile en relief ;
+  - `--shadow-sunken` creuse une zone ;
+  - `--shadow-deep` sert à la vidéo, au moniteur et à SmartScreen.
+- Pas de lueur autour des boutons, ni au repos ni au survol : le survol change la surface, pas l’ombre.
 
-**The Palette-Everywhere Rule.** Même le chrome du navigateur suit la palette : `::selection` en lumière à 35 % sur encre, `scrollbar-color` en gris profond mêlé à la pénombre sur la pénombre, `theme-color` et `color-scheme: dark`.
+## Mouvement
 
-## Typography
+- Courbes : `--ease-out` (`cubic-bezier(0.23, 1, 0.32, 1)`) pour ce qui entre, `--ease-in-out` (`cubic-bezier(0.77, 0, 0.175, 1)`) pour ce qui bouge à l’écran, linéaire pour les progressions.
+- Durées : 140 ms pour l’appui (`scale(0.97)`), 220 ms pour les changements d’état, 800 ms pour les apparitions, 70 ms entre deux éléments d’une cascade.
+- Premier écran : les deux lignes du titre montent depuis un masque (1 s, en cascade), puis le bouton et la vidéo apparaissent.
+- On n’anime que `transform` et `opacity` (exceptions : le tracé de la courbe de RR, le dépliage de la FAQ).
+- Ce qui sort de l’écran s’arrête : vidéo, enchaînement des étapes de résolution, boucle SmartScreen.
+- Les survols sont limités à `(hover: hover) and (pointer: fine)`.
+- Avec `prefers-reduced-motion`, il n’y a ni inclinaison, ni parallaxe, ni déplacement. La vidéo ne démarre pas seule et SmartScreen reste figé sur l’état utile.
+- Sans JavaScript, tout reste visible : la classe `.js` est retirée si `main.js` ne s’est pas exécuté au bout de 4 s.
 
-**Display Font:** Familjen Grotesk (avec system-ui, sans-serif)
-**Body Font:** Familjen Grotesk (avec system-ui, sans-serif)
+## Mise en page
 
-**Character :** une grotesque serrée et un peu ronde, compacte en 700 dans les titres, calme en 400 dans le texte. Une seule famille, servie en woff2 (graisses 400 à 700) et préchargée.
+- Largeur de contenu 1200 px, marge latérale `clamp(20px, 5vw, 48px)`, écart entre tuiles `clamp(16px, 2vw, 24px)`.
+- Le même écart vertical sépare toutes les sections (`--section-y`, de 96 à 168 px). La section résolution en garde la moitié en bas pour effacer son fond, et la suivante reprend l’autre moitié.
+- Les fonctions forment une grille de 12 colonnes (tuiles de 7 et 5 colonnes, en quinconce), qui passe à 6 + 6 sous 1040 px puis à une colonne sous 760 px.
+- Sous 760 px, la navigation disparaît (le bouton Télécharger reste) et les chapitres n’affichent que le nom du chapitre en cours.
 
-### Hierarchy
-- **Display** (700, `clamp(2.5rem, 1.55rem + 3.3vw, 4.25rem)`, 1, -0.03em) : le titre de la page seulement, équilibré (`text-wrap: balance`).
-- **Headline** (700, `clamp(1.75rem, 1.35rem + 1.3vw, 2.5rem)`, 1.08, -0.02em) : titre de chaque fonction et de l’installation, équilibré.
-- **Title** (700, 1.125rem, 1.3) : titres des blocs « Et aussi » et des étapes d’installation.
-- **Figure** (700, 1.5rem, 1.1, chiffres tabulaires) : chiffre des étapes numérotées, en gris profond.
-- **Body** (400, 1.0625rem, 1.55) : texte courant ; les fonctions tiennent dans 34rem, les blocs « Et aussi » dans 30rem.
-- **Body small** (400, 0.9375rem) : liens de navigation, ligne sous la pilule.
-- **Label** (500, 0.875rem) : libellés de chapitre, boutons fantômes, note sous l’écran, texte du pied de page (400).
-- **Button** (700, 1.125rem) : la pilule principale ; 0.9375rem dans sa version flottante.
-- Les valeurs chiffrées dans le texte (compte à rebours) passent en 600 à chiffres tabulaires, sans retour à la ligne.
+## Téléchargement
 
-### Named Rules
-**The Plain Label Rule.** Libellés, boutons et liens restent en casse de phrase, sans capitales ni espacement de lettres.
-
-**The No Kicker Rule.** Un titre n’a ni surtitre au-dessus, ni sous-titre ou phrase d’accroche dessous : il est suivi directement du texte ou de l’action.
-
-## Layout
-
-Une scène à deux colonnes dans une page de 1440px au plus, avec une marge latérale de `clamp(16px, 4vw, 56px)`. Sur grand écran, le texte occupe 0.78 part et l’écran 1.22 part (environ 55 % de la largeur), avec un écart de `clamp(40px, 5vw, 80px)`. L’écran est collant, centré dans la hauteur sous l’en-tête (76px) ; la position est calculée par le script (`--stick`).
-
-Le premier bloc remplit la hauteur de la fenêtre sous l’en-tête ; chaque fonction prend 80 % de la hauteur (64 % sur téléphone), centrée verticalement, pour que l’écran joue son chapitre pendant qu’on la lit. Sous la scène, les blocs « Et aussi » et l’installation reprennent la largeur entière en trois colonnes.
-
-Rythme vertical sur une échelle de 0.5rem à 8rem (`s1` à `s8`) : `s2` entre paragraphes, `s3` sous un titre de section et entre étapes, `s5` entre colonnes et avant l’action, `s7` au-dessus des grandes sections.
-
-Sous 1024px : une seule colonne, l’en-tête passe à 64px et perd sa navigation ; le titre vient d’abord, puis l’écran se colle en haut, sur un fond de pénombre à 84 % flouté (10px), au-dessus des fonctions. Quand l’écran collé prendrait plus de 55 % de la hauteur (paysage, fenêtre basse), il défile avec la page au lieu de rester en haut. Le socle et la flaque disparaissent, les libellés de chapitre sont masqués à l’œil mais gardés pour les lecteurs d’écran ; les grilles à trois colonnes passent à une. Sous 600px, les boutons fantômes ne gardent que leur icône (36px de côté) et la pilule réduit son rembourrage.
-
-## Elevation & Depth
-
-La profondeur vient de la lumière, pas de surfaces empilées. Les blocs n’ont pas d’ombre ; seuls l’écran et les pilules en portent, parce que ce sont les objets physiques de la pièce. La lumière elle-même est un dégradé radial fixe, placé par le script au centre de l’écran et dimensionné sur lui (1,7 fois sa largeur, 2,1 fois sa hauteur).
-
-### Shadow Vocabulary
-- **Écran** (`box-shadow: inset 0 0 0 1px #1c1d21, 0 40px 80px rgb(0 0 0 / 0.6)`) : le cadre et son ombre portée dans la pièce.
-- **Pilule** (`box-shadow: 0 2px 8px rgb(0 0 0 / 0.3)`) : une ombre courte et neutre, la même pour toutes les pilules claires, éclairées ou non. Au survol, aucune ombre de plus.
-
-### Named Rules
-**The No Glow Rule.** Pas de lueur autour des boutons, ni au repos ni au survol : ni halo coloré, ni grande ombre floue, ni ombre qui grandit au survol. La lumière de l’écran teinte la surface de la pilule, jamais son ombre ; le survol change la surface (luminosité 1,07), pas l’ombre. Un premier essai avec un halo de la couleur de l’écran a été jugé trop lumineux et retiré.
-
-**The No Card Rule.** Pas de cartes à contour et fond teinté : les blocs sont du texte posé dans la pénombre.
-
-## Shapes
-
-Trois rayons. La pilule (999px) pour toute action : bouton principal, boutons fantômes. L’écran (12px, 10px sur téléphone) pour le cadre et la fenêtre de la vidéo en grand ; la vitre (3px) pour l’image dans le cadre. Le socle est un trapèze dessiné en SVG. Les barres de chapitre sont des traits de 3px. Le seul filet est celui du pied de page (1px, arête). Les icônes sont des traits SVG arrondis (1.8 à 2.2), en couleur du texte.
-
-## Components
-
-### Buttons
-- **Shape :** pilule (999px).
-- **Primary (« Télécharger pour Windows ») :** pilule claire éclairée. Dégradé à 100° de l’encre vers l’encre mêlée à 28 % de la lumière, texte encre sur clair, 700, rembourrage 18px 28px 18px 22px, icône de téléchargement 20px à gauche. Ombre « pilule ».
-- **Primary à l’installation :** même pilule, fond encre plein, sans teinte de lumière (The Out-of-Sight Rule).
-- **Flottante :** la même pilule, plus petite (0.9375rem, 12px 20px 12px 16px), fixée en bas à droite ; elle apparaît en fondu montant (0,3s) quand aucune autre pilule n’est visible.
-- **Hover / Focus :** la surface s’éclaircit (`filter: brightness(1.07)`), 0,2s sur la courbe de la page ; ni montée ni ombre de plus (The No Glow Rule). Focus : contour encre 2px, décalé de 4px.
-- **Ghost :** pilule de 36px de haut, blanc à 6 % (11 % au survol), libellé 500 en encre, icône 18px. Sous 600px, icône seule.
-
-### Chapitres de la vidéo
-Une grille de cinq barres sous l’écran, une par chapitre. Chaque barre (3px, blanc à 12 %) se remplit en encre éclairée au fil de la lecture ; un clic saute au chapitre. Libellé en gris, encre au survol et pour le chapitre en cours ; sur tablette et téléphone, masqué à l’œil seulement, il reste le nom du bouton.
-
-### Écran (signature)
-Cadre noir (rembourrage 10px 10px 12px), vitre 16:9 qui lit la boucle muette, socle SVG et flaque de lumière radiale sur le bureau. À l’allumage, la vitre clignote (luminosité 0, 1,5, 0,35, puis normale en 1,4s) avant que la lumière ne se répande dans la pièce (fondu 1,4s).
-
-### Fonctions
-Une section par fonction, texte gris ; la fonction lue passe à l’encre en 0,5s et fait jouer l’écran sur son chapitre.
-
-### Étapes numérotées
-Un seul composant sert pour toutes les étapes (résolution étirée, installation) : le chiffre en gris profond à gauche (colonne de 2rem), le titre en encre et 600 ou 700, puis le texte en gris. En colonne dans une fonction, en trois colonnes à l’installation.
-
-### Navigation
-Liens en gris, small, espacés de `s4`, à droite de la marque ; encre au survol (0,2s). Masquée sous 1024px. Le pied de page reprend les mêmes liens, espacés de `s3`.
-
-### Vidéo avec le son
-Une boîte de dialogue native, 16:9, rayon de l’écran, sur un fond noir à 86 % ; bouton de fermeture rond de 40px, noir à 60 %.
-
-## Do's and Don'ts
-
-### Do:
-- **Do** prendre toute couleur vive sur `--glow` (`rgb(var(--glow) / a)` ou `--glow-ink`), jamais sur une valeur fixe.
-- **Do** garder le texte secondaire en `ink-2` et réserver `ink-3` aux chiffres décoratifs.
-- **Do** écrire les durées et unités avec une espace insécable (« 5 h 43 min 24 s », « 79 Mo », « 1440 × 1080 »).
-- **Do** vouvoyer, mettre une espace insécable avant « : ; ? ! » et à l’intérieur des guillemets, écrire « … » plutôt que « ... » et l’apostrophe typographique.
-- **Do** utiliser la courbe `cubic-bezier(0.2, 0.7, 0.2, 1)` pour tout mouvement, 0,2s pour les changements d’état, et couper les animations sous `prefers-reduced-motion`.
-- **Do** passer par le composant d’étapes numérotées pour toute suite d’étapes.
-
-### Don't:
-- **Don't** ajouter une couleur d’accent fixe, un néon rouge façon HUD ou un halo violet fixe.
-- **Don't** poser un bloc dans une carte à contour et fond teinté.
-- **Don't** mettre un surtitre au-dessus d’un titre, ni un sous-titre ou une phrase d’accroche dessous.
-- **Don't** écrire libellés et boutons en capitales ou en lettres espacées.
-- **Don't** prendre un ton marketing, ni écrire de tiret cadratin ou de point d’exclamation.
-- **Don't** ajouter « → » au texte d’un bouton.
-- **Don't** poser une icône sur un carré teinté de sa couleur.
-- **Don't** mettre une lueur autour d’un bouton (halo coloré, grande ombre floue), ni au repos ni au survol.
-- **Don't** reprendre les jetons de l’app de bureau (`renderer/`) : seuls le nom et le logo sont communs.
+- Tous les boutons pointent d’abord vers `releases/latest`.
+- `main.js` interroge l’API GitHub, puis remplace :
+  - les liens par le fichier Setup ou Portable de la dernière version ;
+  - les noms de fichiers (`data-name`) ;
+  - les tailles (`data-size`).
+- Les valeurs écrites dans le HTML (v1.20.0, 79 Mo) ne servent que si l’API ne répond pas.
+- La CSP de `site/nginx.conf` autorise `api.github.com` et l’empreinte du seul script en ligne. Elle est à recalculer si ce script change.
