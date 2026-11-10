@@ -30,6 +30,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Vérifier
+        run: npm run check
+
       - name: Compiler et publier
         run: npx electron-builder --win --publish always
         env:
