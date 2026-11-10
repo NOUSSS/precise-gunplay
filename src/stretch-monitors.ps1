@@ -1,23 +1,25 @@
 # Désactive / réactive les écrans dans le Gestionnaire de périphériques (classe Moniteurs), comme un
 # clic droit > Désactiver l'appareil. Exécuté avec les droits administrateur par deux tâches planifiées
 # créées une seule fois (une seule fenêtre UAC) ; le script est copié dans un dossier que seul un
-# administrateur peut modifier.
+# administrateur peut modifier. Les tâches tournent sous le compte système.
 #   -Mode off : désactive l'écran du jeu (monitors-target.json, écrit par l'app ; vide = tous les écrans)
 #               et retient lesquels
 #   -Mode on  : réactive ceux que l'app a désactivés
 param([ValidateSet('off', 'on')][string]$Mode = 'on')
 
-$dir = Join-Path $env:ProgramData 'Precise Gunplay'
+# Chemins lus par l'API Windows, pas par des variables d'environnement.
+$dir = Join-Path ([Environment]::GetFolderPath('CommonApplicationData')) 'Precise Gunplay'
+$pnputil = Join-Path ([Environment]::GetFolderPath('System')) 'pnputil.exe'
 $stateFile = Join-Path $dir 'monitors-state.json'
 $resultFile = Join-Path $dir 'monitors-result.json'
 $targetFile = Join-Path $dir 'monitors-target.json'
 
 function Read-State {
-  try { return @((Get-Content $stateFile -Raw | ConvertFrom-Json).ids | Where-Object { $_ }) } catch { return @() }
+  try { return @((Get-Content $stateFile -Raw | ConvertFrom-Json).ids | Where-Object { $_ -is [string] -and $_ -match '^DISPLAY\\[^"\s]+$' }) } catch { return @() }
 }
 # Seul fichier modifiable par le compte : il ne peut que restreindre les écrans concernés.
 function Read-Target {
-  try { return @((Get-Content $targetFile -Raw | ConvertFrom-Json).ids | Where-Object { $_ }) } catch { return @() }
+  try { return @((Get-Content $targetFile -Raw | ConvertFrom-Json).ids | Where-Object { $_ -is [string] -and $_ -match '^DISPLAY\\[^"\s]+$' }) } catch { return @() }
 }
 function Write-State($ids) {
   @{ ids = @($ids | Where-Object { $_ }) } | ConvertTo-Json | Set-Content -Path $stateFile -Encoding UTF8
@@ -29,7 +31,7 @@ function Get-Status($ids) {
 }
 # Voie rapide : pnputil en parallèle (processus léger), puis une seule vérification pour tous.
 function Invoke-PnpUtil($flag, $ids) {
-  $procs = foreach ($id in $ids) { Start-Process pnputil.exe -ArgumentList $flag, "`"$id`"" -WindowStyle Hidden -PassThru }
+  $procs = foreach ($id in $ids) { Start-Process $pnputil -ArgumentList $flag, "`"$id`"" -WindowStyle Hidden -PassThru }
   foreach ($p in $procs) { if (-not $p.WaitForExit(20000)) { try { $p.Kill() } catch {} } }
   Start-Sleep -Milliseconds 300
 }
@@ -67,7 +69,7 @@ try {
         for ($i = 0; $i -lt 5 -and (Get-Status @($id))[$id] -ne 'OK'; $i++) {
           try { Enable-PnpDevice -InstanceId $id -Confirm:$false -ErrorAction Stop } catch {}
           Start-Sleep -Milliseconds 1200
-          if ((Get-Status @($id))[$id] -ne 'OK') { & pnputil.exe /enable-device "$id" | Out-Null; Start-Sleep -Milliseconds 1200 }
+          if ((Get-Status @($id))[$id] -ne 'OK') { & $pnputil /enable-device "$id" | Out-Null; Start-Sleep -Milliseconds 1200 }
         }
       }
       $status = Get-Status $ids

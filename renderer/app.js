@@ -2742,7 +2742,7 @@ PAGES.stretch = async () => {
   ].join('') : '';
   const HOTKEYS = [
     ['toggle', 'Basculer étirée ou native', 'Actif partout, jeu compris, quand la fonction est activée.'],
-    ['native', 'Tout restaurer', 'Toujours actif, même fonction coupée. En partie : résolution native.'],
+    ['native', 'Tout restaurer', 'Actif quand la fonction est activée, et tant qu’il reste quelque chose à restaurer. En partie : résolution native.'],
   ];
 
   content.innerHTML = `
@@ -2757,7 +2757,7 @@ PAGES.stretch = async () => {
       <button class="btn" id="st-restore">Tout restaurer</button>
     </div>
 
-    <p class="muted st-rescue">Écran illisible : <span id="st-restore-key">${hotkeyHtml(info.hotkeys.native)}</span> remet l’affichage comme avant, à tout moment.</p>
+    <p class="muted st-rescue">Écran illisible : <span id="st-restore-key">${hotkeyHtml(info.hotkeys.native)}</span> remet l’affichage comme avant.</p>
 
     <div id="st-problems">${stretchProblemsHtml(info)}</div>
 
