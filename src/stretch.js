@@ -312,6 +312,11 @@ if (Test-Path -LiteralPath $dir) {
 if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir | Out-Null }
 & "$sys\\icacls.exe" $dir /inheritance:r /grant:r '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-545:(OI)(CI)RX' | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "Droits du dossier partagé non posés ($LASTEXITCODE)." }
+# Second contrôle, droits posés : un dossier glissé par un autre compte entre le premier contrôle et la
+# création garderait son propriétaire, qui peut toujours en réécrire les droits. On s'arrête.
+$owner = (Get-Acl -LiteralPath $dir).GetOwner([Security.Principal.SecurityIdentifier]).Value
+$link = [bool]((Get-Item -LiteralPath $dir -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)
+if ($link -or ($owner -ne 'S-1-5-32-544' -and $owner -ne 'S-1-5-18')) { throw 'Dossier partagé modifié pendant la demande.' }
 # Script recréé après la pose des droits : il appartient au processus élevé, quoi qu'il y ait eu avant.
 $file = Join-Path $dir 'monitors.ps1'
 if (Test-Path -LiteralPath $file) { [IO.File]::Delete($file) }

@@ -36,6 +36,14 @@ test('le script élevé ne dépend pas de variables d’environnement pour ses c
   assert.match(elevated, /GetFolderPath\('System'\)/);
 });
 
+test('le propriétaire du dossier partagé est contrôlé avant et après la pose des droits', () => {
+  const rights = elevated.indexOf('/inheritance:r');
+  const write = elevated.indexOf("Join-Path $dir 'monitors.ps1'");
+  const second = elevated.indexOf('.GetOwner(', rights);
+  assert.ok(elevated.indexOf('.GetOwner(') < rights, 'premier contrôle avant les droits');
+  assert.ok(second > rights && second < write, 'second contrôle entre les droits et l’écriture du script');
+});
+
 test('les tâches tournent sous le compte système, avec un chemin complet', () => {
   assert.match(elevated, /-UserId 'S-1-5-18'/);
   assert.doesNotMatch(elevated, /-LogonType S4U/);
