@@ -7,6 +7,7 @@
   "author": "NOUSSS",
   "license": "MIT",
   "scripts": {
+    "check": "node scripts/check.js",
     "start": "electron .",
     "dist": "electron-builder --win --publish never",
     "release": "electron-builder --win --publish always"
