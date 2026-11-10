@@ -1,5 +1,5 @@
-const fs = require('fs');
 const path = require('path');
+const { writeJsonAtomic, readJsonOrSetAside } = require('./json-file');
 
 const DEFAULTS = {
   regionOverride: '',
@@ -19,8 +19,8 @@ class Settings {
   constructor(dir) {
     this.file = path.join(dir, 'settings.json');
     this.value = structuredClone(DEFAULTS);
-    try {
-      const saved = JSON.parse(fs.readFileSync(this.file, 'utf8'));
+    const saved = readJsonOrSetAside(this.file);
+    if (saved && typeof saved === 'object') {
       // Réglages de l'agent auto, retiré : on les oublie au prochain enregistrement.
       delete saved.autolock;
       delete saved.notifications;
@@ -29,7 +29,7 @@ class Settings {
         ...saved,
         stretch: { ...DEFAULTS.stretch, ...(saved.stretch || {}) },
       };
-    } catch { /* premier lancement */ }
+    }
   }
 
   get() {
@@ -42,8 +42,7 @@ class Settings {
       ...patch,
       stretch: { ...this.value.stretch, ...(patch.stretch || {}) },
     };
-    fs.mkdirSync(path.dirname(this.file), { recursive: true });
-    fs.writeFileSync(this.file, JSON.stringify(this.value, null, 2));
+    writeJsonAtomic(this.file, this.value, 2);
     return this.value;
   }
 }

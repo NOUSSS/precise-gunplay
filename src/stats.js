@@ -1,8 +1,8 @@
 // Statistiques façon tracker. Les matchs sont synchronisés en arrière-plan (au lancement puis toutes les
 // 5 minutes) et résumés dans un cache disque : la page Stats lit ce cache et s'affiche instantanément.
-const fs = require('fs');
 const path = require('path');
 const { EventEmitter } = require('events');
+const { writeJsonAtomic, readJsonOrSetAside } = require('./json-file');
 
 // v2 : dégâts reçus (DDΔ), durée, place dans la partie, manches parfaites et clutchs. Les résumés v1 restent
 // affichés ; ceux encore présents dans l'historique Riot sont retéléchargés pour être complétés.
@@ -27,11 +27,11 @@ class Stats extends EventEmitter {
     this.services = services;
     this.file = path.join(cacheDir, 'match-stats-cache.json');
     this.cache = { matches: {}, rr: {}, complete: {} };
-    try {
-      const saved = JSON.parse(fs.readFileSync(this.file, 'utf8'));
+    const saved = readJsonOrSetAside(this.file);
+    if (saved && typeof saved === 'object') {
       // Ancien format (v1.1.0) : un objet plat { "puuid:matchId": record }.
       this.cache = saved.matches ? { rr: {}, complete: {}, ...saved } : { ...this.cache, matches: saved };
-    } catch { /* premier lancement */ }
+    }
     this.syncing = null;
     this.state = { running: false, done: 0, total: 0, waitUntil: null, lastSync: null };
   }
@@ -45,7 +45,7 @@ class Stats extends EventEmitter {
         .forEach((k) => delete this.cache.matches[k]);
     }
     try {
-      fs.writeFileSync(this.file, JSON.stringify(this.cache));
+      writeJsonAtomic(this.file, this.cache);
     } catch { /* cache facultatif */ }
   }
 
