@@ -55,3 +55,32 @@ test('saisie d’un raccourci en cours : rien n’est pris', () => {
   stretch.syncHotkeys();
   assert.deepEqual(taken, []);
 });
+
+// Écran et retour en native simulés : rien n'est demandé à Windows.
+function atStartup(native, screen) {
+  const { stretch } = setup();
+  Object.assign(stretch.cfg, { width: 1440, height: 1080, native });
+  const calls = [];
+  stretch.display = { call: async () => { calls.push('display'); return screen; } };
+  stretch.applyNative = async (regeneric) => { calls.push(`native:${stretch.res}:${regeneric}`); };
+  return { stretch, calls };
+}
+
+test('démarrage fonction coupée, écran resté étiré : remis en native', async () => {
+  const { stretch, calls } = atStartup({ w: 1920, h: 1080, hz: 60, gdi: 'X' }, { w: 1440, h: 1080 });
+  await stretch.recoverResolution();
+  assert.deepEqual(calls, ['display', 'native:stretched:false']);
+});
+
+test('démarrage fonction coupée, écran en native : rien à faire', async () => {
+  const { stretch, calls } = atStartup({ w: 1920, h: 1080, hz: 60, gdi: 'X' }, { w: 1920, h: 1080 });
+  await stretch.recoverResolution();
+  assert.deepEqual(calls, ['display']);
+  assert.equal(stretch.res, null);
+});
+
+test('démarrage fonction coupée, résolution native inconnue : l’écran n’est pas interrogé', async () => {
+  const { stretch, calls } = atStartup(null, { w: 1440, h: 1080 });
+  await stretch.recoverResolution();
+  assert.deepEqual(calls, []);
+});

@@ -632,6 +632,7 @@ class Stretch extends EventEmitter {
     await this.checkMonitors();
     // Récupération après un arrêt brutal : écrans restés désactivés ou résolution étirée résiduelle.
     if (this.cfg.enabled || monitorsDisabledByUs()) await this.exclusive(() => this.recover()).catch((e) => this.notify(e.message, 'error'));
+    else await this.exclusive(() => this.recoverResolution()).catch((e) => this.notify(e.message, 'error'));
     this.configure();
     this.releaseDisplay();
   }
@@ -748,6 +749,17 @@ class Stretch extends EventEmitter {
     const d = await this.display.call(this.displayCmd());
     const c = this.cfg;
     if (c.native && d.w === c.width && d.h === c.height) await this.applyNative();
+  }
+
+  // Fonction coupée : l'écran a pu rester étiré (app fermée de force pendant un essai, retour en native
+  // échoué). Un seul relevé au démarrage. Sans résolution native connue, l'app n'a jamais étiré l'écran.
+  async recoverResolution() {
+    const c = this.cfg;
+    if (!c.native) return;
+    const d = await this.display.call(this.displayCmd());
+    if (d.w !== c.width || d.h !== c.height) return;
+    this.res = 'stretched'; // si le retour en native échoue, « Tout restaurer » reste pris
+    await this.applyNative(false); // false : fonction coupée, aucun écran à repasser en générique
   }
 
   // Résolution native = mode actuel de l'écran, tant qu'il n'est pas déjà étiré.
