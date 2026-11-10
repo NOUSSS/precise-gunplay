@@ -2,6 +2,7 @@
 // lancement suivant, la page s'affiche tout de suite et seules les nouvelles parties sont téléchargées.
 const fs = require('fs');
 const path = require('path');
+const { writeJsonAtomic } = require('./json-file');
 
 const VERSION = 1; // à incrémenter quand la forme d'un résumé change
 
@@ -47,11 +48,8 @@ class HistoryStore {
   }
 
   save() {
-    // Fichier temporaire puis renommage : un arrêt en cours d'écriture ne laisse pas de cache tronqué.
     try {
-      fs.mkdirSync(path.dirname(this.file), { recursive: true });
-      fs.writeFileSync(`${this.file}.tmp`, JSON.stringify(this.data));
-      fs.renameSync(`${this.file}.tmp`, this.file);
+      writeJsonAtomic(this.file, this.data);
     } catch { /* cache facultatif */ }
   }
 }
