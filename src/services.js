@@ -147,13 +147,16 @@ class Services {
     const hit = this.rankCache.get(puuid);
     if (hit && Date.now() - hit.at < (hit.failed ? 30 * 1000 : 5 * 60 * 1000)) return hit.value;
     if (!this.rankPending.has(puuid)) {
-      // Refus de Riot (exception) : réessayé ; pas de MMR (404, null) : « Non classé ».
+      // Refus de Riot (exception) : réessayé, le dernier rang lu reste affiché ; pas de MMR (404, null) :
+      // « Non classé ». « real » : la valeur vient d'une vraie réponse de Riot, pas d'un échec.
       const load = this.client.getMMR(puuid).then(
         (mmr) => ({ mmr, failed: false }),
         () => ({ mmr: null, failed: true })
       ).then(({ mmr, failed }) => {
-        const value = this.rankFromMMR(mmr);
-        this.rankCache.set(puuid, { at: Date.now(), value, failed });
+        const previous = this.rankCache.get(puuid);
+        const keep = failed && !!previous?.real;
+        const value = keep ? previous.value : this.rankFromMMR(mmr);
+        this.rankCache.set(puuid, { at: Date.now(), value, failed, real: keep || !failed });
         return value;
       });
       this.rankPending.set(puuid, load.finally(() => this.rankPending.delete(puuid)));
@@ -165,7 +168,7 @@ class Services {
   rankSoon(puuid) {
     const load = this.rank(puuid);
     const known = this.rankCache.get(puuid);
-    return known && !known.failed ? Promise.race([load, sleep(PAGE_WAIT_MS).then(() => known.value)]) : load;
+    return known?.real ? Promise.race([load, sleep(PAGE_WAIT_MS).then(() => known.value)]) : load;
   }
 
   /**
@@ -176,8 +179,8 @@ class Services {
     const hit = this.rankCache.get(puuid);
     const age = hit ? Date.now() - hit.at : Infinity;
     if (hit?.failed) {
-      if (age >= 30 * 1000) this.rank(puuid); // refusé par Riot : nouvel essai, sans afficher « Non classé »
-      return null;
+      if (age >= 30 * 1000) this.rank(puuid); // refusé par Riot : nouvel essai
+      return hit.real ? hit.value : null; // dernier rang lu, sinon rien plutôt que « Non classé »
     }
     if (hit && (hit.matchId === matchId || age < 5 * 60 * 1000)) hit.matchId = matchId;
     else this.rank(puuid).then(() => (this.rankCache.get(puuid).matchId = matchId));
