@@ -19,6 +19,12 @@ app.setAppUserModelId('com.nouss.precisegunplay');
 // graphique reste aussi entièrement au jeu.
 app.disableHardwareAcceleration();
 
+// Une seule instance de l'app installée : deux copies réécriraient chacune les réglages et les stats de
+// l'autre, doubleraient les requêtes vers Riot et piloteraient les écrans chacune de leur côté. En
+// développement, pas de verrou : on doit pouvoir lancer `npm start` à côté de l'app installée.
+const primary = !app.isPackaged || app.requestSingleInstanceLock();
+if (!primary) app.quit();
+
 let win = null;
 const client = new RiotClient();
 let assets, settings, services, updater, stats, stretch, wishlist;
@@ -221,6 +227,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  if (!primary) return;
   const dataDir = app.getPath('userData');
   assets = new Assets(dataDir);
   // Nouvelle version du jeu : données téléchargées après coup, l'interface prend la nouvelle liste.
@@ -246,6 +253,14 @@ app.whenReady().then(() => {
   tryConnect();
   watchConnection();
   stretch.start().catch(() => {});
+});
+
+// Second lancement : la fenêtre déjà ouverte revient au premier plan.
+app.on('second-instance', () => {
+  if (!win || win.isDestroyed()) return;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
 });
 
 app.on('window-all-closed', () => app.quit());
