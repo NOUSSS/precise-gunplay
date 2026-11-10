@@ -813,7 +813,7 @@ class Services {
   /** Résumé gardé sur disque (voir HistoryStore) : pseudo vide s'il est inconnu, carte par son identifiant. */
   summarizeMatch(d, names = new Map()) {
     const me = d.players?.find((p) => p.subject === this.client.puuid);
-    if (!me) return null;
+    if (!me || me.isObserver) return null; // partie suivie en observateur : rien à résumer
     const teams = d.teams || [];
     const myTeam = teams.find((t) => t.teamId === me.teamId);
     const other = teams.find((t) => t.teamId !== me.teamId);

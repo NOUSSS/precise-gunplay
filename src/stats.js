@@ -33,6 +33,9 @@ class Stats extends EventEmitter {
       this.cache = saved.matches ? { rr: {}, complete: {}, ...saved } : { ...this.cache, matches: saved };
     }
     this.syncing = null;
+    // Matchs téléchargés mais sans résumé possible pour ce compte (suivis en observateur), le temps de
+    // cette session : sans cela ils seraient redemandés à chaque synchronisation.
+    this.skipped = new Set();
     this.state = { running: false, done: 0, total: 0, waitUntil: null, lastSync: null };
   }
 
@@ -57,7 +60,7 @@ class Stats extends EventEmitter {
   /** Résumé d'un match du point de vue d'un joueur. */
   record(d, puuid) {
     const me = d.players?.find((p) => p.subject === puuid);
-    if (!me) return null;
+    if (!me || me.isObserver) return null; // observateur : ni agent ni statistiques
     const rounds = d.roundResults || [];
     const teamOf = new Map(d.players.map((p) => [p.subject, p.teamId]));
     const myTeam = (d.teams || []).find((t) => t.teamId === me.teamId);
@@ -178,6 +181,7 @@ class Stats extends EventEmitter {
   }
 
   hasMatch(puuid, id) {
+    if (this.skipped.has(`${puuid}:${id}`)) return true;
     const r = this.cache.matches[`${puuid}:${id}`];
     return !!r && r.v === RECORD_VERSION;
   }
@@ -233,6 +237,8 @@ class Stats extends EventEmitter {
           if (r) {
             this.cache.matches[`${puuid}:${id}`] = r;
             if (++unsaved >= 10) { this.save(); unsaved = 0; }
+          } else if (d) {
+            this.skipped.add(`${puuid}:${id}`);
           }
         } catch { /* match ignoré, retenté à la prochaine synchro */ }
         this.setState({ done: ++done, waitUntil: this.client.rateLimitedUntil('/match-details') });
