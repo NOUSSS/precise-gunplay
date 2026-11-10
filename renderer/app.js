@@ -2742,7 +2742,7 @@ PAGES.stretch = async () => {
   ].join('') : '';
   const HOTKEYS = [
     ['toggle', 'Basculer étirée ou native', 'Actif partout, jeu compris, quand la fonction est activée.'],
-    ['native', 'Tout restaurer', 'Toujours actif, même fonction coupée. En partie : résolution native.'],
+    ['native', 'Tout restaurer', 'Actif quand la fonction est activée, et tant qu’il reste quelque chose à restaurer. En partie : résolution native.'],
   ];
 
   content.innerHTML = `

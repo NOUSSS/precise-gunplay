@@ -664,7 +664,7 @@ class Stretch extends EventEmitter {
       if (this.cfg.gameConfig) try { setGameConfigLock(false); } catch { /* VALORANT jamais lancé */ }
       this.setPhase('off');
     } else {
-      if (!this.hotkeysPaused && Object.values(this.hotkeys).join() !== this.hotkeysWanted) this.registerHotkeys();
+      this.syncHotkeys();
       // Nouvelle résolution choisie pendant que l'écran est étiré : appliquée tout de suite.
       if (on && this.res === 'stretched' && this.stretchedTo !== `${this.cfg.width}x${this.cfg.height}`) {
         this.exclusive(() => (this.res === 'stretched' ? this.applyStretched() : null)).catch((e) => this.notify(e.message, 'error'));
@@ -678,26 +678,42 @@ class Stretch extends EventEmitter {
     if (this.res === 'stretched' && n?.gdi) {
       await this.display.call(`apply ${n.gdi} ${n.w} ${n.h} ${n.hz}`);
       this.res = 'native';
+      this.syncHotkeys();
     }
     await this.captureNative();
     this.emit('status', this.status());
   }
 
-  // Raccourcis globaux. « Tout restaurer » reste actif même fonction coupée : avec un seul écran devenu
-  // illisible, c'est le seul moyen de s'en sortir. La bascule ne l'est que fonction activée. Un raccourci
-  // déjà pris par une autre application est signalé une fois.
+  // Raccourcis globaux. La bascule n'est prise que fonction activée. « Tout restaurer » l'est aussi
+  // fonction coupée, tant qu'il reste quelque chose à restaurer : avec un seul écran devenu illisible,
+  // c'est le seul moyen de s'en sortir. Le reste du temps, la combinaison est laissée aux autres
+  // applications. Un raccourci déjà pris par une autre application est signalé une fois.
+  nativeHotkeyNeeded() {
+    return !!this.timer || this.res === 'stretched' || monitorsDisabledByUs();
+  }
+
+  hotkeysSignature() {
+    return `${Object.values(this.hotkeys).join()}|${this.nativeHotkeyNeeded()}`;
+  }
+
+  // À appeler après tout changement de l'état de l'écran : prend ou rend « Tout restaurer » au besoin.
+  syncHotkeys() {
+    if (!this.hotkeysPaused && this.hotkeysSignature() !== this.hotkeysWanted) this.registerHotkeys();
+  }
+
   registerHotkeys() {
     this.unregisterHotkeys();
     const actions = { toggle: () => this.toggle(), native: () => this.forceNative() };
     const keys = this.hotkeys;
     for (const [name, accel] of Object.entries(keys)) {
       if (name === 'toggle' && !this.timer) continue;
+      if (name === 'native' && !this.nativeHotkeyNeeded()) continue;
       let ok = false;
       try { ok = globalShortcut.register(accel, () => actions[name]().catch((e) => this.notify(e.message, 'error'))); } catch { /* combinaison invalide */ }
       if (ok) this.hotkeysOn.push(accel);
       else this.hotkeysFailed.push(name);
     }
-    this.hotkeysWanted = Object.values(keys).join();
+    this.hotkeysWanted = this.hotkeysSignature();
     if (this.hotkeysFailed.length) this.notify('Raccourci déjà utilisé par une autre application : choisissez-en un autre.', 'error');
   }
 
@@ -1022,6 +1038,7 @@ class Stretch extends EventEmitter {
     await this.ensureGpuScaling();
     await this.applyMode(c.width, c.height, 0); // 0 = garder la fréquence actuelle
     this.res = 'stretched';
+    this.syncHotkeys();
     this.stretchedTo = `${c.width}x${c.height}`;
     if (this.phase === 'armed') this.setPhase('stretched');
     else this.emit('status', this.status());
@@ -1064,6 +1081,7 @@ class Stretch extends EventEmitter {
       if (regeneric) await this.disableMonitors();
     }
     this.res = 'native';
+    this.syncHotkeys();
     this.emit('status', this.status());
   }
 
@@ -1121,6 +1139,7 @@ class Stretch extends EventEmitter {
     this.screensFailed = [];
     if (r.failed?.length) this.notify(`Écran pas remis comme avant : ${r.failed.join(', ')}. Réactivez-le dans le Gestionnaire de périphériques, rubrique Moniteurs.`, 'error');
     await sleep(300);
+    this.syncHotkeys();
   }
 
   async restoreAfterGame() {
