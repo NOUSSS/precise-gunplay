@@ -33,15 +33,16 @@ const MONITORS_RESULT = path.join(SHARED_DIR, 'monitors-result.json');
 const MONITORS_TARGET = path.join(SHARED_DIR, 'monitors-target.json'); // écrans à préparer, modifiable par le compte
 // Version de l'installation élevée (droits du dossier, définition des tâches). À incrémenter quand
 // elle change sans que stretch-monitors.ps1 change : la page propose alors de renouveler l'autorisation.
-const INSTALL_VERSION = 2;
+const INSTALL_VERSION = 3;
 
 const VALORANT_CONFIG = path.join(process.env.LOCALAPPDATA || '', 'VALORANT', 'Saved', 'Config');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function run(file, args) {
+// timeout : durée maximale en ms (0 : aucune, pour la fenêtre d'autorisation Windows qui attend l'utilisateur).
+function run(file, args, timeout = 0) {
   return new Promise((resolve) => {
-    execFile(file, args, { windowsHide: true }, (err, stdout, stderr) =>
+    execFile(file, args, { windowsHide: true, timeout }, (err, stdout, stderr) =>
       resolve({ code: err ? (typeof err.code === 'number' ? err.code : 1) : 0, out: String(stdout || stderr || '').trim() })
     );
   });
@@ -286,7 +287,7 @@ const normalize = (text) => text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
 async function monitorsInstalled() {
   let installed;
   try { installed = fs.readFileSync(path.join(SHARED_DIR, 'monitors.ps1'), 'utf8'); } catch { return null; }
-  const [off, on] = await Promise.all([run('schtasks.exe', ['/query', '/tn', TASK('off')]), run('schtasks.exe', ['/query', '/tn', TASK('on')])]);
+  const [off, on] = await Promise.all([run('schtasks.exe', ['/query', '/tn', TASK('off')], 15000), run('schtasks.exe', ['/query', '/tn', TASK('on')], 15000)]);
   if (off.code !== 0 || on.code !== 0) return null;
   const current = readJson(path.join(SHARED_DIR, 'install.json'))?.v === INSTALL_VERSION;
   return current && normalize(installed) === normalize(bundledMonitorsScript()) ? 'ready' : 'outdated';
@@ -337,7 +338,11 @@ $svc = New-Object -ComObject Schedule.Service
 $svc.Connect()
 foreach ($mode in 'off', 'on') {
   $action = New-ScheduledTaskAction -Execute $ps -Argument "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File \`"$file\`" -Mode $mode"
-  Register-ScheduledTask -TaskPath '\\Precise Gunplay\\' -TaskName "Ecrans $mode" -Action $action -Principal $principal -Settings $settings -Force | Out-Null
+  $params = @{ TaskPath = '\\Precise Gunplay\\'; TaskName = "Ecrans $mode"; Action = $action; Principal = $principal; Settings = $settings; Force = $true }
+  # Écrans restés désactivés après un arrêt de Windows en pleine partie : réactivés à l'ouverture de
+  # session, que l'app soit lancée ou non. Sans rien à réactiver, la tâche ne fait rien.
+  if ($mode -eq 'on') { $params.Trigger = New-ScheduledTaskTrigger -AtLogOn }
+  Register-ScheduledTask @params | Out-Null
   # Le compte (sans élévation) peut lire et lancer la tâche, sans pouvoir la modifier.
   $task = $svc.GetFolder('\\Precise Gunplay').GetTask("Ecrans $mode")
   try {
@@ -366,7 +371,7 @@ async function installMonitors() {
 async function runMonitorsTask(mode) {
   // Seul un résultat écrit après celui déjà présent compte : le précédent peut dater d'une seconde.
   const previous = readJson(MONITORS_RESULT)?.at || 0;
-  const res = await run('schtasks.exe', ['/run', '/tn', TASK(mode)]);
+  const res = await run('schtasks.exe', ['/run', '/tn', TASK(mode)], 15000);
   if (res.code !== 0) throw new Error(`Tâche « Ecrans ${mode} » introuvable : réautorisez la désactivation des écrans.`);
   for (let waited = 0; waited < 60000; waited += 250) {
     await sleep(250);
@@ -715,7 +720,14 @@ class Stretch extends EventEmitter {
 
   async recover() {
     const p = await this.display.call(`procs ${LAUNCHER} ${GAME}`);
-    if (p.run.some(Boolean)) return; // jeu déjà lancé : la boucle prend le relais
+    if (p.run.some(Boolean)) {
+      // Jeu déjà lancé (app relancée en pleine session) : la boucle prend le relais, en sachant si
+      // l'écran est resté étiré. Sans cela, elle ne le remettrait jamais en native.
+      const d = await this.display.call(this.displayCmd()).catch(() => null);
+      const c = this.cfg;
+      if (d && c.native && d.w === c.width && d.h === c.height) this.res = 'stretched';
+      return;
+    }
     await this.enableMonitors();
     const d = await this.display.call(this.displayCmd());
     const c = this.cfg;
@@ -1185,9 +1197,22 @@ class Stretch extends EventEmitter {
     return { restart };
   }
 
-  // À la fermeture de l'app : rien ne doit rester étiré ni désactivé.
+  // Fermeture de session Windows : l'app n'a pas le temps d'attendre un résultat. La tâche est lancée sans
+  // suivi, elle vit hors de l'app. Si Windows refuse de créer un processus à ce moment, le déclencheur
+  // « à l'ouverture de session » de la tâche prend le relais.
+  fireMonitorsOn() {
+    if (!monitorsDisabledByUs()) return;
+    try {
+      const p = spawn('schtasks.exe', ['/run', '/tn', TASK('on')], { detached: true, stdio: 'ignore', windowsHide: true });
+      p.on('error', () => {}); // création refusée : signalée par un événement, qui sans écouteur ferait planter l'app
+      p.unref();
+    } catch { /* session déjà en cours de fermeture */ }
+  }
+
+  // À la fermeture de l'app : rien ne doit rester étiré ni désactivé. Jeu ou lanceur vu : une
+  // désactivation peut être en cours sans que son fichier d'état soit encore écrit.
   needsCleanup() {
-    return this.res === 'stretched' || monitorsDisabledByUs();
+    return this.res === 'stretched' || monitorsDisabledByUs() || this.gameRunning || this.launcherSeen;
   }
 
   async shutdown() {

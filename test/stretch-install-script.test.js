@@ -25,6 +25,11 @@ test('le script élevé est du PowerShell valide', { skip: !windows }, () => {
   assert.equal(r.count, 0, r.out);
 });
 
+test('la tâche « on » se déclenche à l’ouverture de session', () => {
+  assert.match(elevated, /New-ScheduledTaskTrigger -AtLogOn/);
+  assert.match(elevated, /"v":3/);
+});
+
 test('le script des tâches est du PowerShell valide', { skip: !windows }, () => {
   const r = parseErrors(monitors);
   assert.equal(r.count, 0, r.out);

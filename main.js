@@ -165,7 +165,15 @@ function registerIpc() {
 
   handle('update-state', () => updater.state, { needsAuth: false });
   handle('update-check', () => updater.check(), { needsAuth: false });
-  handle('update-install', () => updater.install(), { needsAuth: false });
+  handle('update-install', async () => {
+    // L'installeur ferme l'app de force au bout de 3 s : écrans et résolution sont remis en place avant
+    // de le lancer, pas pendant.
+    if (updater.state.status === 'ready' && !cleanedUp && stretch.needsCleanup()) {
+      cleanedUp = true;
+      await cleanupBeforeQuit();
+    }
+    return updater.install();
+  }, { needsAuth: false });
 
   handle('profile', () => services.profile());
   handle('store', () => services.store());
@@ -241,6 +249,8 @@ function createWindow() {
   });
   win.webContents.on('will-navigate', (e) => e.preventDefault());
   win.webContents.on('did-finish-load', () => send('status', status));
+  // Arrêt, redémarrage ou fermeture de session Windows : « before-quit » n'est pas émis dans ce cas.
+  win.on('session-end', () => stretch?.fireMonitorsOn());
 }
 
 app.whenReady().then(() => {
@@ -283,10 +293,13 @@ app.on('second-instance', () => {
 app.on('window-all-closed', () => app.quit());
 
 // Résolution étirée : à la fermeture, l'écran revient en natif et les écrans désactivés sont réactivés.
+// Durée bornée : une tâche planifiée bloquée ne garde pas l'app en mémoire sans fenêtre.
+const QUIT_CLEANUP_MS = 20000;
+const cleanupBeforeQuit = () => Promise.race([stretch.shutdown(), new Promise((r) => setTimeout(r, QUIT_CLEANUP_MS))]);
 let cleanedUp = false;
 app.on('before-quit', (e) => {
   if (cleanedUp || !stretch || !stretch.needsCleanup()) return;
   e.preventDefault();
   cleanedUp = true;
-  stretch.shutdown().finally(() => app.quit());
+  cleanupBeforeQuit().finally(() => app.quit());
 });
