@@ -2035,7 +2035,7 @@ function friendStatus(f, short = false) {
   if (v.loop === 'INGAME') return `${short ? '' : 'En partie · '}${esc(queueName(v.queue))}${map}`;
   if (v.loop === 'PREGAME') return `${short ? '' : "Sélection d’agent · "}${esc(queueName(v.queue))}${map}`;
   if (v.partyState === 'MATCHMAKING') return `Recherche une partie · ${esc(queueName(v.queue))}`;
-  return `Dans les menus${v.partySize > 1 ? ` · groupe ${v.partySize}/${v.partyMax}` : ''}${v.idle ? ' · inactif' : ''}`;
+  return `Dans les menus${v.partySize > 1 ? ` · groupe ${esc(v.partySize)}/${esc(v.partyMax)}` : ''}${v.idle ? ' · inactif' : ''}`;
 }
 
 PAGES.friends = async () => {
