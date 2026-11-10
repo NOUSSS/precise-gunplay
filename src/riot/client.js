@@ -41,6 +41,9 @@ class RiotError extends Error {
 
 class RiotClient {
   constructor() {
+    // Gardés d'une connexion à l'autre : une coupure de l'app ne lève pas la pause que Riot a demandée.
+    this.rateLimits = new Map(); // pause imposée par Riot, par famille d'endpoint (ex : /match-details)
+    this.sent = new Map(); // heures d'envoi de la dernière minute, par famille
     this.reset();
   }
 
@@ -52,11 +55,8 @@ class RiotClient {
     this.region = null;
     this.shard = null;
     this.version = null;
-    // Pause imposée par Riot, par famille d'endpoint (ex : /match-details) pour ne pas bloquer le reste.
-    this.rateLimits = new Map();
     this.busy = new Map(); // requêtes des pages en cours, par famille
     this.lanes = new Map(); // requêtes de fond : { tail, next } par famille
-    this.sent = new Map(); // heures d'envoi de la dernière minute, par famille
   }
 
   get connected() {
