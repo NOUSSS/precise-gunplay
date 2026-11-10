@@ -23,7 +23,7 @@ Le succès : télécharger l'installeur, l'installer, et que l'app reste ouverte
 
 ## Positioning
 
-- Une application de bureau, pas un site : elle lit le client local, sans connexion à un compte tiers.
+- Une application de bureau, pas un site : elle lit le client local et ne demande aucun mot de passe. Seule la liste de souhaits, facultative, passe par un tiers (Discord et le bot PX-0).
 - La résolution étirée est entièrement automatique : passage sur le pilote d'écran générique au lancement du jeu, résolution étirée à la fin de l'écran de chargement, retour à la résolution native à la fin de la partie. L'app ne touche jamais au processus du jeu.
 - Gratuite, open source (licence MIT), mises à jour automatiques via l'installeur.
 
