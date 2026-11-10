@@ -31,6 +31,9 @@ const SHARED_DIR = path.join(process.env.ProgramData || 'C:\\ProgramData', 'Prec
 const MONITORS_STATE = path.join(SHARED_DIR, 'monitors-state.json');
 const MONITORS_RESULT = path.join(SHARED_DIR, 'monitors-result.json');
 const MONITORS_TARGET = path.join(SHARED_DIR, 'monitors-target.json'); // écrans à préparer, modifiable par le compte
+// Version de l'installation élevée (droits du dossier, définition des tâches). À incrémenter quand
+// elle change sans que stretch-monitors.ps1 change : la page propose alors de renouveler l'autorisation.
+const INSTALL_VERSION = 2;
 
 const VALORANT_CONFIG = path.join(process.env.LOCALAPPDATA || '', 'VALORANT', 'Saved', 'Config');
 
@@ -285,32 +288,50 @@ async function monitorsInstalled() {
   try { installed = fs.readFileSync(path.join(SHARED_DIR, 'monitors.ps1'), 'utf8'); } catch { return null; }
   const [off, on] = await Promise.all([run('schtasks.exe', ['/query', '/tn', TASK('off')]), run('schtasks.exe', ['/query', '/tn', TASK('on')])]);
   if (off.code !== 0 || on.code !== 0) return null;
-  return normalize(installed) === normalize(bundledMonitorsScript()) ? 'ready' : 'outdated';
+  const current = readJson(path.join(SHARED_DIR, 'install.json'))?.v === INSTALL_VERSION;
+  return current && normalize(installed) === normalize(bundledMonitorsScript()) ? 'ready' : 'outdated';
 }
 
-// Une seule fenêtre UAC : copie le script dans un dossier que seul un administrateur peut modifier,
-// puis crée les deux tâches planifiées « avec les privilèges les plus élevés ». Les déclencher ensuite
-// (schtasks /run) ne demande plus d'autorisation.
-async function installMonitors() {
-  const script = bundledMonitorsScript();
-  const elevated = `
+// Script exécuté une fois avec les droits administrateur (voir installMonitors).
+function elevatedInstallScript(script) {
+  return `
 $ErrorActionPreference = 'Stop'
-$dir = Join-Path $env:ProgramData 'Precise Gunplay'
-New-Item -ItemType Directory -Force -Path $dir | Out-Null
-& icacls.exe $dir /inheritance:r /grant:r '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-545:(OI)(CI)RX' | Out-Null
+# Chemins lus par l'API Windows : une variable d'environnement du compte ne les déplace pas.
+$sys = [Environment]::GetFolderPath('System')
+$dir = Join-Path ([Environment]::GetFolderPath('CommonApplicationData')) 'Precise Gunplay'
+# Dossier déjà présent : gardé seulement s'il appartient aux administrateurs ou au système et n'est pas
+# un lien. Sinon il a pu être préparé sans élévation : il est supprimé et recréé.
+if (Test-Path -LiteralPath $dir) {
+  $owner = (Get-Acl -LiteralPath $dir).GetOwner([Security.Principal.SecurityIdentifier]).Value
+  $link = [bool]((Get-Item -LiteralPath $dir -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)
+  if ($link -or ($owner -ne 'S-1-5-32-544' -and $owner -ne 'S-1-5-18')) {
+    & "$sys\\cmd.exe" /c rd /s /q "$dir"
+    if (Test-Path -LiteralPath $dir) { throw 'Dossier partagé impossible à reconstruire.' }
+  }
+}
+if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir | Out-Null }
+& "$sys\\icacls.exe" $dir /inheritance:r /grant:r '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-545:(OI)(CI)RX' | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "Droits du dossier partagé non posés ($LASTEXITCODE)." }
+# Script recréé après la pose des droits : il appartient au processus élevé, quoi qu'il y ait eu avant.
 $file = Join-Path $dir 'monitors.ps1'
+if (Test-Path -LiteralPath $file) { [IO.File]::Delete($file) }
 [IO.File]::WriteAllText($file, [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${Buffer.from(script, 'utf8').toString('base64')}')), [Text.UTF8Encoding]::new($true))
+[IO.File]::WriteAllText((Join-Path $dir 'install.json'), '{"v":${INSTALL_VERSION}}')
 $me = [Security.Principal.WindowsIdentity]::GetCurrent()
 # Écran à préparer (celui du jeu) : seul fichier que le compte peut modifier.
 $target = Join-Path $dir 'monitors-target.json'
-if (-not (Test-Path $target)) { [IO.File]::WriteAllText($target, '{"ids":[]}') }
-& icacls.exe $target /grant:r "*$($me.User.Value):(W)" | Out-Null
-$principal = New-ScheduledTaskPrincipal -UserId $me.Name -LogonType S4U -RunLevel Highest
+if (Test-Path -LiteralPath $target) { [IO.File]::Delete($target) }
+[IO.File]::WriteAllText($target, '{"ids":[]}')
+& "$sys\\icacls.exe" $target /grant:r "*$($me.User.Value):(W)" | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "Droits du fichier des écrans non posés ($LASTEXITCODE)." }
+# Compte système : la tâche ne charge ni l'environnement ni les modules PowerShell du compte.
+$principal = New-ScheduledTaskPrincipal -UserId 'S-1-5-18' -LogonType ServiceAccount -RunLevel Highest
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 2) -MultipleInstances Queue
+$ps = Join-Path $sys 'WindowsPowerShell\\v1.0\\powershell.exe'
 $svc = New-Object -ComObject Schedule.Service
 $svc.Connect()
 foreach ($mode in 'off', 'on') {
-  $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File \`"$file\`" -Mode $mode"
+  $action = New-ScheduledTaskAction -Execute $ps -Argument "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File \`"$file\`" -Mode $mode"
   Register-ScheduledTask -TaskPath '\\Precise Gunplay\\' -TaskName "Ecrans $mode" -Action $action -Principal $principal -Settings $settings -Force | Out-Null
   # Le compte (sans élévation) peut lire et lancer la tâche, sans pouvoir la modifier.
   $task = $svc.GetFolder('\\Precise Gunplay').GetTask("Ecrans $mode")
@@ -321,6 +342,13 @@ foreach ($mode in 'off', 'on') {
   } catch {}
 }
 `;
+}
+
+// Une seule fenêtre UAC : copie le script dans un dossier que seul un administrateur peut modifier,
+// puis crée les deux tâches planifiées « avec les privilèges les plus élevés ». Les déclencher ensuite
+// (schtasks /run) ne demande plus d'autorisation.
+async function installMonitors() {
+  const elevated = elevatedInstallScript(bundledMonitorsScript());
   const encoded = Buffer.from(elevated, 'utf16le').toString('base64');
   const res = await run('powershell.exe', [
     '-NoProfile', '-NonInteractive', '-Command',
@@ -1166,4 +1194,4 @@ class Stretch extends EventEmitter {
   }
 }
 
-module.exports = { Stretch };
+module.exports = { Stretch, elevatedInstallScript };
