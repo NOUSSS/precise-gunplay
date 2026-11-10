@@ -74,7 +74,7 @@ async function record() {
   win.setContentSize(SW, SH + 1);
   const wc = win.webContents;
   wc.setFrameRate(60);
-  wc.on('console-message', (_e, level, msg) => { if (level >= 2 && !/Electron Security Warning/.test(msg)) console.log('[page]', msg); });
+  wc.on('console-message', (e) => { if (['warning', 'error'].includes(e.level) && !/Electron Security Warning/.test(e.message)) console.log('[page]', e.message); });
   // L'image capturée doit porter le repère de l'image demandée : sinon elle date d'avant, on recommence.
   const grab = async (f) => {
     const seen = [];

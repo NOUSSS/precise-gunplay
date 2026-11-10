@@ -8,7 +8,7 @@ L'application elle-même est une app de bureau Electron pour Windows (x64) ; son
 
 ## Stack
 
-- Application : Electron 33, HTML/CSS/JS sans framework (`renderer/`), processus principal Node (`main.js`, `src/`).
+- Application : Electron 45, HTML/CSS/JS sans framework (`renderer/`), processus principal Node (`main.js`, `src/`).
 - Landing page : HTML/CSS statique dans `site/`, servie depuis le VPS Coolify (derrière Cloudflare). Choix de l'utilisateur le 2026-10-29.
 
 ## Users
