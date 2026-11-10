@@ -13,6 +13,8 @@ const ABILITY_SLOTS = ['Grenade', 'Ability1', 'Ability2', 'Ultimate'];
 // Icônes d'agent fournies en 1024 × 1024 (400 Ko) et affichées à 110 px au plus, souvent par centaines
 // (tableaux des scores) : une copie réduite sur disque pèse 16 fois moins une fois décodée.
 const AGENT_ICON_SIZE = 256;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MEDIA = 'https://media.valorant-api.com/';
 
 const ITEM_TYPES = {
   skin: 'e7c63390-eda7-46e0-bb7a-a6abdacd2433',
@@ -198,9 +200,12 @@ class Assets extends EventEmitter {
   localAgentIcons(agents) {
     const missing = [];
     for (const a of agents) {
+      // L'identifiant devient un nom de fichier, l'adresse est téléchargée par le processus principal :
+      // tous deux viennent d'un service tiers, ils doivent avoir la forme attendue.
+      if (!UUID.test(String(a.uuid))) continue;
       const file = path.join(this.iconDir, `${a.uuid}.png`);
       if (fs.existsSync(file)) a.icon = pathToFileURL(file).href;
-      else if (a.icon) missing.push({ url: a.icon, file });
+      else if (typeof a.icon === 'string' && a.icon.startsWith(MEDIA)) missing.push({ url: a.icon, file });
     }
     if (missing.length) this.shrinkAgentIcons(missing).catch(() => {});
   }

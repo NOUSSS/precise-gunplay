@@ -6,7 +6,7 @@ const { RiotClient } = require('./src/riot/client');
 const { readLockfile } = require('./src/riot/local');
 const { connectionWatcher } = require('./src/riot/watch');
 const { Assets } = require('./src/assets');
-const { Settings } = require('./src/settings');
+const { Settings, sanitizePatch } = require('./src/settings');
 const { Services } = require('./src/services');
 const { CLIENT_ACTIONS_DISABLED, CLIENT_ACTIONS_MESSAGE, assertClientActionsAllowed } = require('./src/restrictions');
 const { Updater } = require('./src/updater');
@@ -65,6 +65,16 @@ function launchRiot() {
   // Si le Riot Client tourne déjà, il se met simplement au premier plan.
   spawn(exe, [], { detached: true, stdio: 'ignore' }).unref();
   return true;
+}
+
+// Seuls sites que l'app ouvre dans le navigateur : profil Tracker d'un joueur, connexion Discord de la
+// liste de souhaits, dépôt et versions sur GitHub.
+const EXTERNAL_HOSTS = new Set(['tracker.gg', 'discord.com', 'github.com']);
+
+function openExternal(url) {
+  let target;
+  try { target = new URL(String(url)); } catch { return; }
+  if (target.protocol === 'https:' && EXTERNAL_HOSTS.has(target.hostname)) shell.openExternal(target.href);
 }
 
 function setStatus(next) {
@@ -135,21 +145,22 @@ function registerIpc() {
   handle('assets-refresh', async () => { await assets.load(true); return assets.summary(); }, { needsAuth: false });
   handle('restrictions', () => ({ clientActions: !CLIENT_ACTIONS_DISABLED, message: CLIENT_ACTIONS_MESSAGE }), { needsAuth: false });
   handle('settings-get', () => withLoginItem(settings.get()), { needsAuth: false });
-  handle('settings-set', (patch) => {
+  handle('settings-set', (raw) => {
+    const patch = sanitizePatch(raw); // lève « Réglage invalide. » sur toute clé ou valeur inattendue
     const before = settings.get().regionOverride;
-    const { openAtLogin, ...rest } = patch || {};
+    const { openAtLogin, ...rest } = patch;
     if (typeof openAtLogin === 'boolean') app.setLoginItemSettings({ ...loginItemOptions(), openAtLogin });
     const next = withLoginItem(settings.update(rest));
-    if (patch && 'regionOverride' in patch && patch.regionOverride !== before) {
+    if ('regionOverride' in patch && patch.regionOverride !== before) {
       client.reset();
       tryConnect();
     }
-    if (patch && patch.stretch) stretch.configure();
+    if (patch.stretch) stretch.configure();
     return next;
   }, { needsAuth: false });
   handle('launch-riot', launchRiot, { needsAuth: false });
   handle('open-external', (url) => {
-    if (/^https:\/\//.test(url)) shell.openExternal(url);
+    openExternal(url);
   }, { needsAuth: false });
 
   handle('update-state', () => updater.state, { needsAuth: false });
@@ -225,7 +236,7 @@ function createWindow() {
 
   // Les liens externes s'ouvrent dans le navigateur, jamais dans l'app.
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https:\/\//.test(url)) shell.openExternal(url);
+    openExternal(url);
     return { action: 'deny' };
   });
   win.webContents.on('will-navigate', (e) => e.preventDefault());

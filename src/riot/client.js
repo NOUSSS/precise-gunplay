@@ -75,8 +75,13 @@ class RiotClient {
     }
     this.lock = lock;
     await this.refreshTokens();
+    // La région devient un morceau de nom d'hôte qui reçoit les jetons de session : jamais une valeur libre.
+    if (regionOverride && !Object.hasOwn(SHARD_BY_REGION, regionOverride)) {
+      throw new RiotError('NO_REGION', 'Région inconnue. Choisissez-la de nouveau dans les paramètres.');
+    }
     this.region = regionOverride || (await this.detectRegion());
-    if (!this.region) {
+    if (!this.region || !/^[a-z0-9]+$/.test(this.region)) {
+      this.region = null;
       throw new RiotError('NO_REGION', 'Région introuvable. Lancez VALORANT une fois ou choisissez votre région dans les paramètres.');
     }
     this.shard = SHARD_BY_REGION[this.region] || this.region;

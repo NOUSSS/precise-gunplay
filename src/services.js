@@ -1012,8 +1012,8 @@ class Services {
               loop, // MENUS | PREGAME | INGAME
               queue: d.queueId || match.queueId || '',
               map: map ? { name: map.name, icon: map.listIcon, splash: map.splash } : null,
-              partySize: d.partySize || party.partySize || 1,
-              partyMax: d.maxPartySize || party.maxPartySize || 5,
+              partySize: Number(d.partySize || party.partySize) || 1,
+              partyMax: Number(d.maxPartySize || party.maxPartySize) || 5,
               partyState: d.partyState || party.partyState || '', // MATCHMAKING = en file
               withMe: !!(myParty && partyId === myParty),
               level: d.accountLevel || player.accountLevel || null,
