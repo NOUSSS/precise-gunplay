@@ -3,7 +3,8 @@ const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const { RiotClient } = require('./src/riot/client');
-const { LOCKFILE } = require('./src/riot/local');
+const { readLockfile } = require('./src/riot/local');
+const { connectionWatcher } = require('./src/riot/watch');
 const { Assets } = require('./src/assets');
 const { Settings } = require('./src/settings');
 const { Services } = require('./src/services');
@@ -91,22 +92,27 @@ async function tryConnect() {
 }
 
 function watchConnection() {
-  setInterval(async () => {
+  const check = connectionWatcher({
+    client,
+    // Même Riot Client qu'à la connexion : fichier de verrou présent, même port et même secret.
+    lockfileUnchanged: () => {
+      const lock = readLockfile();
+      return !!lock && !!client.lock && lock.port === client.lock.port && lock.password === client.lock.password;
+    },
+    onAccountChanged: () => {
+      client.reset();
+      tryConnect();
+    },
+    onLost: (e) => {
+      client.reset();
+      setStatus({ connected: false, message: e.message || 'Riot Client fermé. En attente…', code: e.code });
+    },
+  });
+  setInterval(() => {
     if (connecting) return;
     if (!client.connected) return tryConnect();
     // Vérifie que le Riot Client répond toujours et que c'est le même compte.
-    const previous = client.puuid;
-    try {
-      if (!fs.existsSync(LOCKFILE)) throw Object.assign(new Error('Riot Client fermé. En attente…'), { code: 'RIOT_CLIENT_CLOSED' });
-      await client.refreshTokens();
-      if (client.puuid !== previous) {
-        client.reset();
-        tryConnect();
-      }
-    } catch (e) {
-      client.reset();
-      setStatus({ connected: false, message: e.message || 'Riot Client fermé. En attente…', code: e.code });
-    }
+    check();
   }, 5000);
 }
 
