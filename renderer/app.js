@@ -382,6 +382,7 @@ $('#account').addEventListener('click', () => state.status.connected && navigate
 const needsAuth = (page) => page !== 'settings' && page !== 'stretch';
 
 function navigate(page) {
+  if (!state.settings || !state.assets) return; // démarrage pas encore abouti : les pages n'ont pas leurs données
   state.onUnread = null;
   state.onStretch = null;
   state.leave?.(); // la page quittée arrête ce qu'elle faisait tourner côté app
@@ -397,8 +398,9 @@ function navigate(page) {
   if (needsAuth(page) && !state.status.connected) return renderConnect();
   state.entering = true;
   content.innerHTML = loader();
+  const alive = guard();
   PAGES[page]().catch((e) => {
-    content.innerHTML = errorBox(e.message);
+    if (alive()) content.innerHTML = errorBox(e.message); // page quittée entre-temps : son erreur ne s'affiche pas
   });
 }
 
@@ -2047,7 +2049,8 @@ PAGES.friends = async () => {
   try { offlineFolded = localStorage.getItem(FOLD_KEY) === '1'; } catch { /* stockage indisponible */ }
 
   async function refresh() {
-    try { list = await call('friends'); } catch (e) { if (alive()) content.innerHTML = errorBox(e.message); return; }
+    // L'erreur va dans la liste : l'ossature de la page reste, le rafraîchissement suivant la remplace.
+    try { list = await call('friends'); } catch (e) { if (alive()) $('#flist').innerHTML = errorBox(e.message); return; }
     if (!alive()) return;
     drawList();
     if (openPid) drawChatHead();
@@ -2997,14 +3000,17 @@ PAGES.settings = async () => {
 };
 
 // ================= Démarrage =================
-(async function boot() {
+async function boot() {
   content.innerHTML = loader();
   renderNav();
   renderAccount();
   try {
     [state.settings, state.assets, state.restrictions] = await Promise.all([call('settings-get'), call('assets').then(withAssets), call('restrictions')]);
   } catch (e) {
-    content.innerHTML = errorBox(`Impossible de charger les données du jeu (connexion Internet ?) : ${e.message}`);
+    // Rien n'est encore branché : réessayer relance tout le démarrage.
+    content.innerHTML = `${errorBox(`Impossible de charger les données du jeu (connexion Internet ?) : ${e.message}`)}
+      <div class="connect-actions"><button class="btn" id="boot-retry">${ICON_RETRY}Réessayer</button></div>`;
+    $('#boot-retry').onclick = boot;
     return;
   }
   setInterval(refreshUnread, 8000);
@@ -3024,4 +3030,5 @@ PAGES.settings = async () => {
   renderNav();
   renderAccount();
   navigate('home');
-})();
+}
+boot();
