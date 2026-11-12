@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Precise Gunplay, compagnon VALORANT pour Windows</title>
   <meta name="description" content="Boutique, partie en direct, statistiques et résolution étirée automatique. Une application de bureau gratuite et open source qui lit votre client Riot local.">
-  <meta name="theme-color" content="#07080b">
+  <meta name="theme-color" content="#050608">
   <meta name="color-scheme" content="dark">
   <meta property="og:title" content="Precise Gunplay">
   <meta property="og:description" content="Boutique, partie en direct, statistiques et résolution étirée automatique, sans ouvrir le jeu.">
@@ -15,462 +15,271 @@
   <meta property="og:locale" content="fr_FR">
   <link rel="icon" type="image/png" href="img/favicon.png">
   <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
-  <link rel="preload" href="fonts/barlow-condensed-700.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="fonts/barlow-400.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/archivo.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="styles.css">
   <script>document.documentElement.classList.add('js');setTimeout(function(){if(!window.pgReady)document.documentElement.classList.remove('js')},4000)</script>
   <script src="main.js" defer></script>
 </head>
 <body>
   <a class="skip" href="#contenu">Aller au contenu</a>
+  <div class="grid" aria-hidden="true" data-grid></div>
 
-  <header class="topbar" data-topbar>
-    <div class="topbar-inner">
-      <a class="brand" href="#" aria-label="Precise Gunplay, accueil">
-        <img src="img/logo-full.webp" width="640" height="161" alt="Precise Gunplay">
-      </a>
-      <nav class="topnav" aria-label="Sections">
-        <a href="#fonctions">Fonctions</a>
-        <a href="#resolution">Résolution étirée</a>
-        <a href="#installation">Installation</a>
-        <a href="#questions">Questions</a>
-      </nav>
-      <a class="btn btn-primary btn-sm" href="https://github.com/NOUSSS/precise-gunplay/releases/latest" data-dl="setup" data-topbar-cta>
-        <svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9m0 0-3.5-3.5M10 12l3.5-3.5M4 14.5V16h12v-1.5"/></svg>
-        Télécharger
-      </a>
-    </div>
+  <header class="bar" data-bar>
+    <a class="logo" href="#" aria-label="Precise Gunplay, accueil"><img src="img/logo-full.webp" width="640" height="161" alt="Precise Gunplay"></a>
+    <a class="btn btn-sm bar-cta" href="https://github.com/NOUSSS/precise-gunplay/releases/latest" data-dl="setup" tabindex="-1">
+      <span class="btn-icon" aria-hidden="true"><svg class="i-win" viewBox="0 0 20 20"><path d="M3 4.6 8.6 3.8v5.6H3zM9.6 3.7 17 2.7v6.7H9.6zM3 10.4h5.6v5.6L3 15.2zM9.6 10.4H17v6.9l-7.4-1z"/></svg><svg class="i-ok" viewBox="0 0 20 20"><path d="m4.5 10.4 3.6 3.6 7.4-7.8"/></svg></span>
+      <span class="btn-text"><span class="l-idle">Télécharger</span><span class="l-done" aria-hidden="true">Lancé</span></span>
+    </a>
   </header>
 
   <main id="contenu">
-    <!-- Héros -->
     <section class="hero" data-hero>
-      <div class="hero-bg" aria-hidden="true">
-        <img class="hero-map" src="img/map-ascent.webp" alt="" data-depth="0.18">
-        <div class="hero-veil"></div>
-        <svg class="hero-lines" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid slice">
-          <path d="M-100 700 L500 100 M80 860 L760 180 M820 900 L1300 420"/>
-        </svg>
-      </div>
-
-      <div class="wrap hero-copy">
-        <p class="eyebrow" data-reveal style="--i:0">
-          <img src="img/logo-mark.webp" width="400" height="332" alt="">
-          Compagnon VALORANT pour Windows
-        </p>
-        <h1 class="display hero-title" data-reveal>
-          <span class="line" style="--i:1"><span>Votre VALORANT,</span></span>
-          <span class="line" style="--i:2"><span>vu <em>de près.</em></span></span>
-        </h1>
-        <div class="hero-actions" data-reveal style="--i:4">
-          <a class="btn btn-primary btn-lg" href="https://github.com/NOUSSS/precise-gunplay/releases/latest" data-dl="setup" data-cta>
-            <svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 4.6 8.6 3.8v5.6H3zM9.6 3.7 17 2.7v6.7H9.6zM3 10.4h5.6v5.6L3 15.2zM9.6 10.4H17v6.9l-7.4-1z" class="fill"/></svg>
-            Télécharger pour Windows
-          </a>
-          <p class="facts">Gratuit · Open source (MIT) · Windows x64</p>
-        </div>
-      </div>
-
-      <div class="wrap showcase" data-reveal style="--i:5">
-        <div class="stage" data-stage>
-          <div class="stage-glow" aria-hidden="true"></div>
-          <figure class="frame" data-frame>
-            <video class="frame-video" muted loop playsinline preload="metadata" poster="media/poster.webp" width="1920" height="1080" data-video aria-label="Démonstration de l’interface de Precise Gunplay, remplie de données fictives">
-              <source src="media/demo-av1.mp4" type="video/mp4; codecs=av01.0.09M.08">
-              <source src="media/demo.mp4" type="video/mp4; codecs=avc1.64002A">
-            </video>
-            <figcaption class="tag tag-on-media">Vraie interface, données fictives</figcaption>
-          </figure>
+      <div class="scene">
+        <div class="screen" data-screen>
+          <video muted loop playsinline preload="auto" poster="media/poster.webp" width="1920" height="1080" data-hero-video aria-label="Démonstration de l’interface de Precise Gunplay, remplie de données fictives">
+            <source src="media/demo-av1.mp4" type="video/mp4; codecs=av01.0.09M.08">
+            <source src="media/demo.mp4" type="video/mp4; codecs=avc1.64002A">
+          </video>
+          <div class="scrim" data-scrim></div>
         </div>
 
-        <div class="player" data-player>
-          <div class="chapters" role="group" aria-label="Chapitres de la vidéo">
-            <!-- Mêmes instants que .github/media/video/scenario.js ; après 35,2 s, la vidéo revient à l’accueil avant de boucler -->
-            <button class="chapter" type="button" data-chapter data-start="0" data-end="3.2"><span class="chapter-track"><span class="chapter-fill"></span></span><span class="chapter-label">Accueil</span></button>
-            <button class="chapter" type="button" data-chapter data-start="3.2" data-end="11"><span class="chapter-track"><span class="chapter-fill"></span></span><span class="chapter-label">Boutique</span></button>
-            <button class="chapter" type="button" data-chapter data-start="11" data-end="20"><span class="chapter-track"><span class="chapter-fill"></span></span><span class="chapter-label">Résolution étirée</span></button>
-            <button class="chapter" type="button" data-chapter data-start="20" data-end="27.6"><span class="chapter-track"><span class="chapter-fill"></span></span><span class="chapter-label">Partie en direct</span></button>
-            <button class="chapter" type="button" data-chapter data-start="27.6" data-end="35.2"><span class="chapter-track"><span class="chapter-fill"></span></span><span class="chapter-label">Statistiques</span></button>
+        <div class="copy" data-copy>
+          <h1 class="title">
+            <span class="line"><span>Votre VALORANT,</span></span>
+            <span class="line"><span>vu <em>de près.</em></span></span>
+          </h1>
+          <div class="cta-row">
+            <a class="btn" href="https://github.com/NOUSSS/precise-gunplay/releases/latest" data-dl="setup" data-cta>
+              <span class="btn-icon" aria-hidden="true"><svg class="i-win" viewBox="0 0 20 20"><path d="M3 4.6 8.6 3.8v5.6H3zM9.6 3.7 17 2.7v6.7H9.6zM3 10.4h5.6v5.6L3 15.2zM9.6 10.4H17v6.9l-7.4-1z"/></svg><svg class="i-ok" viewBox="0 0 20 20"><path d="m4.5 10.4 3.6 3.6 7.4-7.8"/></svg></span>
+              <span class="btn-text"><span class="l-idle">Télécharger pour Windows</span><span class="l-done" aria-hidden="true">Téléchargement lancé</span></span>
+            </a>
+            <p class="facts"><span>Gratuit et open source</span><span data-version>v1.22.0</span><span data-size="setup">111&nbsp;Mo</span></p>
           </div>
-          <p class="chapter-current" aria-hidden="true" data-chapter-current>Accueil</p>
-          <div class="player-controls">
-            <button class="icon-btn" type="button" data-play aria-label="Lire la vidéo">
-              <svg class="icon i-play" viewBox="0 0 20 20" aria-hidden="true"><path class="fill" d="M6 4.2v11.6a.6.6 0 0 0 .9.5l9.2-5.8a.6.6 0 0 0 0-1L6.9 3.7a.6.6 0 0 0-.9.5z"/></svg>
-              <svg class="icon i-pause" viewBox="0 0 20 20" aria-hidden="true"><path class="fill" d="M5.5 4h3v12h-3zM11.5 4h3v12h-3z"/></svg>
+        </div>
+
+        <div class="dock-wrap">
+          <div class="dock" role="group" aria-label="Lecture de la vidéo">
+            <button class="dk dk-play" type="button" data-play aria-label="Lire la vidéo">
+              <svg class="icon i-play" viewBox="0 0 20 20" aria-hidden="true"><path class="f" d="M6 4.2v11.6a.6.6 0 0 0 .9.5l9.2-5.8a.6.6 0 0 0 0-1L6.9 3.7a.6.6 0 0 0-.9.5z"/></svg>
+              <svg class="icon i-pause" viewBox="0 0 20 20" aria-hidden="true"><path class="f" d="M5.5 4h3v12h-3zM11.5 4h3v12h-3z"/></svg>
             </button>
-            <button class="icon-btn" type="button" data-sound aria-label="Activer le son" aria-pressed="false">
-              <svg class="icon i-muted" viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 7.5h3l4-3.5v12l-4-3.5h-3z"/><path d="m13.5 8 4 4m0-4-4 4"/></svg>
-              <svg class="icon i-sound" viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 7.5h3l4-3.5v12l-4-3.5h-3z"/><path d="M13.5 7.2a4 4 0 0 1 0 5.6M15.6 5a7 7 0 0 1 0 10"/></svg>
+            <span class="dk-sep" aria-hidden="true"></span>
+            <button class="dk" type="button" data-prev aria-label="Chapitre précédent"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="m12 5-5 5 5 5"/></svg></button>
+            <div class="dk-now"><span class="dk-name" data-now><b>Accueil</b><small class="num">1 sur 5</small></span></div>
+            <span class="sr" role="status" data-chapter-said></span>
+            <button class="dk" type="button" data-next aria-label="Chapitre suivant"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg></button>
+            <span class="dk-sep" aria-hidden="true"></span>
+            <button class="dk" type="button" data-sound aria-label="Activer le son" aria-pressed="false">
+              <svg class="icon i-off" viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 7.5h3l4-3.5v12l-4-3.5h-3z"/><path d="m13.5 8 4 4m0-4-4 4"/></svg>
+              <svg class="icon i-on" viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 7.5h3l4-3.5v12l-4-3.5h-3z"/><path d="M13.5 7.2a4 4 0 0 1 0 5.6M15.6 5a7 7 0 0 1 0 10"/></svg>
             </button>
+            <span class="dk-progress" aria-hidden="true"><span data-progress></span></span>
           </div>
+          <p class="tag">Vraie interface, données fictives</p>
         </div>
       </div>
     </section>
 
-    <!-- Fonctions -->
-    <section class="section" id="fonctions">
-      <div class="wrap">
-        <h2 class="h2" data-reveal>Tout votre compte, lu depuis le client Riot</h2>
-
-        <div class="bento">
-          <!-- Boutique -->
-          <article class="tile tile-shop" data-reveal style="--i:0">
-            <div class="tile-text">
-              <h3 class="h3">Boutique</h3>
-              <p>Offres du jour, marché nocturne, packs et accessoires, avec le temps restant avant le renouvellement.</p>
-            </div>
-            <div class="tile-visual shop" aria-hidden="true">
-              <div class="shop-grid">
-                <div class="skin skin-a" style="--i:0"><img src="img/skin-vandal-kuronami.webp" alt="" width="512" height="136" loading="lazy"><span>Vandal (Kuronami)</span></div>
-                <div class="skin skin-b" style="--i:1"><img src="img/skin-phantom-oni.webp" alt="" width="512" height="116" loading="lazy"><span>Phantom (Oni)</span></div>
-                <div class="skin skin-c" style="--i:2"><img src="img/skin-operator-glitchpop.webp" alt="" width="512" height="100" loading="lazy"><span>Operator (Glitchpop)</span></div>
-                <div class="skin skin-d" style="--i:3"><img src="img/skin-sheriff-rgx.webp" alt="" width="512" height="236" loading="lazy"><span>Sheriff (RGX 11z Pro)</span></div>
-              </div>
-            </div>
-          </article>
-
-          <!-- Partie en direct -->
-          <article class="tile tile-live" data-reveal style="--i:1">
-            <span class="tag tag-corner">Données fictives</span>
-            <div class="tile-text">
-              <h3 class="h3">Partie en direct</h3>
-              <p>Les joueurs de la partie en cours, leurs rangs, leurs stats et les groupes repérés.</p>
-            </div>
-            <div class="tile-visual live" aria-hidden="true">
-              <div class="live-head"><span>Votre équipe</span><span>K/D</span><span>HS</span></div>
-              <ul class="live-rows" data-stagger>
-                <li class="row g1" style="--i:0"><img class="agent" src="img/agent-jett-icon.webp" alt="" width="128" height="128" loading="lazy"><span class="who"><b>Nova#0721</b><i class="group">Groupe 1</i></span><img class="rank" src="img/rank-21.webp" alt="" width="96" height="96" loading="lazy"><span class="num">1,30</span><span class="num">28&nbsp;%</span></li>
-                <li class="row g1" style="--i:1"><img class="agent" src="img/agent-omen-icon.webp" alt="" width="128" height="128" loading="lazy"><span class="who"><b>Zephyr#EUW</b><i class="group">Groupe 1</i></span><img class="rank" src="img/rank-20.webp" alt="" width="96" height="96" loading="lazy"><span class="num">1,08</span><span class="num">24&nbsp;%</span></li>
-                <li class="row" style="--i:2"><img class="agent" src="img/agent-sova-icon.webp" alt="" width="128" height="128" loading="lazy"><span class="who"><b>Kaito#777</b></span><img class="rank" src="img/rank-20.webp" alt="" width="96" height="96" loading="lazy"><span class="num">1,12</span><span class="num">22&nbsp;%</span></li>
-              </ul>
-              <div class="live-head live-head-enemy"><span>Adversaires</span><span>K/D</span><span>HS</span></div>
-              <ul class="live-rows" data-stagger>
-                <li class="row g2" style="--i:3"><img class="agent" src="img/agent-reyna-icon.webp" alt="" width="128" height="128" loading="lazy"><span class="who"><b>Vex#KR2</b><i class="group">Groupe 2</i></span><img class="rank" src="img/rank-24.webp" alt="" width="96" height="96" loading="lazy"><span class="num">1,46</span><span class="num">31&nbsp;%</span></li>
-                <li class="row g2" style="--i:4"><img class="agent" src="img/agent-viper-icon.webp" alt="" width="128" height="128" loading="lazy"><span class="who"><b>Lys#FR</b><i class="group">Groupe 2</i></span><img class="rank" src="img/rank-22.webp" alt="" width="96" height="89" loading="lazy"><span class="num">1,03</span><span class="num">23&nbsp;%</span></li>
-              </ul>
-            </div>
-          </article>
-
-          <!-- Statistiques -->
-          <article class="tile tile-stats" data-reveal style="--i:0">
-            <span class="tag tag-corner">Données fictives</span>
-            <div class="tile-text">
-              <h3 class="h3">Statistiques</h3>
-              <p>K/D, ADR, HS&nbsp;%, KAST et évolution du RR, par mode, agent et carte.</p>
-            </div>
-            <div class="tile-visual stats" aria-hidden="true">
-              <dl class="kpis">
-                <div><dt>K/D</dt><dd>1,30</dd></div>
-                <div><dt>ADR</dt><dd>158,0</dd></div>
-                <div><dt>HS</dt><dd>27,9&nbsp;%</dd></div>
-                <div><dt>KAST</dt><dd>74&nbsp;%</dd></div>
-              </dl>
-              <div class="chart">
-                <span class="chart-label">Évolution du RR</span>
-                <svg viewBox="0 0 320 120" preserveAspectRatio="none" data-chart>
-                  <defs>
-                    <linearGradient id="rr-fill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0" stop-color="#2fe0c5" stop-opacity=".28"/>
-                      <stop offset="1" stop-color="#2fe0c5" stop-opacity="0"/>
-                    </linearGradient>
-                  </defs>
-                  <path class="chart-grid" d="M0 30H320M0 60H320M0 90H320"/>
-                  <path class="chart-area" d="M0 100 L22 94 L44 97 L66 84 L88 88 L110 76 L132 79 L154 66 L176 71 L198 58 L220 61 L242 47 L264 52 L286 38 L308 30 L320 24 V120 H0Z" fill="url(#rr-fill)"/>
-                  <path class="chart-line" pathLength="1" d="M0 100 L22 94 L44 97 L66 84 L88 88 L110 76 L132 79 L154 66 L176 71 L198 58 L220 61 L242 47 L264 52 L286 38 L308 30 L320 24"/>
-                </svg>
-              </div>
-            </div>
-          </article>
-
-          <!-- Liste de souhaits -->
-          <article class="tile tile-wish" data-reveal style="--i:1">
-            <span class="tag tag-corner">Exemple</span>
-            <div class="tile-text">
-              <h3 class="h3">Liste de souhaits</h3>
-              <p>Partagée avec PX-0, le bot Discord du même auteur&#8239;: il vous prévient en message privé quand un skin souhaité arrive dans votre boutique.</p>
-            </div>
-            <div class="tile-visual wish" aria-hidden="true">
-              <div class="dm" data-dm>
-                <span class="dm-avatar">PX</span>
-                <div class="dm-body">
-                  <p class="dm-meta"><b>PX-0</b> <span>Message privé</span></p>
-                  <p class="dm-text">Un skin de votre liste de souhaits est dans votre boutique.</p>
-                  <div class="dm-card">
-                    <img src="img/skin-vandal-kuronami.webp" alt="" width="512" height="136" loading="lazy">
-                    <span>Vandal (Kuronami)</span>
+    <section class="journey wrap" id="installation">
+      <h2 class="h2" data-reveal>De l’installation à votre première partie</h2>
+      <div class="path" data-path>
+      <span class="rail" aria-hidden="true"><span data-rail></span></span>
+      <ol class="stops">
+        <li class="stop">
+          <span class="node" aria-hidden="true"></span>
+          <div class="stop-text">
+            <h3 class="h3">Téléchargez l’installeur</h3>
+            <p>Un seul fichier, qui se met ensuite à jour tout seul.</p>
+            <a class="btn" href="https://github.com/NOUSSS/precise-gunplay/releases/latest" data-dl="setup" data-cta>
+              <span class="btn-icon" aria-hidden="true"><svg class="i-win" viewBox="0 0 20 20"><path d="M3 4.6 8.6 3.8v5.6H3zM9.6 3.7 17 2.7v6.7H9.6zM3 10.4h5.6v5.6L3 15.2zM9.6 10.4H17v6.9l-7.4-1z"/></svg><svg class="i-ok" viewBox="0 0 20 20"><path d="m4.5 10.4 3.6 3.6 7.4-7.8"/></svg></span>
+              <span class="btn-text"><span class="l-idle">Télécharger<span class="long"> pour Windows</span></span><span class="l-done" aria-hidden="true"><span class="long">Téléchargement lancé</span><span class="short">Lancé</span></span></span>
+            </a>
+            <a class="link" href="https://github.com/NOUSSS/precise-gunplay/releases/latest" data-dl="portable">Ou la version portable, sans installation</a>
+          </div>
+          <div class="illus" data-illus="dl" aria-hidden="true">
+            <div class="stage dl-stage" data-stage>
+              <div class="w br">
+                <div class="br-tabs"><span class="br-tab"><img src="img/favicon.png" width="32" height="32" alt="" loading="lazy"><span>Precise Gunplay, compagnon VALORANT pour Windows</span></span><svg class="w-ctl" viewBox="0 0 138 32"><path d="M18 16.5h10M64.5 11.5h9v9h-9zM110 11l10 10m0-10-10 10"/></svg></div>
+                <div class="br-tool">
+                  <svg class="br-nav" viewBox="0 0 84 28"><path d="M19 14H9m4-4-4 4 4 4"/><path class="off" d="M37 14h10m-4-4 4 4-4 4"/><path d="M71.3 11.2a5.2 5.2 0 1 0 .9 4.4M71.6 7.8v3.8h-3.8"/></svg>
+                  <span class="br-url"><svg viewBox="0 0 16 16"><path d="M2.5 5h5.5M11.5 5h2M2.5 11h2M8 11h5.5"/><circle cx="9.8" cy="5" r="1.7"/><circle cx="6.2" cy="11" r="1.7"/></svg><span>precise-gunplay.feitanx.com</span></span>
+                  <span class="br-dl"><svg viewBox="0 0 28 28"><circle class="br-ring" cx="14" cy="14" r="11.5" pathLength="100"/><path d="M14 8v8.5m-3.6-3.6 3.6 3.6 3.6-3.6M9.5 20h9"/></svg></span>
+                </div>
+                <div class="br-page">
+                  <img class="br-shot" src="media/poster.webp" width="1920" height="1080" alt="" loading="lazy">
+                  <img class="br-logo" src="img/logo-full.webp" width="640" height="161" alt="" loading="lazy">
+                  <div class="br-copy">
+                    <p class="br-title">Votre VALORANT,<br>vu <em>de près.</em></p>
+                    <span class="br-btn" data-btn><svg viewBox="0 0 20 20"><path d="M3 4.6 8.6 3.8v5.6H3zM9.6 3.7 17 2.7v6.7H9.6zM3 10.4h5.6v5.6L3 15.2zM9.6 10.4H17v6.9l-7.4-1z"/></svg>Télécharger pour Windows</span>
+                  </div>
+                </div>
+                <div class="br-bubble">
+                  <p class="br-bh">Téléchargements récents</p>
+                  <div class="br-item" data-item>
+                    <span class="br-ficon"><img src="img/logo-mark.webp" width="400" height="332" alt=""><svg viewBox="0 0 36 36"><circle class="br-ring" cx="18" cy="18" r="16.5" pathLength="100"/></svg></span>
+                    <span class="br-meta"><b data-name="setup">Precise-Gunplay-Setup-1.22.0.exe</b><span class="br-st num"><span data-prog></span><span data-size="setup">111&nbsp;Mo</span><span data-st> • Terminé</span></span></span>
                   </div>
                 </div>
               </div>
+              <span class="cursor" data-cur data-hide><svg viewBox="0 0 20 20"><path d="M4 2.5v13.2l3.4-3.1 2.2 5 2.3-1-2.2-4.9h4.6z"/></svg></span>
             </div>
-          </article>
-
-          <!-- Accueil et historique -->
-          <article class="tile tile-home" data-reveal style="--i:0">
-            <span class="tag tag-corner">Données fictives</span>
-            <div class="tile-text">
-              <h3 class="h3">Accueil et historique</h3>
-              <p>Profil, rang, agent favori et derniers matchs dès l’ouverture, puis l’historique de vos parties.</p>
-            </div>
-            <div class="tile-visual home" aria-hidden="true">
-              <div class="profile">
-                <img class="profile-rank" src="img/rank-21.webp" alt="" width="96" height="96" loading="lazy">
-                <div><b>Nova#0721</b><span>Ascendant 1, agent favori Jett</span></div>
-              </div>
-              <ul class="matches" data-stagger>
-                <li style="--i:0"><img class="map" src="img/map-haven-s.webp" alt="" width="240" height="135" loading="lazy"><span>Haven</span><img class="agent" src="img/agent-jett-icon.webp" alt="" width="128" height="128" loading="lazy"><span class="score win">13-9</span></li>
-                <li style="--i:1"><img class="map" src="img/map-lotus-s.webp" alt="" width="240" height="135" loading="lazy"><span>Lotus</span><img class="agent" src="img/agent-jett-icon.webp" alt="" width="128" height="128" loading="lazy"><span class="score loss">11-13</span></li>
-                <li style="--i:2"><img class="map" src="img/map-sunset-s.webp" alt="" width="240" height="135" loading="lazy"><span>Sunset</span><img class="agent" src="img/agent-raze-icon.webp" alt="" width="128" height="128" loading="lazy"><span class="score win">13-8</span></li>
-              </ul>
-            </div>
-          </article>
-
-          <!-- Groupe, amis, collection -->
-          <article class="tile tile-more" data-reveal style="--i:1">
-            <div class="tile-text">
-              <h3 class="h3">Groupe, amis et collection</h3>
-              <p>Votre groupe, vos amis et vos skins, au même endroit que le reste.</p>
-            </div>
-            <ul class="more-list">
-              <li>
-                <svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="7.5" cy="7" r="2.8"/><path d="M2.5 16c.6-2.7 2.6-4.2 5-4.2s4.4 1.5 5 4.2"/><circle cx="14" cy="7.8" r="2.2"/><path d="M14 11.8c1.8 0 3.1 1.2 3.5 3.2"/></svg>
-                <span>Groupe</span>
-              </li>
-              <li>
-                <svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="7" r="3.2"/><path d="M4 16.5c.7-3 3-4.6 6-4.6s5.3 1.6 6 4.6"/></svg>
-                <span>Amis</span>
-              </li>
-              <li>
-                <svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="6" height="6" rx="1.2"/><rect x="11" y="3" width="6" height="6" rx="1.2"/><rect x="3" y="11" width="6" height="6" rx="1.2"/><rect x="11" y="11" width="6" height="6" rx="1.2"/></svg>
-                <span>Collection</span>
-              </li>
-            </ul>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <!-- Résolution étirée -->
-    <section class="section stretch" id="resolution">
-      <div class="stretch-bg" aria-hidden="true"></div>
-      <div class="wrap">
-        <h2 class="h2" data-reveal>La résolution étirée se règle toute seule</h2>
-
-        <div class="stretch-grid">
-          <ol class="steps" data-steps>
-            <li class="step" data-reveal style="--i:0">
-              <button type="button" class="step-btn" data-step="0">
-                <span class="step-num">01</span>
-                <span class="step-body">
-                  <span class="step-title">Lancement du jeu</span>
-                  <span class="step-text">L’app passe l’écran sur le pilote d’écran générique.</span>
-                </span>
-                <span class="step-progress"><span></span></span>
-              </button>
-            </li>
-            <li class="step" data-reveal style="--i:1">
-              <button type="button" class="step-btn" data-step="1">
-                <span class="step-num">02</span>
-                <span class="step-body">
-                  <span class="step-title">Fin de l’écran de chargement</span>
-                  <span class="step-text">La résolution étirée s’applique, prête pour la partie.</span>
-                </span>
-                <span class="step-progress"><span></span></span>
-              </button>
-            </li>
-            <li class="step" data-reveal style="--i:2">
-              <button type="button" class="step-btn" data-step="2">
-                <span class="step-num">03</span>
-                <span class="step-body">
-                  <span class="step-title">Fin de la partie</span>
-                  <span class="step-text">Retour à la résolution native, sans rien toucher.</span>
-                </span>
-                <span class="step-progress"><span></span></span>
-              </button>
-            </li>
-          </ol>
-
-          <div class="monitor-wrap" data-reveal style="--i:1">
-            <div class="monitor" data-monitor data-state="0" aria-hidden="true">
-              <div class="screen">
-                <div class="scene">
-                  <img src="img/map-ascent.webp" alt="" width="1600" height="900" loading="lazy">
-                </div>
-                <div class="crosshair"></div>
-                <div class="loading">
-                  <span class="loading-label">Chargement</span>
-                  <span class="loading-bar"><span></span></span>
-                </div>
-                <div class="hud">
-                  <span class="hud-res" data-res>Pilote d’écran générique</span>
-                </div>
-              </div>
-            </div>
-            <div class="monitor-stand" aria-hidden="true"></div>
-            <p class="caption">Illustration&nbsp;: 1440 × 1080 étirée sur un écran 1920 × 1080.</p>
           </div>
-        </div>
-
-        <ul class="assurances">
-          <li data-reveal style="--i:0">
-            <svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.8 4 5.2v4.3c0 3.7 2.5 6.6 6 7.7 3.5-1.1 6-4 6-7.7V5.2z"/><path d="m7.4 10 1.9 1.9 3.4-3.6"/></svg>
-            <p><b>Le jeu n’est jamais touché.</b> L’app change la résolution de Windows, pas le processus de VALORANT.</p>
-          </li>
-          <li data-reveal style="--i:1">
-            <svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="4" y="9" width="12" height="8" rx="1.6"/><path d="M6.8 9V6.6a3.2 3.2 0 0 1 6.4 0V9"/></svg>
-            <p><b>Une autorisation administrateur, une seule fois.</b> Elle sert à créer deux tâches planifiées.</p>
-          </li>
-        </ul>
-      </div>
-    </section>
-
-    <!-- Installation -->
-    <section class="section" id="installation">
-      <div class="wrap">
-        <h2 class="h2" data-reveal>Installer Precise Gunplay</h2>
-
-        <div class="install-grid">
-          <ol class="install-steps">
-            <li data-reveal style="--i:0">
-              <span class="step-num">01</span>
-              <div>
-                <h3 class="h3">Téléchargez le fichier depuis GitHub</h3>
-                <div class="files">
-                  <a class="file file-main" href="https://github.com/NOUSSS/precise-gunplay/releases/latest" data-dl="setup">
-                    <span class="file-head"><b>Installeur</b><span class="tag tag-red">Recommandé</span></span>
-                    <code data-name="setup">Precise-Gunplay-Setup-1.20.0.exe</code>
-                    <span class="file-note"><span data-size="setup">79&nbsp;Mo</span>, mises à jour automatiques</span>
-                  </a>
-                  <a class="file" href="https://github.com/NOUSSS/precise-gunplay/releases/latest" data-dl="portable">
-                    <span class="file-head"><b>Portable</b></span>
-                    <code data-name="portable">Precise-Gunplay-Portable-1.20.0.exe</code>
-                    <span class="file-note"><span data-size="portable">79&nbsp;Mo</span>, sans installation, mise à jour manuelle</span>
-                  </a>
+        </li>
+        <li class="stop">
+          <span class="node" aria-hidden="true"></span>
+          <div class="stop-text">
+            <h3 class="h3">Passez l’avertissement de Windows</h3>
+            <p>L’app n’est pas signée, Windows ne la reconnaît donc pas. Cliquez sur Informations complémentaires, puis sur Exécuter quand même.</p>
+          </div>
+          <div class="illus" data-illus="ss" aria-hidden="true">
+            <div class="ss" data-ss data-s="0">
+              <p class="ss-title">Windows a protégé votre ordinateur</p>
+              <p class="ss-text">Microsoft Defender SmartScreen a empêché le démarrage d’une application non reconnue. L’exécution de cette application peut présenter un risque pour votre ordinateur.</p>
+              <span class="ss-more" data-ss-more>Informations complémentaires</span>
+              <dl class="ss-details"><dt>Application&nbsp;:</dt><dd data-name="setup">Precise-Gunplay-Setup-1.22.0.exe</dd><dt>Éditeur&nbsp;:</dt><dd>Éditeur inconnu</dd></dl>
+              <div class="ss-actions"><span class="ss-btn ss-run" data-ss-run>Exécuter quand même</span><span class="ss-btn">Ne pas exécuter</span></div>
+              <span class="cursor" data-cursor><svg viewBox="0 0 20 20"><path d="M4 2.5v13.2l3.4-3.1 2.2 5 2.3-1-2.2-4.9h4.6z"/></svg></span>
+            </div>
+          </div>
+        </li>
+        <li class="stop">
+          <span class="node" aria-hidden="true"></span>
+          <div class="stop-text">
+            <h3 class="h3">Ouvrez le Riot Client</h3>
+            <p>Precise Gunplay le détecte et lit votre compte sur votre PC. Aucun mot de passe à saisir.</p>
+          </div>
+          <div class="illus" data-illus="acct" aria-hidden="true">
+            <div class="stage acct-stage" data-stage>
+              <div class="w riot">
+                <div class="riot-top">Riot Client<svg class="w-ctl" viewBox="0 0 138 32"><path d="M18 16.5h10M64.5 11.5h9v9h-9zM110 11l10 10m0-10-10 10"/></svg></div>
+                <div class="riot-hero">
+                  <img class="riot-bg" src="img/map-ascent.webp" width="1600" height="900" alt="" loading="lazy">
+                  <img class="riot-agent" src="img/agent-jett-full.webp" width="1100" height="999" alt="" loading="lazy">
+                  <b class="riot-game">VALORANT</b>
+                  <span class="riot-play">Jouer</span>
                 </div>
               </div>
-            </li>
-            <li data-reveal style="--i:1">
-              <span class="step-num">02</span>
-              <div>
-                <h3 class="h3">Passez l’avertissement SmartScreen</h3>
-                <p>L’app n’est pas signée. Au premier lancement, Windows affiche «&nbsp;Windows a protégé votre ordinateur&nbsp;»&#8239;: cliquez sur Informations complémentaires, puis sur Exécuter quand même.</p>
+              <div class="w pg acct-pg">
+                <div class="pg-top"><img src="img/logo-mark.webp" width="400" height="332" alt=""><span>Precise <b>Gunplay</b></span><svg class="w-ctl" viewBox="0 0 138 32"><path d="M18 16.5h10M64.5 11.5h9v9h-9zM110 11l10 10m0-10-10 10"/></svg></div>
+                <div class="pg-shell">
+                  <span class="pg-side"><span class="pg-nav on"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Accueil</span><span class="pg-nav"><svg viewBox="0 0 24 24"><path d="M4 7h16l-1.5 12.5a1 1 0 0 1-1 .5H6.5a1 1 0 0 1-1-.5zM9 7V5a3 3 0 0 1 6 0v2"/></svg>Boutique</span><span class="pg-nav"><svg viewBox="0 0 24 24"><path d="M12 3.2l2.7 5.5 6 .9-4.35 4.25 1.03 6L12 17l-5.38 2.85 1.03-6L3.3 9.6l6-.9z"/></svg>Liste de souhaits</span><span class="pg-nav"><svg viewBox="0 0 24 24"><rect x="2.5" y="4" width="19" height="13" rx="1.5"/><path d="M8 21h8M12 17v4M6.5 10.5h11M6.5 10.5l2-2M6.5 10.5l2 2M17.5 10.5l-2-2M17.5 10.5l-2 2"/></svg>Résolution étirée</span><span class="pg-nav"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M6.3 6.3a8 8 0 0 0 0 11.4M17.7 6.3a8 8 0 0 1 0 11.4"/></svg>Partie en direct</span><span class="pg-nav"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>Historique</span><span class="pg-nav"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Statistiques</span></span>
+                  <div class="pg-main">
+                    <p class="pg-wait"><span class="pg-spin"></span>Recherche du Riot Client…</p>
+                    <div class="pg-home">
+                      <p class="pg-h1">Nova <span>#0721</span></p>
+                      <p class="pg-facts">Niveau 214 · Inarrêtable</p>
+                      <div class="pg-rank">
+                        <div><p class="pg-rr"><b class="num">68</b><span>/ 100 RR</span></p><p class="pg-tier">Ascendant 1</p><span class="pg-rrbar"><span></span></span></div>
+                        <img src="img/rank-21.webp" width="96" height="96" alt="" loading="lazy">
+                      </div>
+                      <div class="pg-card">
+                        <p class="pg-card-h">Derniers matchs<span>Tout voir</span></p>
+                        <span class="pg-lm win" style="--map:url(img/map-lotus-s.webp)"><img src="img/agent-jett-icon.webp" width="128" height="128" alt="" loading="lazy"><span><b>Lotus</b><small>il y a 2 h</small></span><b class="pg-sc num">13&nbsp;–&nbsp;11</b><img src="img/rank-21.webp" width="96" height="96" alt="" loading="lazy"></span>
+                        <span class="pg-lm loss" style="--map:url(img/map-sunset-s.webp)"><img src="img/agent-reyna-icon.webp" width="128" height="128" alt="" loading="lazy"><span><b>Sunset</b><small>il y a 4 h</small></span><b class="pg-sc num">11&nbsp;–&nbsp;13</b><img src="img/rank-21.webp" width="96" height="96" alt="" loading="lazy"></span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <p class="pg-toast">Compte lié&nbsp;: Nova#0721</p>
               </div>
-            </li>
-            <li data-reveal style="--i:2">
-              <span class="step-num">03</span>
-              <div>
-                <h3 class="h3">Autorisez la résolution étirée</h3>
-                <p>Windows demande une autorisation administrateur la première fois que vous l’activez. C’est tout.</p>
-              </div>
-            </li>
-          </ol>
-
-          <div class="smart-wrap" data-reveal style="--i:1">
-            <div class="smart" data-smart data-state="0" aria-hidden="true">
-              <div class="smart-close">
-                <svg viewBox="0 0 20 20"><path d="m6 6 8 8m0-8-8 8"/></svg>
-              </div>
-              <p class="smart-title">Windows a protégé votre ordinateur</p>
-              <p class="smart-text">Microsoft Defender SmartScreen a empêché le démarrage d’une application non reconnue. L’exécution de cette application peut présenter un risque pour votre ordinateur.</p>
-              <span class="smart-link" data-target="link">Informations complémentaires</span>
-              <dl class="smart-details">
-                <div><dt>Application&nbsp;:</dt><dd data-name="setup">Precise-Gunplay-Setup-1.20.0.exe</dd></div>
-                <div><dt>Éditeur&nbsp;:</dt><dd>Éditeur inconnu</dd></div>
-              </dl>
-              <div class="smart-actions">
-                <span class="smart-btn smart-run" data-target="run">Exécuter quand même</span>
-                <span class="smart-btn">Ne pas exécuter</span>
-              </div>
-              <span class="cursor" data-cursor>
-                <svg viewBox="0 0 20 20"><path d="M4 2.5v13.2l3.4-3.1 2.2 5 2.3-1-2.2-4.9h4.6z"/></svg>
-              </span>
             </div>
-            <p class="caption">Reproduction de la fenêtre de Windows.</p>
           </div>
-        </div>
-
-        <ul class="trust">
-          <li data-reveal style="--i:0">
-            <h3 class="h3">Aucun mot de passe demandé</h3>
-            <p>L’app lit le client Riot déjà ouvert sur votre PC. Seule la liste de souhaits, facultative, passe par Discord.</p>
-          </li>
-          <li data-reveal style="--i:1">
-            <h3 class="h3">Gratuit et open source</h3>
-            <p>Code publié sur GitHub sous licence MIT.</p>
-          </li>
-          <li data-reveal style="--i:2">
-            <h3 class="h3">Mises à jour automatiques</h3>
-            <p>Avec l’installeur, les nouvelles versions arrivent d’elles-mêmes.</p>
-          </li>
-        </ul>
+        </li>
+        <li class="stop">
+          <span class="node" aria-hidden="true"></span>
+          <div class="stop-text">
+            <h3 class="h3">Activez la résolution étirée</h3>
+            <p>Choisissez votre résolution dans l’app et activez-la. La première fois, Windows demande une autorisation administrateur.</p>
+            <p>En partie, l’écran passe en résolution étirée à la fin du chargement. Pour cela, l’app met vos écrans sur le pilote générique de Windows et verrouille les réglages d’affichage de VALORANT, sans jamais toucher au processus du jeu. <span class="keys"><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>F9</kbd></span> remet l’affichage comme avant, à tout moment.</p>
+          </div>
+          <div class="illus" data-illus="mon" aria-hidden="true">
+            <div class="stage mon-stage" data-stage>
+              <div class="mon-wrap">
+                <div class="mon" data-mon data-stretched>
+                  <div class="render">
+                    <img src="img/map-ascent.webp" width="1600" height="900" alt="" loading="lazy">
+                    <svg class="xhair" viewBox="0 0 24 24"><path d="M12 3v6M12 15v6M3 12h6M15 12h6"/></svg>
+                  </div>
+                  <div class="mon-load"><b>ASCENT</b></div>
+                </div>
+                <span class="mon-neck"></span><span class="mon-foot"></span>
+              </div>
+              <div class="w pg st-pg">
+                <div class="pg-top"><img src="img/logo-mark.webp" width="400" height="332" alt=""><span>Precise <b>Gunplay</b></span><svg class="w-ctl" viewBox="0 0 138 32"><path d="M18 16.5h10M64.5 11.5h9v9h-9zM110 11l10 10m0-10-10 10"/></svg></div>
+                <div class="pg-main">
+                  <div class="st-head"><p class="pg-h1">Résolution étirée</p><span class="pg-switch" data-sw data-on><i></i></span></div>
+                  <div class="st-panel" data-k="stretched"><span class="st-dot"></span><span class="st-text"><span data-k="off"><b>Désactivée</b><small>Écran en 1920&nbsp;×&nbsp;1080 à 240&nbsp;Hz.</small></span><span data-k="idle"><b>En attente de VALORANT</b><small>Passage en 1440&nbsp;×&nbsp;1080 quand une partie commence.</small></span><span data-k="armed"><b>Chargement de la partie</b><small>Passage en 1440&nbsp;×&nbsp;1080 à la fin du chargement.</small></span><span data-k="stretched"><b>En partie</b><small>Résolution étirée 1440&nbsp;×&nbsp;1080.</small></span><span data-k="native"><b>En partie</b><small>Résolution native, choisie au raccourci.</small></span></span></div>
+                  <p class="st-rescue" data-rescue>Écran illisible&nbsp;: <kbd>Ctrl</kbd><kbd>F9</kbd> remet l’affichage comme avant.</p>
+                </div>
+              </div>
+              <span class="st-keys" data-keys><kbd>Ctrl</kbd><kbd>F9</kbd></span>
+              <span class="cursor" data-cur data-hide><svg viewBox="0 0 20 20"><path d="M4 2.5v13.2l3.4-3.1 2.2 5 2.3-1-2.2-4.9h4.6z"/></svg></span>
+            </div>
+          </div>
+        </li>
+        <li class="stop">
+          <span class="node" aria-hidden="true"></span>
+          <div class="stop-text">
+            <h3 class="h3">Après la partie</h3>
+            <p>L’écran revient en résolution native. La partie rejoint votre historique et vos statistiques.</p>
+          </div>
+          <div class="illus" data-illus="after" aria-hidden="true">
+            <div class="stage after-stage" data-stage>
+              <div class="w pg after-pg">
+                <div class="pg-top"><img src="img/logo-mark.webp" width="400" height="332" alt=""><span>Precise <b>Gunplay</b></span><svg class="w-ctl" viewBox="0 0 138 32"><path d="M18 16.5h10M64.5 11.5h9v9h-9zM110 11l10 10m0-10-10 10"/></svg></div>
+                <div class="pg-shell">
+                  <span class="pg-side"><span class="pg-nav"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Accueil</span><span class="pg-nav"><svg viewBox="0 0 24 24"><path d="M4 7h16l-1.5 12.5a1 1 0 0 1-1 .5H6.5a1 1 0 0 1-1-.5zM9 7V5a3 3 0 0 1 6 0v2"/></svg>Boutique</span><span class="pg-nav"><svg viewBox="0 0 24 24"><path d="M12 3.2l2.7 5.5 6 .9-4.35 4.25 1.03 6L12 17l-5.38 2.85 1.03-6L3.3 9.6l6-.9z"/></svg>Liste de souhaits</span><span class="pg-nav"><svg viewBox="0 0 24 24"><rect x="2.5" y="4" width="19" height="13" rx="1.5"/><path d="M8 21h8M12 17v4M6.5 10.5h11M6.5 10.5l2-2M6.5 10.5l2 2M17.5 10.5l-2-2M17.5 10.5l-2 2"/></svg>Résolution étirée<i></i></span><span class="pg-nav"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M6.3 6.3a8 8 0 0 0 0 11.4M17.7 6.3a8 8 0 0 1 0 11.4"/></svg>Partie en direct</span><span class="pg-nav" data-nav="history"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>Historique</span><span class="pg-nav" data-nav="stats"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Statistiques</span></span>
+                  <div class="pg-main pg-pages">
+                    <div class="pg-page pg-hist">
+                      <p class="pg-h1">Historique</p>
+                      <div class="hist-clip"><div class="hist-list">
+                        <span class="hrow win new"><img src="img/map-haven-s.webp" width="240" height="135" alt="" loading="lazy"><img src="img/agent-jett-icon.webp" width="128" height="128" alt="" loading="lazy"><span class="hrow-i"><b>Haven</b><small>Compétition, il y a 1 min</small></span><span class="hrow-r"><small>Victoire en 40 min</small><b class="num">13&nbsp;–&nbsp;9</b></span><span class="pg-badge mvp">MVP</span></span>
+                        <span class="hrow win"><img src="img/map-lotus-s.webp" width="240" height="135" alt="" loading="lazy"><img src="img/agent-jett-icon.webp" width="128" height="128" alt="" loading="lazy"><span class="hrow-i"><b>Lotus</b><small>Compétition, il y a 2 h</small></span><span class="hrow-r"><small>Victoire en 44 min</small><b class="num">13&nbsp;–&nbsp;11</b></span><span class="pg-badge mvp">MVP</span></span>
+                        <span class="hrow loss"><img src="img/map-sunset-s.webp" width="240" height="135" alt="" loading="lazy"><img src="img/agent-reyna-icon.webp" width="128" height="128" alt="" loading="lazy"><span class="hrow-i"><b>Sunset</b><small>Compétition, il y a 4 h</small></span><span class="hrow-r"><small>Défaite en 38 min</small><b class="num">11&nbsp;–&nbsp;13</b></span><span class="pg-badge place">4<sup>e</sup></span></span>
+                        <span class="hrow win"><img src="img/map-ascent.webp" width="240" height="135" alt="" loading="lazy"><img src="img/agent-jett-icon.webp" width="128" height="128" alt="" loading="lazy"><span class="hrow-i"><b>Ascent</b><small>Compétition, il y a 24 h</small></span><span class="hrow-r"><small>Victoire en 36 min</small><b class="num">13&nbsp;–&nbsp;7</b></span><span class="pg-badge mvp">MVP</span></span>
+                        <span class="hrow win"><img src="img/map-haven-s.webp" width="240" height="135" alt="" loading="lazy"><img src="img/agent-jett-icon.webp" width="128" height="128" alt="" loading="lazy"><span class="hrow-i"><b>Haven</b><small>Compétition, il y a 1 j</small></span><span class="hrow-r"><small>Victoire en 38 min</small><b class="num">13&nbsp;–&nbsp;10</b></span><span class="pg-badge mvp">MVP</span></span>
+                        <span class="hrow loss"><img src="img/map-lotus-s.webp" width="240" height="135" alt="" loading="lazy"><img src="img/agent-reyna-icon.webp" width="128" height="128" alt="" loading="lazy"><span class="hrow-i"><b>Lotus</b><small>Compétition, il y a 2 j</small></span><span class="hrow-r"><small>Défaite en 42 min</small><b class="num">9&nbsp;–&nbsp;13</b></span><span class="pg-badge place">6<sup>e</sup></span></span>
+                      </div></div>
+                    </div>
+                    <div class="pg-page pg-stats">
+                      <p class="pg-h1">Statistiques</p>
+                      <div class="ov">
+                        <div class="ov-head">
+                          <div><p class="ov-t">V26 · Acte VI · Compétition</p><p class="ov-s">12,9 h de jeu · 20 matchs · 443 manches</p></div>
+                          <span class="form"><i class="v">V</i><i class="v">V</i><i class="d">D</i><i class="v">V</i><i class="d">D</i><i class="v">V</i><i class="v">V</i><i class="d">D</i><i class="v">V</i><i class="v new">V</i></span>
+                        </div>
+                        <div class="ov-keys">
+                          <div><small>Dégâts / manche</small><b class="num">158,0</b><span>ADR</span></div>
+                          <div><small>K/D</small><b class="num pos">1,30</b><span>388 K · 299 D</span></div>
+                          <div><small>Headshot</small><b class="num">27,9&nbsp;%</b><span>474 touches à la tête</span></div>
+                          <div><small>Victoires</small><b class="num pos">60&nbsp;%</b><span>12 V · 8 D</span></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <span class="cursor" data-cur data-hide><svg viewBox="0 0 20 20"><path d="M4 2.5v13.2l3.4-3.1 2.2 5 2.3-1-2.2-4.9h4.6z"/></svg></span>
+            </div>
+          </div>
+        </li>
+      </ol>
       </div>
     </section>
-
-    <!-- Questions -->
-    <section class="section" id="questions">
-      <div class="wrap faq-wrap">
-        <h2 class="h2" data-reveal>Questions fréquentes</h2>
-        <div class="faq" data-reveal style="--i:1">
-          <details>
-            <summary>Faut-il se connecter à un compte&#8239;?</summary>
-            <div class="faq-a"><p>Non. Precise Gunplay lit les API locales du Riot Client lancé sur votre PC et ne voit jamais votre mot de passe. Seule la liste de souhaits, facultative, demande de lier votre compte Discord&#8239;: l’app transmet alors le jeton de session du Riot Client à PX-0, qui ne le conserve pas.</p></div>
-          </details>
-          <details>
-            <summary>L’app modifie-t-elle le jeu&#8239;?</summary>
-            <div class="faq-a"><p>Non. Elle ne touche jamais au processus de VALORANT. Pour la résolution étirée, elle change le pilote et la résolution de l’écran côté Windows, puis rétablit la résolution native à la fin de la partie.</p></div>
-          </details>
-          <details>
-            <summary>Pourquoi Windows affiche-t-il un avertissement&#8239;?</summary>
-            <div class="faq-a"><p>L’application n’est pas signée, donc SmartScreen ne la reconnaît pas. Cliquez sur Informations complémentaires, puis sur Exécuter quand même.</p></div>
-          </details>
-          <details>
-            <summary>Pourquoi une autorisation administrateur&#8239;?</summary>
-            <div class="faq-a"><p>La résolution étirée crée deux tâches planifiées. Windows vous le demande une seule fois.</p></div>
-          </details>
-          <details>
-            <summary>Installeur ou version portable&#8239;?</summary>
-            <div class="faq-a"><p>L’installeur se met à jour automatiquement, c’est le choix recommandé. La version portable se lance sans installation, mais chaque mise à jour se télécharge à la main.</p></div>
-          </details>
-          <details>
-            <summary>Fonctionne-t-elle sur Mac ou Linux&#8239;?</summary>
-            <div class="faq-a"><p>Non, Precise Gunplay est disponible uniquement pour Windows x64.</p></div>
-          </details>
-        </div>
-      </div>
-    </section>
-
-    <!-- Appel final -->
-    <section class="final" data-final>
-      <div class="final-agents" aria-hidden="true">
-        <img class="agent-l" src="img/agent-omen-full.webp" alt="" width="1100" height="999" loading="lazy" data-depth="0.08">
-        <img class="agent-r" src="img/agent-reyna-full.webp" alt="" width="1100" height="999" loading="lazy" data-depth="0.12">
-        <img class="agent-c" src="img/agent-jett-full.webp" alt="" width="1100" height="999" loading="lazy" data-depth="0.2">
-      </div>
-      <div class="wrap final-copy">
-        <img class="final-mark" src="img/logo-mark.webp" alt="" width="400" height="332" loading="lazy" data-reveal style="--i:0">
-        <h2 class="h2" data-reveal style="--i:1">Téléchargez Precise Gunplay</h2>
-        <div class="hero-actions" data-reveal style="--i:2">
-          <a class="btn btn-primary btn-lg" href="https://github.com/NOUSSS/precise-gunplay/releases/latest" data-dl="setup" data-cta>
-            <svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 4.6 8.6 3.8v5.6H3zM9.6 3.7 17 2.7v6.7H9.6zM3 10.4h5.6v5.6L3 15.2zM9.6 10.4H17v6.9l-7.4-1z" class="fill"/></svg>
-            Télécharger pour Windows
-          </a>
-          <p class="facts">Gratuit · Open source (MIT) · Windows x64</p>
-        </div>
-      </div>
-    </section>
+    <p class="sr" role="status" data-dl-status></p>
   </main>
 
-  <footer class="footer">
-    <div class="wrap footer-inner">
-      <div class="footer-top">
-        <img src="img/logo-full.webp" width="640" height="161" alt="Precise Gunplay" class="footer-logo" loading="lazy">
-        <nav class="footer-links" aria-label="Liens">
-          <a href="https://github.com/NOUSSS/precise-gunplay">Code source</a>
-          <a href="https://github.com/NOUSSS/precise-gunplay/releases">Versions</a>
-          <a href="https://github.com/NOUSSS/precise-gunplay/blob/main/LICENSE">Licence MIT</a>
-        </nav>
-      </div>
-      <p class="legal">Precise Gunplay est un projet non officiel, ni approuvé ni affilié à Riot Games. VALORANT et Riot Games sont des marques de Riot Games, Inc. Images et noms&nbsp;: valorant-api.com. Logiciel libre sous licence MIT.</p>
+  <footer class="foot wrap">
+    <div class="foot-top">
+      <img src="img/logo-full.webp" width="640" height="161" alt="Precise Gunplay" loading="lazy">
+      <nav class="foot-links" aria-label="Liens">
+        <a href="https://github.com/NOUSSS/precise-gunplay">Code source</a>
+        <a href="https://github.com/NOUSSS/precise-gunplay/releases">Versions</a>
+        <a href="https://github.com/NOUSSS/precise-gunplay/blob/main/LICENSE">Licence MIT</a>
+      </nav>
     </div>
+    <p class="legal">Precise Gunplay est un projet non officiel, ni approuvé ni affilié à Riot Games. VALORANT et Riot Games sont des marques de Riot Games, Inc. Images et noms&nbsp;: valorant-api.com.</p>
   </footer>
+
 </body>
 </html>
